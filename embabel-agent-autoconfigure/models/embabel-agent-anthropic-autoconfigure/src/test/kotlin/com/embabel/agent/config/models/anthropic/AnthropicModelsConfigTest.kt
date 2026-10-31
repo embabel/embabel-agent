@@ -20,18 +20,36 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.anthropic.ClaudeCapabilities
+import com.embabel.agent.api.dsl.agent
+import com.embabel.agent.core.EarlyTerminationPolicy
+import com.embabel.agent.core.LlmInvocation
+import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.support.InMemoryBlackboard
+import com.embabel.agent.core.support.SimpleAgentProcess
+import com.embabel.agent.domain.io.UserInput
+import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.toEmbabelUsage
+import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
+import com.embabel.common.ai.model.ONE_MILLION
 import com.embabel.common.ai.model.PerTokenPricingModel
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicChatOptions
+import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import org.springframework.web.client.RestClient
+import java.time.Duration
+import java.time.Instant
 
 class AnthropicModelsConfigTest {
 
@@ -107,20 +125,27 @@ class AnthropicModelsConfigTest {
     }
 
     @Test
-    fun `cache tokens are counted on top of prompt tokens and priced at Anthropic cache rates`() {
-        val llm = build(
-            AnthropicModelDefinition(
-                name = "sonnet55",
-                modelId = "claude-sonnet-5-5",
-                pricingModel = PerTokenPricingModel(2.0, 10.0),
-            )
-        ).llm
+    fun `cache tokens are counted on top of prompt tokens`() {
+        val llm = build(AnthropicModelDefinition(name = "sonnet55", modelId = "claude-sonnet-5-5")).llm
         assertTrue(llm.promptTokensExcludeCache)
-        assertEquals(0.0093, llm.pricingModel!!.costOf(100, 50, 18_000, 2_000), 1e-12)
     }
 
     @Test
-    fun `configured cache rates win over the derived ones`() {
+    fun `model without configured cache rates never under-charges cache reads`() {
+        val llm = build(
+            AnthropicModelDefinition(
+                name = "custom",
+                modelId = "claude-sonnet-4-5",
+                pricingModel = PerTokenPricingModel(2.0, 10.0),
+            )
+        ).llm
+        // reads at the input rate, writes at the 5-minute TTL rate of 1.25x input
+        assertEquals((100 * 2.0 + 50 * 10.0 + 18_000 * 2.0 + 2_000 * 2.5) / 1_000_000,
+            llm.pricingModel!!.costOf(100, 50, 18_000, 2_000), 1e-12)
+    }
+
+    @Test
+    fun `configured cache rates win over the fallback`() {
         val llm = build(
             AnthropicModelDefinition(
                 name = "sonnet55",
@@ -129,5 +154,79 @@ class AnthropicModelsConfigTest {
             )
         ).llm
         assertEquals(0.0007, llm.pricingModel!!.costOf(100, 50, 18_000, 2_000), 1e-12)
+    }
+
+    @Nested
+    inner class BundledModels {
+
+        private val beanFactory = DefaultListableBeanFactory().also {
+            AnthropicModelsConfig(
+                envBaseUrl = null,
+                envApiKey = "test-key",
+                properties = AnthropicProperties(),
+                observationRegistry = it.getBeanProvider(ObservationRegistry::class.java),
+                restClientBuilder = it.getBeanProvider(RestClient.Builder::class.java),
+                configurableBeanFactory = it,
+                modelLoader = AnthropicModelLoader(),
+            ).anthropicModelsInitializer()
+        }
+
+        private fun llm(name: String) = beanFactory.getBean(name) as SpringAiLlmService
+
+        /**
+         * Anthropic's published rates, platform.claude.com/docs/en/about-claude/pricing,
+         * checked 2026-10-29: cache hits, then 5-minute cache writes, in USD per 1M tokens.
+         */
+        @ParameterizedTest
+        @CsvSource(
+            "claude_fable_51, 0.25, 12.5",
+            "claude_opus_55, 0.20, 5.0",
+            "claude_sonnet_55, 0.10, 2.5",
+            "claude_haiku_55, 0.01, 0.125",
+            "claude_opus_48, 0.50, 6.25",
+            "claude_opus_46, 0.50, 6.25",
+            "claude_sonnet_46, 0.30, 3.75",
+            "claude_sonnet_45, 0.30, 3.75",
+            "claude_haiku_45, 0.10, 1.25",
+        )
+        fun `carry Anthropic's published cache rates`(name: String, read: Double, write: Double) {
+            val pricing = llm(name).pricingModel!!
+            assertEquals(read, pricing.usdPerCacheReadInputToken() * ONE_MILLION, 1e-9)
+            assertEquals(write, pricing.usdPerCacheWriteInputToken() * ONE_MILLION, 1e-9)
+        }
+
+        @Test
+        fun `every bundled model is covered by the published rates`() {
+            assertEquals(9, AnthropicModelLoader().loadAutoConfigMetadata().models.size)
+        }
+
+        @Test
+        fun `Sonnet 5_5 cache invocation costs its published price and stays within a budget above it`() {
+            val sonnet = llm("claude_sonnet_55")
+            val process = SimpleAgentProcess(
+                id = "p1",
+                parentId = null,
+                agent = agent("CacheBudget", description = "cache budget") {
+                    transformation<UserInput, UserInput>(name = "echo") { it.input }
+                    goal(name = "done", description = "done", satisfiedBy = UserInput::class)
+                },
+                processOptions = ProcessOptions(),
+                blackboard = InMemoryBlackboard(),
+                platformServices = dummyPlatformServices(),
+                plannerFactory = DefaultPlannerFactory,
+            )
+            process.recordLlmInvocation(
+                LlmInvocation(
+                    llmMetadata = sonnet,
+                    usage = DefaultUsage(100, 50, 150, null, 18_000L, 2_000L)
+                        .toEmbabelUsage(promptTokensExcludeCache = sonnet.promptTokensExcludeCache),
+                    timestamp = Instant.now(),
+                    runningTime = Duration.ZERO,
+                )
+            )
+            assertEquals(0.0075, process.totalCost(), 1e-12)
+            assertNull(EarlyTerminationPolicy.hardBudgetLimit(0.008).shouldTerminate(process))
+            assertNotNull(EarlyTerminationPolicy.hardBudgetLimit(0.007).shouldTerminate(process))
+        }
     }
 }

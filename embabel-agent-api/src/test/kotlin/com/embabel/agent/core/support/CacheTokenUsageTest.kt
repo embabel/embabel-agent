@@ -15,22 +15,33 @@
  */
 package com.embabel.agent.core.support
 
+import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.EarlyTerminationPolicy
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.support.DefaultPlannerFactory
+import com.embabel.agent.spi.support.DefaultToolDecorator
+import com.embabel.agent.spi.support.ExecutorAsyncer
+import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.springai.toEmbabelUsage
+import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.textio.template.JinjavaTemplateRenderer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.mockk.every
 import io.mockk.mockk
+import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -43,8 +54,11 @@ import org.springframework.ai.chat.metadata.Usage as SpringAiUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.prompt.Prompt
+import reactor.core.publisher.Flux
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.Executor
 
 /**
  * Prompt-cache tokens must reach Embabel usage, cost and budgets.
@@ -137,7 +151,7 @@ class CacheTokenUsageTest {
         @Test
         fun `message sender of a cache-excluding service converts usage accordingly`() {
             val chatModel = mockk<ChatModel>()
-            every { chatModel.call(any<org.springframework.ai.chat.prompt.Prompt>()) } returns ChatResponse(
+            every { chatModel.call(any<Prompt>()) } returns ChatResponse(
                 listOf(Generation(AssistantMessage("done"))),
                 ChatResponseMetadata.builder().usage(anthropicStyleUsage).build(),
             )
@@ -150,6 +164,69 @@ class CacheTokenUsageTest {
             val usage = service.createMessageSender(LlmOptions()).call(listOf(UserMessage("hi")), emptyList()).usage
             assertEquals(20_100, usage?.promptTokens)
             assertEquals(18_000, usage?.cacheReadInputTokens)
+        }
+    }
+
+    @Nested
+    inner class AgentBoundStreaming {
+
+        private fun response(output: AssistantMessage) = ChatResponse(
+            listOf(Generation(output)),
+            ChatResponseMetadata.builder().usage(anthropicStyleUsage).build(),
+        )
+
+        @Test
+        @OptIn(InternalObservabilityApi::class)
+        fun `records each inference's cache-inclusive usage once, so cost and token budgets see it`() {
+            val toolCall = AssistantMessage.builder()
+                .content("")
+                .toolCalls(listOf(AssistantMessage.ToolCall("call-1", "function", "lookup", "{}")))
+                .build()
+            val chatModel = mockk<ChatModel>()
+            every { chatModel.stream(any<Prompt>()) } returnsMany listOf(
+                Flux.just(response(toolCall)),
+                Flux.just(response(AssistantMessage("done"))),
+            )
+            val llm = SpringAiLlmService(
+                name = "claude",
+                provider = "provider",
+                chatModel = chatModel,
+                pricingModel = cachePricing,
+                promptTokensExcludeCache = true,
+            )
+            val modelProvider = mockk<ModelProvider>()
+            every { modelProvider.getLlm(any()) } returns llm
+            val operations = ChatClientLlmOperations(
+                modelProvider = modelProvider,
+                toolDecorator = DefaultToolDecorator(),
+                validator = Validation.buildDefaultValidatorFactory().validator,
+                validationPromptGenerator = DefaultValidationPromptGenerator(),
+                templateRenderer = JinjavaTemplateRenderer(),
+                embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
+                asyncer = ExecutorAsyncer(Executor { it.run() }),
+            )
+            val process = process()
+            val lookup = Tool.of("lookup", "Lookup") { Tool.Result.text("found") }
+
+            val content = operations.createStreamingOperations(LlmOptions())
+                .generateStream(
+                    listOf(UserMessage("hi")),
+                    LlmInteraction(InteractionId("stream"), tools = listOf(lookup)),
+                    process,
+                    null,
+                )
+                .collectList()
+                .block()
+
+            assertEquals(listOf("done"), content)
+            assertEquals(2, process.llmInvocations.size)
+            val total = process.totalUsage()
+            assertEquals(40_200, total.promptTokens)
+            assertEquals(36_000, total.cacheReadInputTokens)
+            assertEquals(4_000, total.cacheWriteInputTokens)
+            assertEquals(0.0186, process.totalCost(), 1e-12)
+            assertNotNull(EarlyTerminationPolicy.maxTokens(20_000).shouldTerminate(process))
+            assertNotNull(EarlyTerminationPolicy.hardBudgetLimit(0.005).shouldTerminate(process))
         }
     }
 

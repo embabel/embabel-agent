@@ -84,6 +84,9 @@ internal class SpringAiLlmMessageStreamer(
         val aggregate = Sinks.one<ChatResponse>()
         // MessageAggregator rebuilds usage without cache counts; keep the last positive
         // values, as it does for prompt and completion tokens.
+        // Only counts the provider adapter puts on a ChatResponse arrive here: Spring AI 2.0.1's
+        // AnthropicChatModel reads cache counts from message_delta alone (cumulative per Anthropic's
+        // schema), so a stream that sends them only in message_start loses them before this point.
         var cacheRead: Long? = null
         var cacheWrite: Long? = null
 

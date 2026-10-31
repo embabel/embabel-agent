@@ -1450,8 +1450,13 @@ val options = LlmOptions.withDefaultLlm()
 
 Cache reads and writes count as input tokens: `Usage.promptTokens` includes them, and `Usage.cacheReadInputTokens` and `Usage.cacheWriteInputTokens` report them separately.
 Token totals, cost and early-termination budgets therefore include cached input.
-Cost prices cache reads at 10% and cache writes at 125% of the model's input rate.
+Bundled Anthropic models carry Anthropic's published cache-read and 5-minute cache-write rates.
+A model whose `pricing_model` sets no cache rates prices cache reads at its input rate, so cost is never under-stated, and cache writes at 125% of it.
 Override either rate in the model's `pricing_model` with `usd_per1m_cache_read_input_tokens` or `usd_per1m_cache_write_input_tokens`, for example when using the 1-hour cache TTL.
+
+Streaming cache counts depend on the provider's Spring AI adapter.
+Spring AI's Anthropic streaming adapter takes cache counts only from the final `message_delta` event, whose usage Anthropic's API schema defines as cumulative.
+A gateway or provider that reports cache counts only in `message_start` records cached input as zero when streaming.
 
 Embabel provides extension methods to access Anthropic-specific cache metrics from the `Usage` object:
 
