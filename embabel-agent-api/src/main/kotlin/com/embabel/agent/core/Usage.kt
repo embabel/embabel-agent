@@ -17,11 +17,16 @@ package com.embabel.agent.core
 
 /**
  * LLM usage data
+ * @param promptTokens all input tokens, including any cache reads and writes
+ * @param cacheReadInputTokens input tokens read from the provider's prompt cache, if reported
+ * @param cacheWriteInputTokens input tokens written to the provider's prompt cache, if reported
  */
-data class Usage(
+data class Usage @JvmOverloads constructor(
     val promptTokens: Int?,
     val completionTokens: Int?,
     val nativeUsage: Any?,
+    val cacheReadInputTokens: Int? = null,
+    val cacheWriteInputTokens: Int? = null,
 ) {
 
     val totalTokens: Int?
@@ -35,14 +40,13 @@ data class Usage(
      * Used for accumulating usage across multiple LLM calls in a tool loop.
      */
     operator fun plus(other: Usage): Usage = Usage(
-        promptTokens = when {
-            this.promptTokens == null && other.promptTokens == null -> null
-            else -> (this.promptTokens ?: 0) + (other.promptTokens ?: 0)
-        },
-        completionTokens = when {
-            this.completionTokens == null && other.completionTokens == null -> null
-            else -> (this.completionTokens ?: 0) + (other.completionTokens ?: 0)
-        },
+        promptTokens = sum(promptTokens, other.promptTokens),
+        completionTokens = sum(completionTokens, other.completionTokens),
         nativeUsage = null, // Cannot combine native usage objects
+        cacheReadInputTokens = sum(cacheReadInputTokens, other.cacheReadInputTokens),
+        cacheWriteInputTokens = sum(cacheWriteInputTokens, other.cacheWriteInputTokens),
     )
+
+    private fun sum(a: Int?, b: Int?): Int? =
+        if (a == null && b == null) null else (a ?: 0) + (b ?: 0)
 }

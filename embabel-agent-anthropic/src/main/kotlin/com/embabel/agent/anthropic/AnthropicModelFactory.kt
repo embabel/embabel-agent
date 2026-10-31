@@ -193,6 +193,7 @@ open class AnthropicModelFactory(
             pricingModel = pricingModel,
             thinkingSupported = true,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
+            promptTokensExcludeCache = true,
         )
     }
 

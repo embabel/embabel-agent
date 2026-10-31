@@ -115,6 +115,17 @@ class AnthropicModelFactoryTest {
     }
 
     @Test
+    fun `build counts prompt-cache tokens reported on top of prompt tokens`() {
+        val factory = AnthropicModelFactory(
+            apiKey = "test-key",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
+        assertTrue(service.promptTokensExcludeCache)
+    }
+
+    @Test
     fun `build with custom baseUrl constructs without error`() {
         val factory = AnthropicModelFactory(
             apiKey = "test-key",
