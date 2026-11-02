@@ -772,6 +772,26 @@ class ToolTest {
         }
 
         @Test
+        fun `propagates termination exceptions instead of returning an error`() {
+            class TerminatingTools {
+                @LlmTool(description = "Stops the agent")
+                fun stopAgent(): String {
+                    throw TerminateAgentException("Missing required permissions")
+                }
+
+                @LlmTool(description = "Stops the action")
+                fun stopAction(): String {
+                    throw TerminateActionException("Service unavailable")
+                }
+            }
+
+            val tools = Tool.fromInstance(TerminatingTools())
+
+            assertThrows<TerminateAgentException> { tools.first { it.definition.name == "stopAgent" }.call("{}") }
+            assertThrows<TerminateActionException> { tools.first { it.definition.name == "stopAction" }.call("{}") }
+        }
+
+        @Test
         fun `handles empty input`() {
             val tools = Tool.fromInstance(WeatherTools())
             val directTool = tools.find { it.definition.name == "directReturn" }!!

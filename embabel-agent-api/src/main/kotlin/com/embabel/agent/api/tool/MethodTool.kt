@@ -67,8 +67,8 @@ internal sealed class MethodTool(
             // Unwrap InvocationTargetException to get the actual cause
             val actualCause = e.cause ?: e
 
-            // ReplanRequestedException must propagate - it's a control flow signal, not an error
-            if (actualCause is ReplanRequestedException) {
+            // Replan and termination requests must propagate - they are control flow signals, not errors
+            if (actualCause is ReplanRequestedException || actualCause is TerminationException) {
                 throw actualCause
             }
 
