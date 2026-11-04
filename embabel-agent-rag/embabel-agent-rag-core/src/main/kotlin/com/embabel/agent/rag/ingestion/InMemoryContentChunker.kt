@@ -30,6 +30,9 @@ import com.embabel.agent.rag.model.*
 import org.slf4j.LoggerFactory
 import java.util.*
 
+// Blank line between leaves when they are combined into one chunk.
+private const val LEAF_SEPARATOR = "\n\n"
+
 /**
  * Simple implementation of ContentChunker that operates in memory.
  * Will whole entire document in memory.
@@ -43,7 +46,10 @@ class InMemoryContentChunker(
 
     override fun chunk(section: NavigableContainerSection): List<Chunk> {
         val leaves = section.leaves().toList()
-        val totalContentLength = leaves.sumOf { it.content.length + it.title.length + 1 } // +1 for newline after title
+        // Combined chunks include a blank line between leaves.
+        val totalContentLength = leaves.sumOf {
+            it.content.length + it.title.length + 1 // +1 for newline after title
+        } + (leaves.size - 1).coerceAtLeast(0) * LEAF_SEPARATOR.length
 
         // Determine the root document: if section is a ContentRoot, use its own id and title,
         // otherwise inherit whatever provenance the caller propagated through metadata.
@@ -103,7 +109,7 @@ class InMemoryContentChunker(
         leaves: List<LeafSection>,
         root: RootDocument,
     ): Chunk {
-        val combinedContent = leaves.joinToString("\n\n") { leaf ->
+        val combinedContent = leaves.joinToString(LEAF_SEPARATOR) { leaf ->
             if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
         }.trim()
 
@@ -173,7 +179,9 @@ class InMemoryContentChunker(
             val leafSize = leaf.content.length + leaf.title.length + 1 // +1 for newline
 
             // If adding this leaf would exceed maxChunkSize, finalize current group
-            if (currentGroup.isNotEmpty() && currentGroupSize + leafSize + 2 > config.maxChunkSize) { // +2 for separator
+            if (currentGroup.isNotEmpty() &&
+                currentGroupSize + leafSize + LEAF_SEPARATOR.length > config.maxChunkSize
+            ) {
                 groups.add(currentGroup.toList())
                 currentGroup.clear()
                 currentGroupSize = 0
@@ -190,7 +198,7 @@ class InMemoryContentChunker(
             } else {
                 // Add leaf to current group
                 currentGroup.add(leaf)
-                currentGroupSize += leafSize + 2 // +2 for separator between leaves
+                currentGroupSize += leafSize + LEAF_SEPARATOR.length
             }
         }
 
@@ -208,7 +216,7 @@ class InMemoryContentChunker(
         root: RootDocument,
         sequenceNumber: Int,
     ): Chunk {
-        val combinedContent = leaves.joinToString("\n\n") { leaf ->
+        val combinedContent = leaves.joinToString(LEAF_SEPARATOR) { leaf ->
             if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
         }.trim()
 
