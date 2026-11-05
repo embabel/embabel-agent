@@ -30,12 +30,12 @@ Build the included scratch image from the repository root before using the examp
 
 [source,shell]
 ----
-docker build -t embabel/agent-scratch:local ./embabel-agent-sandbox/src/main/docker
+docker build -t embabel/agent-sandbox:latest ./embabel-agent-sandbox/src/main/docker
 ----
 
 Use an image containing the dependencies your commands need. The scratch and
-skills modules ship different image recipes; using an explicit tag avoids
-replacing the skills image under their shared historical default tag.
+skills modules ship different image recipes under the same default tag;
+build the recipe appropriate for your application.
 
 [source,kotlin]
 ----
@@ -56,7 +56,7 @@ val scratch = ScratchTool(
     sessionManager = manager,
     config = SandboxConfig(
         enabled = true,
-        image = "embabel/agent-scratch:local",
+        image = ScratchTool.DEFAULT_IMAGE,
         network = false,
         propagateEnv = emptyList(),
     ),

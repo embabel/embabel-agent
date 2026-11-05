@@ -33,15 +33,15 @@ available image with the requested shell and command dependencies. Build the
 included image from the repository root:
 
 ```sh
-docker build -t embabel/agent-scratch:local ./embabel-agent-sandbox/src/main/docker
+docker build -t embabel/agent-sandbox:latest ./embabel-agent-sandbox/src/main/docker
 ```
 
 This image uses `/workspace` and includes Python, Node.js, Java, Graphviz, and
 common utilities. It does not include every package a skill may need; prepare a
 custom image for additional dependencies. The skill engines have their own image
-recipe in `embabel-agent-skills/docker`. Both APIs historically default to the
-tag `embabel/agent-sandbox:latest`, but the recipes differ. The examples here use
-an explicit tag to avoid replacing one image with the other.
+recipe in `embabel-agent-skills/docker`. Both APIs default to the tag
+`embabel/agent-sandbox:latest`, but the recipes differ. Build the recipe containing
+the dependencies your application needs.
 
 ## Explicit file publication
 
@@ -68,7 +68,7 @@ val scratch = ScratchTool(
     sessionManager = manager,
     config = SandboxConfig(
         enabled = true,
-        image = "embabel/agent-scratch:local",
+        image = ScratchTool.DEFAULT_IMAGE,
         network = false,
         propagateEnv = emptyList(),
     ),
@@ -187,14 +187,13 @@ With Java 21 and a running Docker daemon, build the included scratch image and
 make the lightweight integration-test image available. From the repository root:
 
 ```sh
-docker build -t embabel/agent-scratch:local ./embabel-agent-sandbox/src/main/docker
+docker build -t embabel/agent-sandbox:latest ./embabel-agent-sandbox/src/main/docker
 docker pull alpine:latest
-mvn -pl embabel-agent-sandbox -am -Dtest='com.embabel.agent.sandbox.**' -Dsurefire.failIfNoSpecifiedTests=false -Dembabel.sandbox.test.image=embabel/agent-scratch:local test
+mvn -pl embabel-agent-sandbox -am -Dtest='com.embabel.agent.sandbox.**' -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-`embabel.sandbox.test.image` selects the image used by `ScratchToolTest`, including
-its Python, Node.js, Java, SQLite, and Graphviz checks. It defaults to
-`ScratchTool.DEFAULT_IMAGE` and does not change application runtime defaults.
+`ScratchToolTest` uses `ScratchTool.DEFAULT_IMAGE` (`embabel/agent-sandbox:latest`)
+for its Python, Node.js, Java, SQLite, and Graphviz checks.
 Session lifecycle, file-publication, and I/O integration tests use `alpine:latest`.
 
 `DockerArtifactExporterTest`, `ArtifactTransferTest`, `ScratchPublishToolTest`, and
