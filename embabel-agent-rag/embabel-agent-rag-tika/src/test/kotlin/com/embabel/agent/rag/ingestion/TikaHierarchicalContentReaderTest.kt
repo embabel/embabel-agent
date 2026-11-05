@@ -628,6 +628,103 @@ class TikaHierarchicalContentReaderTest {
             assertEquals("Unclosed", leaf.title)
             assertTrue(leaf.content.contains("## also code"))
         }
+
+        @Test
+        fun `a fence indented by up to three spaces opens and closes a code block`() {
+            val result = parseMarkdown(
+                """
+                ## Indented
+
+                   ```bash
+                # comment
+                   ```
+
+                ## Next
+                Next content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Indented", "Next"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("# comment"))
+        }
+
+        @Test
+        fun `backticks indented by four spaces are not a fence`() {
+            val result = parseMarkdown(
+                """
+                ## Indented code
+
+                    ```
+                ## Next
+                Next content.
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("Indented code", "Next"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a closing fence longer than the opening fence closes it`() {
+            val result = parseMarkdown(
+                """
+                ## Longer
+
+                ```
+                # comment
+                `````
+
+                ## Next
+                Next content.
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("Longer", "Next"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a closing fence followed by spaces closes the fence`() {
+            val result = parseMarkdown(
+                "## Trailing\n\n```\n# comment\n```   \n\n## Next\nNext content."
+            )
+
+            assertEquals(listOf("Trailing", "Next"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a tilde fence can have a backtick in its info text`() {
+            val result = parseMarkdown(
+                """
+                ## Tilde
+
+                ~~~ `info`
+                # comment
+                ~~~
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("Tilde", leaf.title)
+            assertTrue(leaf.content.contains("# comment"))
+        }
+
+        @Test
+        fun `a document whose only hash lines are inside a fence is one section with the whole content`() {
+            val markdown = """
+                Install the CLI.
+
+                ```bash
+                # Install
+                brew install embabel
+                ```
+                """.trimIndent()
+
+            val result = parseMarkdown(markdown)
+
+            val leaf = result.leaves().single()
+            assertEquals("Install the CLI.", leaf.title)
+            assertEquals(markdown, leaf.content)
+        }
     }
 
     @Nested
@@ -761,6 +858,20 @@ class TikaHierarchicalContentReaderTest {
             )
 
             assertEquals("Guide", result.title)
+        }
+
+        @Test
+        fun `a title from the metadata is kept as it is, even when it ends with an id attribute`() {
+            val result = reader.parseContent(
+                ByteArrayInputStream("# Heading {#heading}\nContent.".toByteArray()),
+                metadata = Metadata().apply {
+                    set(TikaCoreProperties.RESOURCE_NAME_KEY, "guide.md")
+                    set(TikaCoreProperties.TITLE, "Metadata title {#kept}")
+                },
+                uri = "https://docs.example.com/guide",
+            )
+
+            assertEquals("Metadata title {#kept}", result.title)
         }
 
         @Test

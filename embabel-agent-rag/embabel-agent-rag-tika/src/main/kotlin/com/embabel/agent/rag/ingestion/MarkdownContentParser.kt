@@ -20,6 +20,7 @@ import com.embabel.agent.rag.model.MaterializedDocument
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.metadata.TikaCoreProperties
 import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.util.*
 
@@ -173,11 +174,12 @@ internal class MarkdownContentParser(
     }
 
     /**
-     * The title [ContentFormatParserUtils.extractTitle] finds, without a trailing `{#id}`
-     * when the title comes from a heading.
+     * The title from the metadata when it has one. Otherwise the title
+     * [ContentFormatParserUtils.extractTitle] finds in the markdown, without a trailing `{#id}`.
      */
     private fun extractTitle(lines: List<String>, metadata: Metadata): String? =
-        ContentFormatParserUtils.extractTitle(lines, metadata)?.let { HeadingText.parse(it).title }
+        metadata.get(TikaCoreProperties.TITLE)
+            ?: ContentFormatParserUtils.extractTitle(lines, metadata)?.let { HeadingText.parse(it).title }
 
     companion object {
 
@@ -203,6 +205,8 @@ internal data class HeadingText(
 
     companion object {
 
+        private val logger = LoggerFactory.getLogger(HeadingText::class.java)
+
         /**
          * Matches a title followed by `{#id}` at the end of the heading.
          * Group 1 is the title. Group 2 is the id, which has no whitespace and no braces.
@@ -218,8 +222,12 @@ internal data class HeadingText(
         fun parse(text: String): HeadingText {
             val trimmed = text.trim()
             val match = TRAILING_ID.matchEntire(trimmed)
-            val title = match?.groupValues?.get(1)?.trim()
-            if (match == null || title.isNullOrEmpty()) {
+            if (match == null) {
+                return HeadingText(trimmed, null)
+            }
+            val title = match.groupValues[1].trim()
+            if (title.isEmpty()) {
+                logger.debug("Heading '{}' has an id attribute but no title: it is kept as the title, with no id", trimmed)
                 return HeadingText(trimmed, null)
             }
             return HeadingText(title, match.groupValues[2])
