@@ -183,15 +183,22 @@ identities and idempotent storage; random destination names preserve every retry
 
 ## Verification
 
-With Java 21, a running Docker daemon, and `alpine:latest` available locally:
+With Java 21 and a running Docker daemon, build the included scratch image and
+make the lightweight integration-test image available. From the repository root:
 
 ```sh
-mvn -pl embabel-agent-sandbox test
+docker build -t embabel/agent-scratch:local ./embabel-agent-sandbox/src/main/docker
+docker pull alpine:latest
+mvn -pl embabel-agent-sandbox -am -Dtest='com.embabel.agent.sandbox.**' -Dsurefire.failIfNoSpecifiedTests=false -Dembabel.sandbox.test.image=embabel/agent-scratch:local test
 ```
+
+`embabel.sandbox.test.image` selects the image used by `ScratchToolTest`, including
+its Python, Node.js, Java, SQLite, and Graphviz checks. It defaults to
+`ScratchTool.DEFAULT_IMAGE` and does not change application runtime defaults.
+Session lifecycle, file-publication, and I/O integration tests use `alpine:latest`.
 
 `DockerArtifactExporterTest`, `ArtifactTransferTest`, `ScratchPublishToolTest`, and
 `ScratchToolArtifactTest` run without Docker. `DockerArtifactPublishTest` and
 `DockerSessionIoTest` cover real selected-file transfer, lifecycle coordination,
 and large-input/output regressions; they skip when Docker or the test image is
-unavailable. Other existing tests may require the default sandbox image and its
-optional tools, including Graphviz.
+unavailable. Host process tests and one session-timeout test have Windows exclusions.

@@ -28,6 +28,9 @@ import kotlin.time.Duration.Companion.seconds
 
 class ScratchToolTest {
 
+    private val config = ScratchTool.DEFAULT_CONFIG.copy(
+        image = System.getProperty("embabel.sandbox.test.image", ScratchTool.DEFAULT_IMAGE),
+    )
     private var scratch: ScratchTool? = null
     private var sessionManager: DockerSandboxSessionManager? = null
 
@@ -45,14 +48,14 @@ class ScratchToolTest {
     private fun assumeSandboxAvailable() {
         assumeTrue(DockerExecutor.isDockerAvailable(), "Docker not available")
         assumeTrue(
-            DockerExecutor.imageExists(ScratchTool.DEFAULT_IMAGE),
-            "Sandbox image ${ScratchTool.DEFAULT_IMAGE} not available"
+            DockerExecutor.imageExists(config.image),
+            "Sandbox image ${config.image} not available"
         )
     }
 
     private fun newScratch(): ScratchTool {
         val mgr = DockerSandboxSessionManager().also { sessionManager = it }
-        return ScratchTool(sessionManager = mgr).also { scratch = it }
+        return ScratchTool(sessionManager = mgr, config = config).also { scratch = it }
     }
 
     @Test
@@ -179,7 +182,7 @@ class ScratchToolTest {
         assumeSandboxAvailable()
 
         val mgr = DockerSandboxSessionManager().also { sessionManager = it }
-        val tool = ScratchTool(sessionManager = mgr).also { scratch = it }
+        val tool = ScratchTool(sessionManager = mgr, config = config).also { scratch = it }
         tool.call("""{"command": "echo 'persist me' > /tmp/a.txt"}""")
 
         val active = mgr.list().single()
@@ -196,7 +199,7 @@ class ScratchToolTest {
         assumeSandboxAvailable()
 
         val mgr = DockerSandboxSessionManager().also { sessionManager = it }
-        val tool = ScratchTool(sessionManager = mgr).also { scratch = it }
+        val tool = ScratchTool(sessionManager = mgr, config = config).also { scratch = it }
         tool.call("""{"command": "echo first"}""")
         val firstId = mgr.list().single().id
 
@@ -213,7 +216,7 @@ class ScratchToolTest {
         assumeSandboxAvailable()
 
         val mgr = DockerSandboxSessionManager().also { sessionManager = it }
-        val tool = ScratchTool(sessionManager = mgr).also { scratch = it }
+        val tool = ScratchTool(sessionManager = mgr, config = config).also { scratch = it }
         tool.call("""{"command": "echo ready"}""")
         assertEquals(1, mgr.list().size, "Session should be registered with manager")
 
