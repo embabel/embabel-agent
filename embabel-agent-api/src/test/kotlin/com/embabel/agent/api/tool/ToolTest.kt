@@ -17,6 +17,8 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
+import com.embabel.agent.core.hitl.AwaitableResponseException
+import com.embabel.agent.core.hitl.confirm
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -789,6 +791,21 @@ class ToolTest {
 
             assertThrows<TerminateAgentException> { tools.first { it.definition.name == "stopAgent" }.call("{}") }
             assertThrows<TerminateActionException> { tools.first { it.definition.name == "stopAction" }.call("{}") }
+        }
+
+        @Test
+        fun `propagates a pause for human input instead of returning an error`() {
+            class ConfirmingTools {
+                @LlmTool(description = "Deletes after a human confirms")
+                fun deleteAll(): String {
+                    confirm("all records", "Delete all records?")
+                    return "deleted"
+                }
+            }
+
+            val tool = Tool.fromInstance(ConfirmingTools()).first()
+
+            assertThrows<AwaitableResponseException> { tool.call("{}") }
         }
 
         @Test

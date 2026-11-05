@@ -18,7 +18,6 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.tool.VictoolsSchemaGenerator.ParameterInfo
-import com.embabel.agent.core.ReplanRequestedException
 import tools.jackson.databind.ObjectMapper
 import java.lang.reflect.Method
 import java.lang.reflect.Type
@@ -67,8 +66,8 @@ internal sealed class MethodTool(
             // Unwrap InvocationTargetException to get the actual cause
             val actualCause = e.cause ?: e
 
-            // Replan and termination requests must propagate - they are control flow signals, not errors
-            if (actualCause is ReplanRequestedException || actualCause is TerminationException) {
+            // Control flow signals must propagate - they are not errors
+            if (actualCause is ToolControlFlowSignal) {
                 throw actualCause
             }
 
