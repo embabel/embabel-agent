@@ -52,6 +52,40 @@ class ContentChunkerTest {
     }
 
     @Test
+    fun `a chunk that combines a container's leaves has the container's URL as its uri`() {
+        val document = MaterializedDocument(
+            id = "document",
+            title = "Document",
+            children = listOf("A", "B").map { title ->
+                LeafSection(id = title, title = title, text = "abc", uri = "https://example.com/page#$title")
+            },
+            uri = "https://example.com/page",
+        )
+
+        val chunk = chunker.chunk(document).single()
+
+        assertEquals("https://example.com/page", chunk.uri)
+    }
+
+    @Test
+    fun `a chunk from one leaf has the leaf's URL as its uri`() {
+        // Each leaf is 5 characters with its title, so a maximum of 6 puts each in a chunk of its own
+        val chunker = InMemoryContentChunker(ContentChunker.Config(maxChunkSize = 6, overlapSize = 0))
+        val document = MaterializedDocument(
+            id = "document",
+            title = "Document",
+            children = listOf("A", "B").map { title ->
+                LeafSection(id = title, title = title, text = "abc", uri = "https://example.com/page#$title")
+            },
+            uri = "https://example.com/page",
+        )
+
+        val chunks = chunker.chunk(document)
+
+        assertEquals(listOf("https://example.com/page#A", "https://example.com/page#B"), chunks.map { it.uri })
+    }
+
+    @Test
     fun `container stays in one chunk when content including separators exactly fits`() {
         val expectedContent = "A\nabc\n\nB\nabc\n\nC\nabc"
         val chunker = InMemoryContentChunker(

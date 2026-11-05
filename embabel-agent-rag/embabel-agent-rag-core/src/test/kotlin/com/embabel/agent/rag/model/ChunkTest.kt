@@ -143,6 +143,61 @@ class ChunkTest {
     }
 
     @Nested
+    inner class Uri {
+
+        private fun chunkWith(metadata: Map<String, Any?>) =
+            Chunk(id = "c1", text = "body", parentId = "parent", metadata = metadata)
+
+        @Test
+        fun `a url in the metadata is the uri, even when section URLs are set`() {
+            val chunk = chunkWith(
+                mapOf(
+                    "url" to "https://example.com/set-by-app",
+                    ChunkStructure.LEAF_SECTION_URL to "https://example.com/page#leaf",
+                    ChunkStructure.CONTAINER_SECTION_URL to "https://example.com/page#container",
+                )
+            )
+
+            assertEquals("https://example.com/set-by-app", chunk.uri)
+        }
+
+        @Test
+        fun `without a url in the metadata, the leaf section URL is the uri`() {
+            val chunk = chunkWith(
+                mapOf(
+                    ChunkStructure.LEAF_SECTION_URL to "https://example.com/page#leaf",
+                    ChunkStructure.CONTAINER_SECTION_URL to "https://example.com/page#container",
+                )
+            )
+
+            assertEquals("https://example.com/page#leaf", chunk.uri)
+        }
+
+        @Test
+        fun `without a url or a leaf section URL, the container section URL is the uri`() {
+            val chunk = chunkWith(mapOf(ChunkStructure.CONTAINER_SECTION_URL to "https://example.com/page"))
+
+            assertEquals("https://example.com/page", chunk.uri)
+        }
+
+        @Test
+        fun `without a url or section URLs, the uri is null`() {
+            assertNull(chunkWith(mapOf("author" to "alice")).uri)
+        }
+
+        @Test
+        fun `a chunk built with an explicit structure takes its uri from that structure`() {
+            val chunk = Chunk.create(
+                text = "body",
+                parentId = "parent",
+                structure = ChunkStructure(leafSectionUrl = "https://example.com/page#leaf"),
+            )
+
+            assertEquals("https://example.com/page#leaf", chunk.uri)
+        }
+    }
+
+    @Nested
     inner class PropertiesToPersist {
 
         @Test
