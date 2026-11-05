@@ -1187,7 +1187,8 @@ A heading can end with an id attribute, as pandoc and kramdown write it:
 
 The id is removed from the section title, and the section URI is the document URI with `#toolishrag-lifecycle` as its fragment, replacing any fragment the document URI has.
 Chunks from that section carry it as their section URL, so a search result can link to the heading.
-A heading without an id gives a section with the document URI.
+A heading without an id gives a section with the URI of the nearest heading above it that has one, so a site that gives ids only to the upper levels of headings still links each section to the heading nearest to it.
+Without one above it, the section has the document URI.
 
 ===== Chunking Configuration
 

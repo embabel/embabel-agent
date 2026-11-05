@@ -30,7 +30,9 @@ import java.util.*
  * A line that starts with `#` is a heading, unless it is inside a fenced code block.
  * A heading may end with an id attribute, as pandoc and kramdown write it: `## Title {#title-id}`.
  * The id is removed from the section title, and the section URI is the document URI
- * with the id as its fragment. A section whose heading has no id has the document URI.
+ * with the id as its fragment. A section whose heading has no id has the URI of the nearest
+ * section above it whose heading has one, or else the document URI: a site that gives ids only
+ * to the upper levels of headings still links each section to the heading nearest to it.
  */
 internal class MarkdownContentParser(
     private val logger: Logger,
@@ -45,6 +47,7 @@ internal class MarkdownContentParser(
         val rootId = UUID.randomUUID().toString()
         var parentId: String? = rootId
         val sectionStack = mutableMapOf<Int, String>() // level -> sectionId
+        val uriStack = mutableMapOf<Int, String>() // level -> section URI
         var sectionUri = uri
         // The fence that opened the code block we are inside, or null when we are not in one
         var openFence: Fence? = null
@@ -86,7 +89,9 @@ internal class MarkdownContentParser(
                     val level = line.takeWhile { it == '#' }.length
                     val heading = HeadingText.parse(line.substring(level))
                     currentTitle = heading.title
-                    sectionUri = heading.id?.let { withFragment(uri, it) } ?: uri
+                    sectionUri = heading.id?.let { withFragment(uri, it) }
+                        ?: (level - 1 downTo 1).firstNotNullOfOrNull { uriStack[it] }
+                        ?: uri
                     sectionId = UUID.randomUUID().toString()
                     currentSection.clear()
 
@@ -102,8 +107,10 @@ internal class MarkdownContentParser(
                     }
 
                     sectionStack[level] = sectionId
+                    uriStack[level] = sectionUri
                     // Clear deeper levels
                     sectionStack.keys.filter { it > level }.forEach { sectionStack.remove(it) }
+                    uriStack.keys.filter { it > level }.forEach { uriStack.remove(it) }
                 }
 
                 else -> {

@@ -769,6 +769,41 @@ class TikaHierarchicalContentReaderTest {
         }
 
         @Test
+        fun `a heading without an id takes the URI of the nearest heading above it with one`() {
+            val result = parseMarkdown(
+                """
+                # Guide
+                Intro.
+
+                ## Usage {#usage}
+                Usage content.
+
+                ### Setup {#setup}
+                Setup content.
+
+                #### Deeper
+                Deeper content.
+
+                ### Plain step
+                Step content.
+
+                ## Other
+                Other content.
+
+                #### Skipped level
+                Skipped content.
+                """.trimIndent()
+            )
+
+            val uris = result.leaves().associate { it.title to it.uri }
+            assertEquals("https://docs.example.com/guide#setup", uris["Deeper"])
+            assertEquals("https://docs.example.com/guide#usage", uris["Plain step"])
+            assertEquals("https://docs.example.com/guide", uris["Other"])
+            assertEquals("https://docs.example.com/guide", uris["Skipped level"])
+            assertEquals("https://docs.example.com/guide", uris["Guide"])
+        }
+
+        @Test
         fun `a fragment already on the document URI is replaced by the heading id`() {
             val result = parseMarkdown(
                 "## Section {#section}\nContent.",
