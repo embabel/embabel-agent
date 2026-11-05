@@ -16,8 +16,8 @@
 package com.embabel.agent.config.models.cloudflare
 
 import com.embabel.agent.cloudflare.CloudflareModelFactory
+import com.embabel.common.ai.autoconfig.DecisionModelsRegistrar
 import com.embabel.common.ai.autoconfig.ProviderInitialization
-import com.embabel.common.ai.autoconfig.RegisteredModel
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.BeanFactory
@@ -30,6 +30,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
+import java.util.function.Function
 import java.util.function.Supplier
 
 /**
@@ -71,19 +72,8 @@ class CloudflareModelsConfig(
      * @return the models registered
      */
     @Bean
-    fun cloudflareModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization {
-        val registered = beanFactory.beanDefinitionNames.mapNotNull { name ->
-            val modelId = beanFactory.getBeanDefinition(name)
-                .getAttribute(CloudflareModelsRegistrar.CATALOG_MODEL_ATTRIBUTE) as? String ?: return@mapNotNull null
-            logger.info("Registered Cloudflare decision model bean: {} -> {}", name, modelId)
-            RegisteredModel(beanName = name, modelId = modelId)
-        }
-        return ProviderInitialization(
-            provider = PROVIDER,
-            registeredLlms = emptyList(),
-            registeredDecisionModels = registered,
-        ).also { logger.info(it.summary()) }
-    }
+    fun cloudflareModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization =
+        DecisionModelsRegistrar.initialization(PROVIDER, beanFactory)
 
     companion object {
 
@@ -94,7 +84,24 @@ class CloudflareModelsConfig(
         @JvmStatic
         @Bean
         fun cloudflareModelsRegistrar(beanFactory: BeanFactory): BeanDefinitionRegistryPostProcessor =
-            CloudflareModelsRegistrar(catalog(), beanFactory)
+            registrar(catalog(), beanFactory)
+
+        /**
+         * Builds the registrar for a catalog. Each model's service is built by the `CloudflareModelFactory`
+         * bean when the model bean is created.
+         *
+         * @param models the catalog to define beans for
+         * @param beanFactory the factory the `CloudflareModelFactory` bean is read from
+         * @return the registrar
+         */
+        internal fun registrar(models: List<CloudflareModelDefinition>, beanFactory: BeanFactory): DecisionModelsRegistrar =
+            DecisionModelsRegistrar(
+                provider = PROVIDER,
+                models = models,
+                defaultModel = DEFAULT_MODEL,
+                defaultCandidate = DEFAULT_CANDIDATE,
+                serviceFactory = Function { modelId -> beanFactory.getBean(CloudflareModelFactory::class.java).build(modelId) },
+            )
 
         /**
          * Loads the starter's model catalog.
@@ -107,6 +114,8 @@ class CloudflareModelsConfig(
         private const val ACCOUNT_ID_ENVIRONMENT_VARIABLE = "CLOUDFLARE_ACCOUNT_ID"
         private const val API_KEY_PROPERTY = CloudflareProperties.PREFIX + ".api-key"
         private const val AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder"
+        private const val DEFAULT_MODEL = "clef"
+        private const val DEFAULT_CANDIDATE = "cloudflareDefaultCandidate"
 
         private val logger = LoggerFactory.getLogger(CloudflareModelsConfig::class.java)
 
