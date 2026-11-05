@@ -217,5 +217,16 @@ class ChunkTest {
             assertEquals(5, properties[ChunkStructure.TOTAL_CHUNKS])
             assertEquals("body", properties["text"])
         }
+
+        @Test
+        fun `persists the leaf section URL as the uri when the metadata has no url`() {
+            val chunk = Chunk(
+                id = "chunk-1",
+                text = "body",
+                parentId = "section-1",
+                metadata = mapOf(ChunkStructure.LEAF_SECTION_URL to "https://example.com/page#leaf"),
+            )
+            assertEquals("https://example.com/page#leaf", chunk.propertiesToPersist()["uri"])
+        }
     }
 }
