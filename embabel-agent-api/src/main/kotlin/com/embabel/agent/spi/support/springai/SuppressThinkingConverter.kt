@@ -185,11 +185,11 @@ internal fun thinkBlockSanitization(
         thinkBlockFinder(cleanedInput)?.let { found ->
             if (found.isNotEmpty()) {
                 thinkBlock = found
-                // Remove only the located block: the same text can also appear inside the JSON values
-                cleanedInput = when {
-                    cleanedInput.startsWith(found) -> cleanedInput.removePrefix(found)
-                    cleanedInput.endsWith(found) -> cleanedInput.removeSuffix(found)
-                    else -> cleanedInput.replaceFirst(found, "")
+                // The text around the object can also appear inside its values, so only remove it at the end it was found
+                cleanedInput = when (thinkBlockFinder) {
+                    FindPrefixThinkBlock -> cleanedInput.removePrefix(found)
+                    FindSuffixThinkBlock -> cleanedInput.removeSuffix(found)
+                    else -> cleanedInput.replace(found, "")
                 }
             }
         }

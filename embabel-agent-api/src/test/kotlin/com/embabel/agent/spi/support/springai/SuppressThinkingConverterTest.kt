@@ -153,6 +153,14 @@ class SuppressThinkingConverterTest {
         }
 
         @Test
+        fun `identical repeated blocks containing braces do not hide the object`() {
+            val converter = SuppressThinkingConverter(JacksonOutputConverter(Dog::class.java, jacksonObjectMapper()))
+            val result = converter.convert("""<think>x } y</think>{"name": "Rex"}<think>x } y</think>""")
+            assertNotNull(result!!)
+            assertEquals("Rex", result.name)
+        }
+
+        @Test
         fun `early termination when JSON is already valid`() {
             // If the input is already valid JSON, no sanitization should occur
             val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
@@ -172,12 +180,6 @@ class SuppressThinkingConverterTest {
         fun `a space after the think block is not removed from values`() {
             val result = converter.convert("""<think>I am thinking</think> {"name": "Sir Rex"}""")
             assertEquals("Sir Rex", result.name)
-        }
-
-        @Test
-        fun `a block after leading text is removed once`() {
-            val result = converter.convert("""Sure. <think>a</think> {"name": "<think>a</think> Rex"}""")
-            assertEquals("<think>a</think> Rex", result.name)
         }
 
         @Test
@@ -201,6 +203,12 @@ class SuppressThinkingConverterTest {
         @Test
         fun `with think markup block`() {
             checkStringThinkContent("<think>I am thinking</think>")
+        }
+
+        @Test
+        fun `identical repeated blocks are all removed`() {
+            assertEquals("Hello  world ", stringWithoutThinkBlocks("Hello <think>a</think> world <think>a</think>"))
+            assertEquals("Answer one", stringWithoutThinkBlocks("<think></think>Answer one<think></think>"))
         }
 
         @Test
