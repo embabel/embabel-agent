@@ -164,7 +164,7 @@ class SuppressThinkingConverterTest {
     }
 
     @Nested
-    inner class ValuesInsideTheObject {
+    inner class ThinkingTextInValues {
 
         private val converter = SuppressThinkingConverter(JacksonOutputConverter(Dog::class.java, jacksonObjectMapper()))
 
@@ -172,6 +172,12 @@ class SuppressThinkingConverterTest {
         fun `a space after the think block is not removed from values`() {
             val result = converter.convert("""<think>I am thinking</think> {"name": "Sir Rex"}""")
             assertEquals("Sir Rex", result.name)
+        }
+
+        @Test
+        fun `a block after leading text is removed once`() {
+            val result = converter.convert("""Sure. <think>a</think> {"name": "<think>a</think> Rex"}""")
+            assertEquals("<think>a</think> Rex", result.name)
         }
 
         @Test
