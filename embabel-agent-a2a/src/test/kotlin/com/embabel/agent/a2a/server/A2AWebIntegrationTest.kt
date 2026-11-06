@@ -221,6 +221,41 @@ class A2AWebIntegrationTest(
         }
 
         @Test
+        fun `should replay completed task and close stream without changing its state`() {
+            val taskId = "resub-done-${UUID.randomUUID()}"
+            taskStateManager.registerTask(taskId, "ctx-resub")
+            listOf(TaskState.WORKING, TaskState.COMPLETED).forEach { state ->
+                taskStateManager.recordEvent(
+                    taskId,
+                    TaskStatusUpdateEvent.Builder()
+                        .taskId(taskId)
+                        .contextId("ctx-resub")
+                        .status(TaskStatus(state))
+                        .isFinal(state == TaskState.COMPLETED)
+                        .build(),
+                )
+            }
+            val eventCountBefore = taskStateManager.getTaskEvents(taskId).size
+            val completedAtBefore = taskStateManager.getTaskInfo(taskId)!!.completedAt
+
+            val result = mockMvc.post("/a2a") {
+                contentType = MediaType.APPLICATION_JSON
+                content = resubscribeRequest(taskId)
+            }.andExpect {
+                request { asyncStarted() }
+            }.andReturn()
+            // Returns once the stream is closed, fails if it stays open
+            result.getAsyncResult(Duration.ofSeconds(5).toMillis())
+
+            val states = sseData(result).map { it.path("result").path("status").path("state").asString() }
+            assertEquals(listOf("working", "completed"), states)
+            val after = taskStateManager.getTaskInfo(taskId)!!
+            assertEquals(eventCountBefore, after.events.size)
+            assertEquals(completedAtBefore, after.completedAt)
+            assertEquals(TaskState.COMPLETED, getTask(taskId).status.state)
+        }
+
+        @Test
         fun `should return task not found error when resubscribing to unknown task`() {
             val result = mockMvc.post("/a2a") {
                 contentType = MediaType.APPLICATION_JSON
@@ -244,6 +279,29 @@ class A2AWebIntegrationTest(
                     "params" to mapOf("id" to taskId),
                 )
             )
+
+        private fun sseData(result: MvcResult): List<JsonNode> =
+            result.response.contentAsString.lineSequence()
+                .filter { it.startsWith("data:") }
+                .map { embabelObjectMapperHolder.get().readTree(it.removePrefix("data:")) }
+                .toList()
+
+        private fun getTask(taskId: String): Task {
+            val request = GetTaskRequest.Builder()
+                .jsonrpc(JSONRPCRequest.JSONRPC_VERSION)
+                .method(GetTaskRequest.METHOD)
+                .id("get-$taskId")
+                .params(TaskQueryParams(taskId))
+                .build()
+            val content = mockMvc.post("/a2a") {
+                contentType = MediaType.APPLICATION_JSON
+                content = embabelObjectMapperHolder.get().writeValueAsString(request)
+            }.andExpect {
+                status { isOk() }
+            }.andReturn().response.contentAsString
+            val response = embabelObjectMapperHolder.get().readValue(content, GetTaskResponse::class.java)
+            return assertNotNull(response.result)
+        }
 
         private fun awaitFirstSseData(result: MvcResult): JsonNode {
             val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()

@@ -81,11 +81,11 @@ class A2AStreamingHandler(
         val emitter = createStream(newStreamId)
         taskStateManager.updateStreamId(taskId, newStreamId)
 
-        // Replay all events for this task
+        // Replay all events for this task without recording them again
         Thread.startVirtualThread {
             try {
                 taskInfo.events.forEach { event ->
-                    sendStreamEvent(newStreamId, event, taskId)
+                    sendStreamEvent(newStreamId, event)
                 }
 
                 // If task is completed, close the stream
