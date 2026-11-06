@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.a2a.server
 
-import io.a2a.spec.AgentSkill
+import org.a2aproject.sdk.spec.AgentSkill
 
 interface AgentSkillFactory {
 

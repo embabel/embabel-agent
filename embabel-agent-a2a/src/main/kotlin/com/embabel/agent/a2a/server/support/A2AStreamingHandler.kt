@@ -15,9 +15,13 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import com.embabel.common.util.EmbabelObjectMapperHolder
-import io.a2a.spec.SendStreamingMessageResponse
-import io.a2a.spec.StreamingEventKind
+import com.embabel.agent.a2a.server.A2AProtocolVersion
+import org.a2aproject.sdk.compat03.conversion.mappers.domain.StreamingEventKindMapper_v0_3
+import org.a2aproject.sdk.compat03.spec.SendStreamingMessageResponse_v0_3
+import org.a2aproject.sdk.compat03.util.Utils_v0_3
+import org.a2aproject.sdk.grpc.utils.JSONRPCUtils
+import org.a2aproject.sdk.grpc.utils.ProtoUtils
+import org.a2aproject.sdk.spec.StreamingEventKind
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
@@ -32,22 +36,35 @@ import java.util.concurrent.TimeUnit
  */
 @Service
 class A2AStreamingHandler(
-    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     private val taskStateManager: TaskStateManager
 ) {
     private val logger = LoggerFactory.getLogger(A2AStreamingHandler::class.java)
-    private val activeStreams = ConcurrentHashMap<String, SseEmitter>()
+    private val activeStreams = ConcurrentHashMap<String, ActiveStream>()
     private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
+
+    /**
+     * An open stream, with the A2A version its events are written in
+     */
+    private data class ActiveStream(
+        val emitter: SseEmitter,
+        val protocolVersion: A2AProtocolVersion,
+    )
 
     /**
      * Creates a new SSE stream for the given stream ID
      * @param taskId Optional task ID to associate with this stream
+     * @param protocolVersion The A2A version the events are written in
      */
-    fun createStream(streamId: String, taskId: String? = null, contextId: String? = null): SseEmitter {
+    fun createStream(
+        streamId: String,
+        taskId: String? = null,
+        contextId: String? = null,
+        protocolVersion: A2AProtocolVersion = A2AProtocolVersion.V1_0,
+    ): SseEmitter {
         logger.info("Creating SSE stream for streamId: {}, taskId: {}", streamId, taskId)
 
         val emitter = SseEmitter(Long.MAX_VALUE)
-        activeStreams[streamId] = emitter
+        activeStreams[streamId] = ActiveStream(emitter, protocolVersion)
 
         // Register task if taskId is provided
         if (taskId != null && contextId != null) {
@@ -70,7 +87,11 @@ class A2AStreamingHandler(
     /**
      * Resubscribes to an existing task by creating a new stream and replaying events
      */
-    fun resubscribeToTask(taskId: String, newStreamId: String): SseEmitter {
+    fun resubscribeToTask(
+        taskId: String,
+        newStreamId: String,
+        protocolVersion: A2AProtocolVersion = A2AProtocolVersion.V1_0,
+    ): SseEmitter {
         logger.info("Resubscribing to task: taskId={}, newStreamId={}", taskId, newStreamId)
 
         // Check if task exists
@@ -79,7 +100,7 @@ class A2AStreamingHandler(
         }
 
         val taskInfo = taskStateManager.getTaskInfo(taskId)!!
-        val emitter = createStream(newStreamId, taskId, taskInfo.contextId)
+        val emitter = createStream(newStreamId, taskId, taskInfo.contextId, protocolVersion)
 
         // Update the stream ID for this task
         taskStateManager.updateStreamId(taskId, newStreamId)
@@ -108,10 +129,11 @@ class A2AStreamingHandler(
      * Sends a streaming event to the specified stream and records it for the task
      */
     fun sendStreamEvent(streamId: String, event: StreamingEventKind, taskId: String? = null) {
-        val emitter = activeStreams[streamId] ?: run {
+        val stream = activeStreams[streamId] ?: run {
             logger.warn("No active stream found for streamId: {}", streamId)
             return
         }
+        val emitter = stream.emitter
 
         try {
             // Record event in task state manager if taskId is provided
@@ -119,16 +141,23 @@ class A2AStreamingHandler(
                 taskStateManager.recordEvent(tid, event)
             }
 
-            // All events must be wrapped in SendStreamingMessageResponse per A2A protocol
-            val response = SendStreamingMessageResponse(
-                "2.0",
-                streamId,
-                event,
-                null
-            )
+            // Each event is a JSON-RPC response to the streaming request, in the client's A2A version
+            val response = when (stream.protocolVersion) {
+                A2AProtocolVersion.V1_0 -> JSONRPCUtils.toJsonRPCResultResponse(
+                    streamId,
+                    ProtoUtils.ToProto.taskOrMessageStream(event),
+                )
+
+                A2AProtocolVersion.V0_3 -> Utils_v0_3.toJsonString(
+                    SendStreamingMessageResponse_v0_3(
+                        streamId,
+                        StreamingEventKindMapper_v0_3.INSTANCE.fromV10(event),
+                    )
+                )
+            }
 
             val eventData = SseEmitter.event()
-                .data(embabelObjectMapperHolder.get().writeValueAsString(response), MediaType.APPLICATION_JSON)
+                .data(response, MediaType.APPLICATION_JSON)
             emitter.send(eventData)
         } catch (e: Exception) {
             logger.error("Error sending stream event", e)
@@ -140,8 +169,7 @@ class A2AStreamingHandler(
      * Closes the specified stream
      */
     fun closeStream(streamId: String) {
-        val emitter = activeStreams.remove(streamId)
-        emitter?.complete()
+        activeStreams.remove(streamId)?.emitter?.complete()
     }
 
     /**

@@ -17,20 +17,20 @@ package com.embabel.agent.a2a.server
 
 import com.embabel.agent.api.event.AgentPlatformEvent
 import com.embabel.agent.core.AgentPlatform
-import io.a2a.spec.JSONRPCRequest
-import io.a2a.spec.JSONRPCResponse
+import org.a2aproject.sdk.jsonrpc.common.wrappers.A2ARequest
+import org.a2aproject.sdk.jsonrpc.common.wrappers.A2AResponse
 import java.time.Instant
 
 data class A2ARequestEvent(
     override val agentPlatform: AgentPlatform,
-    val request: JSONRPCRequest<*>,
+    val request: A2ARequest<*>,
 ) : AgentPlatformEvent {
     override val timestamp: Instant = Instant.now()
 }
 
 data class A2AResponseEvent(
     override val agentPlatform: AgentPlatform,
-    val response: JSONRPCResponse<*>,
+    val response: A2AResponse<*>,
 ) : AgentPlatformEvent {
     override val timestamp: Instant = Instant.now()
 }

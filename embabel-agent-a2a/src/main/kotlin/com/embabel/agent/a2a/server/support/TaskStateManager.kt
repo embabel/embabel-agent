@@ -15,9 +15,10 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import io.a2a.spec.StreamingEventKind
-import io.a2a.spec.Task
-import io.a2a.spec.TaskState
+import org.a2aproject.sdk.spec.StreamingEventKind
+import org.a2aproject.sdk.spec.Task
+import org.a2aproject.sdk.spec.TaskState
+import org.a2aproject.sdk.spec.TaskStatusUpdateEvent
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -44,7 +45,7 @@ class TaskStateManager {
         val events: MutableList<StreamingEventKind> = mutableListOf(),
         val createdAt: Instant = Instant.now(),
         var completedAt: Instant? = null,
-        var currentState: TaskState = TaskState.WORKING
+        var currentState: TaskState = TaskState.TASK_STATE_WORKING
     )
 
     /**
@@ -70,7 +71,7 @@ class TaskStateManager {
             // Update state if event is a Task or TaskStatusUpdateEvent with status
             val taskState = when (event) {
                 is Task -> event.status.state
-                is io.a2a.spec.TaskStatusUpdateEvent -> event.status.state
+                is TaskStatusUpdateEvent -> event.status.state
                 else -> null
             }
 
