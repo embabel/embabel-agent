@@ -29,6 +29,10 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.Level;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.context.config.ConfigDataEnvironmentPostProcessor;
+import org.springframework.mock.env.MockEnvironment;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import org.springframework.boot.context.properties.bind.BindResult;
 import org.springframework.boot.context.properties.bind.Bindable;
@@ -64,6 +68,53 @@ class ShellEnvironmentPostProcessorTest {
     void suppressLogging() {
         Logger logger = (Logger) LoggerFactory.getLogger(ShellEnvironmentPostProcessor.class);
         logger.setLevel(Level.OFF);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {
+            "null,null,null,null,true,true",
+            "false,null,null,null,false,false",
+            "null,false,null,null,false,false",
+            "false,true,null,null,false,false",
+            "true,false,null,null,true,true",
+            "null,null,false,null,true,false",
+            "false,null,true,null,false,true",
+            "null,null,true,false,true,false",
+            "null,null,false,true,true,true"
+    }, nullValues = "null")
+    void resolvesInteractiveModeAndContextClose(String springInteractive, String embabelInteractive,
+                                              String embabelClose, String springClose,
+                                              boolean expectedInteractive, boolean expectedClose) {
+        MockEnvironment env = new MockEnvironment();
+        if (springInteractive != null) {
+            env.setProperty("spring.shell.interactive.enabled", springInteractive);
+        }
+        if (embabelInteractive != null) {
+            env.setProperty("embabel.agent.shell.interactive.enabled", embabelInteractive);
+        }
+        if (embabelClose != null) {
+            env.setProperty("embabel.agent.shell.context-close", embabelClose);
+        }
+        if (springClose != null) {
+            env.setProperty("spring.shell.context.close", springClose);
+        }
+
+        new ShellEnvironmentPostProcessor().postProcessEnvironment(env, application);
+
+        assertEquals(expectedInteractive, env.getProperty("spring.shell.interactive.enabled", Boolean.class));
+        assertEquals(expectedClose, env.getProperty("spring.shell.context.close", Boolean.class));
+    }
+
+    @Test
+    void resolvesShellSettingsFromConfigurationFile() {
+        MockEnvironment env = new MockEnvironment()
+                .withProperty("spring.config.location", "classpath:shell-noninteractive.yml");
+        ConfigDataEnvironmentPostProcessor.applyTo(env);
+
+        new ShellEnvironmentPostProcessor().postProcessEnvironment(env, application);
+
+        assertEquals(false, env.getProperty("spring.shell.interactive.enabled", Boolean.class));
+        assertEquals(false, env.getProperty("spring.shell.context.close", Boolean.class));
     }
 
     @Test
@@ -424,7 +475,7 @@ class ShellEnvironmentPostProcessorTest {
         processor = new ShellEnvironmentPostProcessor();
 
         // Then
-        assertEquals(Integer.MIN_VALUE + 10, processor.getOrder());
+        assertTrue(processor.getOrder() > ConfigDataEnvironmentPostProcessor.ORDER);
     }
 
     @Test

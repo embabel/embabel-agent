@@ -19,11 +19,13 @@ import com.embabel.agent.core.JvmType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import org.springframework.boot.SpringApplication
+import org.springframework.test.util.ReflectionTestUtils
 
 class JvmTypeCacheInvalidatorTest {
 
     @Test
-    fun `cache should be cleared on context close event`() {
+    fun `cache should be cleared when SpringApplication exits`() {
         // Populate the cache first
         val type = JvmType(List::class.java)
         type.children(listOf("com.embabel"))
@@ -39,11 +41,13 @@ class JvmTypeCacheInvalidatorTest {
         // Populate cache again
         type.children(listOf("com.embabel.agent"))
 
-        // Close context - triggers ContextClosedEvent -> clearChildrenCache()
-        context.close()
+        val cache = ReflectionTestUtils.getField(JvmType::class.java, "childrenCache") as Map<*, *>
+        assertFalse(cache.isEmpty())
 
-        // Cache was cleared (verified by INFO log: "Clearing JvmType children cache")
-        val afterClose = type.children(listOf("com.embabel"))
-        assertNotNull(afterClose)
+        // Uses the same shutdown path as ShellExitListener.
+        SpringApplication.exit(context)
+
+        assertFalse(context.isActive)
+        assertTrue(cache.isEmpty())
     }
 }
