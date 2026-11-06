@@ -28,6 +28,8 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import com.embabel.common.core.thinking.ThinkingBlock
+import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.EmptyResponseAction
 import com.embabel.agent.spi.loop.EmptyResponsePolicy
@@ -116,6 +118,8 @@ internal open class DefaultToolLoop(
 
             val callResult = llmMessageSender.call(state.conversationHistory, state.availableTools)
             accumulateUsage(callResult.usage, state)
+            // Mirror accumulateUsage: collect thinking blocks from each iteration in order.
+            state.accumulatedThinkingBlocks.addAll(callResult.thinkingBlocks)
 
             /* -------------------------------------------------
              * Apply afterLlmCall callbacks - START
@@ -258,22 +262,50 @@ internal open class DefaultToolLoop(
         }
     }
 
+    /**
+     * Builds the final [ToolLoopResult] from the last LLM response text.
+     *
+     * When [outputParser] throws a [ThinkingException] (conversion failure on the
+     * non-optional thinking path), the exception is caught here — the only point where
+     * both [LoopState.accumulatedThinkingBlocks] (native + prompt blocks from all
+     * iterations) and the exception are simultaneously accessible — so the rethrown
+     * exception carries the full accumulated set instead of only the prompt-extracted
+     * blocks from the final iteration.
+     *
+     * Block selection: [LoopState.accumulatedThinkingBlocks] when non-empty (normal case
+     * with [com.embabel.agent.spi.support.ThinkingCapturingLlmMessageSender] active);
+     * falls back to [ThinkingException.thinkingBlocks] when the accumulator is empty
+     * (sender not wrapped), preserving pre-fix behaviour with no regression.
+     */
     private fun <O> buildResult(
         finalText: String,
         outputParser: (String) -> O,
         state: LoopState,
-    ): ToolLoopResult<O> = ToolLoopResult(
-        result = outputParser(finalText),
-        rawResponseText = finalText,
-        conversationHistory = state.conversationHistory,
-        totalIterations = state.iterations,
-        injectedTools = state.injectedTools,
-        removedTools = state.removedTools,
-        totalUsage = state.accumulatedUsage,
-        replanRequested = state.replanRequested,
-        replanReason = state.replanReason,
-        blackboardUpdater = state.blackboardUpdater,
-    )
+    ): ToolLoopResult<O> {
+        val parsedResult = try {
+            outputParser(finalText)
+        } catch (e: ThinkingException) {
+            // Replace with all-iteration blocks (native + prompt); fall back to the
+            // exception's own blocks when the accumulator is empty.
+            // e.cause forwarded so InvalidDefinitionException remains reachable in the
+            // chain after this rethrow.
+            val blocks = state.accumulatedThinkingBlocks.toList().ifEmpty { e.thinkingBlocks }
+            throw ThinkingException(e.message ?: "Conversion failed", blocks, e.cause)
+        }
+        return ToolLoopResult(
+            result = parsedResult,
+            rawResponseText = finalText,
+            conversationHistory = state.conversationHistory,
+            totalIterations = state.iterations,
+            injectedTools = state.injectedTools,
+            removedTools = state.removedTools,
+            totalUsage = state.accumulatedUsage,
+            replanRequested = state.replanRequested,
+            replanReason = state.replanReason,
+            blackboardUpdater = state.blackboardUpdater,
+            thinkingBlocks = state.accumulatedThinkingBlocks.toList(),
+        )
+    }
 
     /**
      * Process all tool calls from a single LLM response.
@@ -429,6 +461,8 @@ internal open class DefaultToolLoop(
         var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
         /** When set, the tool loop returns this content directly without sending it back to the LLM. */
         var returnDirectContent: String? = null,
+        // Non-empty only when [ThinkingCapturingLlmMessageSender] wraps the sender; empty otherwise.
+        val accumulatedThinkingBlocks: MutableList<ThinkingBlock> = mutableListOf(),
     )
 
     /**

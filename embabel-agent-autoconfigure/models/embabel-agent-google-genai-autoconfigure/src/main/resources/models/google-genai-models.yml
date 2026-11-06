@@ -2,15 +2,63 @@
 # google-genai-models.yml
 # ============================================
 # Google GenAI (Gemini) models configuration
-# Updated with latest Gemini models as of June 2026
+# Updated with latest Gemini models as of October 2026
 # Using native Spring AI Google GenAI support
 
 models:
   # ========================================
-  # GEMINI 3.5 FAMILY (Latest Generation - Stable)
+  # GEMINI 4 FAMILY (Latest Generation - Stable)
   # ========================================
 
+  # Gemini 4 Argon - Pricing not yet published by Google
+  - name: "gemini_4_argon"
+    model_id: "gemini-4-argon"
+    display_name: "Gemini 4 Argon"
+    max_output_tokens: 32768
+    temperature: 0.7
+
+  # ========================================
+  # GEMINI 3.8 / 3.6 FAMILY (Stable)
+  # ========================================
+
+  # Gemini 3.8 Flash - Recommended Flash model for new projects
+  # Price rises to $1.50 / $7.50 on 2027-01-01
+  - name: "gemini_3_8_flash"
+    model_id: "gemini-3.8-flash"
+    display_name: "Gemini 3.8 Flash"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.75
+      usd_per1m_output_tokens: 3.75
+
+  # Gemini 3.6 Flash - Replacement for Gemini 3.5 Flash
+  # Price rises to $1.50 / $7.50 on 2027-01-01
+  - name: "gemini_3_6_flash"
+    model_id: "gemini-3.6-flash"
+    display_name: "Gemini 3.6 Flash"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.75
+      usd_per1m_output_tokens: 3.75
+
+  # ========================================
+  # GEMINI 3.5 FAMILY (Stable)
+  # ========================================
+
+  # Gemini 3.5 Flash Lite - Recommended lightweight model for new projects
+  - name: "gemini_3_5_flash_lite"
+    model_id: "gemini-3.5-flash-lite"
+    display_name: "Gemini 3.5 Flash Lite"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.30
+      usd_per1m_output_tokens: 2.50
+
   # Gemini 3.5 Flash - Frontier-level reasoning at Flash tier speed & cost
+  # DEPRECATED by Google: replaced by gemini-3.6-flash
   - name: "gemini_3_5_flash"
     model_id: "gemini-3.5-flash"
     display_name: "Gemini 3.5 Flash"
@@ -63,6 +111,7 @@ models:
       usd_per1m_output_tokens: 12.00
 
   # Gemini 3 Flash Preview - Fast model with thinking capabilities
+  # DEPRECATED by Google: replaced by gemini-3.6-flash
   - name: "gemini_3_flash_preview"
     model_id: "gemini-3-flash-preview"
     display_name: "Gemini 3 Flash Preview"
@@ -74,6 +123,7 @@ models:
       usd_per1m_output_tokens: 3.00
 
   # Gemini 3.1 Flash Lite Preview - Lightweight and cost-effective latest generation model
+  # DEPRECATED by Google: shut down on 2026-05-25, use gemini-3.1-flash-lite
   - name: "gemini_3_1_flash_lite_preview"
     model_id: "gemini-3.1-flash-lite-preview"
     display_name: "Gemini 3.1 Flash Lite Preview"
@@ -126,7 +176,15 @@ models:
 # ========================================
 
 embedding_models:
-  # Gemini Embedding 001 - Recommended embedding model (GA)
+  # Gemini Embedding 2 - Latest embedding model (GA)
+  - name: "gemini_embedding_2"
+    model_id: "gemini-embedding-2"
+    display_name: "Gemini Embedding 2"
+    dimensions: 3072
+    pricing_model:
+      usd_per1m_tokens: 0.20
+
+  # Gemini Embedding 001 - Embedding model (GA)
   # text-embedding-004 is deprecated (shutdown Jan 2026)
   # text-embedding-005 is not available on the Gemini API
   - name: "gemini_embedding_001"

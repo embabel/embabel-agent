@@ -95,6 +95,83 @@ embabel:
 
 It's good practice to decouple your code from specific models in this way.
 
+===== Decision and classification defaults and roles
+
+These registry properties select registered services or provider models; Spring defaults, roles and default candidates can also name service aliases. See <<reference.decision-providers>>.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.models.decision.default`
+|String
+|not set
+|Default service or provider model for decisions
+
+|`embabel.models.decision.roles.<role>`
+|String
+|not set
+|Service or provider model assigned to a decision role
+
+|`embabel.models.classification.default`
+|String
+|not set
+|Default service or provider model for classification
+
+|`embabel.models.classification.roles.<role>`
+|String
+|not set
+|Service or provider model assigned to a classification role
+|===
+
+===== TypeSafe provider connection
+
+TypeSafe connection properties use the `embabel.agent.platform.models.typesafe` prefix. `TYPESAFE_API_KEY` takes precedence over `api-key`, and a key is required when the TypeSafe starter configuration starts. See <<reference.decision-providers>>.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.typesafe.api-key`
+|String
+|not set
+|Credential used when `TYPESAFE_API_KEY` is absent or blank
+
+|`embabel.agent.platform.models.typesafe.base-url`
+|String
+|`https://api.typesafe.ai`
+|TypeSafe API base URL
+
+|`embabel.agent.platform.models.typesafe.max-response-bytes`
+|int
+|`1048576`
+|Maximum response body size in bytes
+|===
+
+===== Cloudflare provider connection
+
+Cloudflare connection properties use the `embabel.agent.platform.models.cloudflare` prefix. `CLOUDFLARE_API_TOKEN` takes precedence over `api-key` and `CLOUDFLARE_ACCOUNT_ID` takes precedence over `account-id`. Both are required when the Cloudflare starter configuration starts. See <<reference.cloudflare>>.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.cloudflare.api-key`
+|String
+|not set
+|Credential used when `CLOUDFLARE_API_TOKEN` is absent or blank
+
+|`embabel.agent.platform.models.cloudflare.account-id`
+|String
+|not set
+|Account id used when `CLOUDFLARE_ACCOUNT_ID` is absent or blank
+
+|`embabel.agent.platform.models.cloudflare.max-response-bytes`
+|int
+|`1048576`
+|Maximum response body size in bytes
+|===
+
 ===== Platform Configuration
 
 From `AgentPlatformProperties` - unified configuration for all agent platform properties.
@@ -721,7 +798,7 @@ implementation 'com.embabel.agent:embabel-agent-netty-client-autoconfigure'
 
 |`embabel.agent.platform.http-client.read-timeout`
 |Duration
-|`1m`
+|`5m`
 |Read timeout (response timeout) for receiving responses from model providers. Increase this value for models that generate long responses or when using extended thinking features.
 
 |===
@@ -745,9 +822,25 @@ NOTE: The `http-client` timeouts do not apply to OpenAI-compatible providers (`o
 
 * *Long-running LLM calls*: If you experience timeout errors during complex reasoning tasks, increase `read-timeout`
 * *Slow network environments*: Increase `connect-timeout` if connection establishment is failing
-* *Streaming responses*: The `read-timeout` applies to the initial response; streaming content has its own handling
+* *Streaming responses*: The `read-timeout` bounds the wait for the response and then each wait between reads, so a stream that stalls mid-response fails after `read-timeout` rather than hanging
 
 NOTE: The HTTP client configuration applies to all model providers that use Spring's `RestClient` and `WebClient`, including OpenAI, Anthropic, and OpenAI-compatible endpoints.
+
+DeepSeek and Mistral AI also accept `connect-timeout` and `read-timeout` under their own prefixes, `embabel.agent.platform.models.deepseek` and `embabel.agent.platform.models.mistralai`. Set there, they replace the `http-client` values for that provider. Setting only one of the two takes the other from `http-client`.
+
+Setting either gives that provider its own HTTP client, configured like the shared one but with its own timeouts. Anything else customised on the shared `aiModelRestClientBuilder` and `aiModelWebClientBuilder` beans' transport, such as a proxy or TLS settings, does not apply to that provider. The provider logs this at `INFO` on startup. That client is reactor-netty, like the shared one, unless `embabel.agent.platform.http-client.use-reactor-netty` is `false`. Then it is the JDK HTTP client, whose `read-timeout` bounds only the wait for response headers: a stream that stalls mid-response is not timed out. The provider logs a `WARN` saying so.
+
+A per-user (BYOK) DeepSeek or Mistral AI key reads the same two property names, but falls back differently when they are unset. It does not use `http-client`: an unset `connect-timeout` is `1m`, and an unset `read-timeout` leaves each chat completion or embedding call bounded at 60 seconds per attempt, with the call retried twice. For such a key, a set `read-timeout` bounds each whole attempt rather than each wait between reads.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        mistralai:
+          read-timeout: 10m
+----
 
 ===== Template Renderer
 
@@ -984,33 +1077,38 @@ From `OnnxEmbeddingProperties` - configuration for local ONNX embedding models.
 
 ====== Docker Local Models
 
-From `DockerProperties` - configuration for Docker local models (OpenAI-compatible).
+From `DockerConnectionProperties` and `DockerRetryProperties` - configuration for Docker local models (OpenAI-compatible).
 
 [cols="3,2,1,4",options="header"]
 |===
 |Property |Type |Default |Description
 
-|`embabel.docker.models.base-url`
+|`embabel.agent.models.docker.base-url`
 |String
 |`http://localhost:12434/engines`
 |Base URL for Docker model endpoint
 
-|`embabel.docker.models.max-attempts`
+|`embabel.agent.models.docker.api-version`
+|String
+|`v1`
+|API version segment added to `base-url` when it doesn't already end in one (`/v<digits>`)
+
+|`embabel.agent.platform.models.docker.max-attempts`
 |Int
 |`10`
 |Maximum retry attempts
 
-|`embabel.docker.models.backoff-millis`
+|`embabel.agent.platform.models.docker.backoff-millis`
 |Long
-|`2000`
+|`5000`
 |Initial backoff time in milliseconds
 
-|`embabel.docker.models.backoff-multiplier`
+|`embabel.agent.platform.models.docker.backoff-multiplier`
 |Double
 |`5.0`
 |Backoff multiplier
 
-|`embabel.docker.models.backoff-max-interval`
+|`embabel.agent.platform.models.docker.backoff-max-interval`
 |Long
 |`180000`
 |Maximum backoff interval in milliseconds

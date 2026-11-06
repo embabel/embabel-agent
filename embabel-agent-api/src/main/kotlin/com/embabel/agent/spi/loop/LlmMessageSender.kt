@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.NativeStructuredOutputMode
+import com.embabel.common.core.thinking.ThinkingBlock
 
 /**
  * Native structured-output payload for a single call.
@@ -64,15 +65,20 @@ data class LlmMessageRequest @JvmOverloads constructor(
 
 /**
  * Framework-agnostic result of a single LLM inference call.
- * Represents the assistant's response which may include tool calls.
+ * Carries everything the model returned for that call: the answer message,
+ * optional usage stats, and thinking blocks.
  * @param message The full message object from the LLM
  * @param textContent The text content of the message
- * @param usage Optional usage information (tokens, etc.)
+ * @param usage Optional token usage information
+ * @param thinkingBlocks Thinking blocks for this call. Initially populated with native blocks
+ *   from [com.embabel.agent.spi.support.springai.SpringAiNativeThinkingExtractor]; merged with
+ *   prompt-extracted blocks by [com.embabel.agent.spi.support.ThinkingCapturingLlmMessageSender].
  */
 data class LlmMessageResponse(
     val message: Message,
     val textContent: String,
     val usage: Usage? = null,
+    val thinkingBlocks: List<ThinkingBlock> = emptyList(),
 )
 
 /**

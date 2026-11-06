@@ -19,7 +19,10 @@ import com.embabel.agent.api.reference.LlmReference
 import java.time.Instant
 
 /**
- * View of tracked assets
+ * View of tracked assets.
+ *
+ * Both [Conversation] and messages implementing [AssetView] (such as [AssistantMessage]
+ * and [UserMessage]) expose their associated assets through this interface.
  */
 interface AssetView {
 

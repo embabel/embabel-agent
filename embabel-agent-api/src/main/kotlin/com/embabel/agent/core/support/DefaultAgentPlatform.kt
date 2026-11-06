@@ -107,7 +107,7 @@ open class DefaultAgentPlatform(
         // process.kill() cascades to children automatically
         val killEvent = process.kill()
         if (killEvent != null) {
-            eventListener.onProcessEvent(killEvent)
+            process.processContext.onProcessEvent(killEvent)
         } else {
             logger.warn("Failed to kill agent process {}", id)
         }
@@ -200,7 +200,7 @@ open class DefaultAgentPlatform(
         }
         logger.debug("🚀 Creating process {}", agentProcess.id)
         agentProcessRepository.save(agentProcess)
-        eventListener.onProcessEvent(AgentProcessCreationEvent(agentProcess))
+        agentProcess.processContext.onProcessEvent(AgentProcessCreationEvent(agentProcess))
         return agentProcess
     }
 
@@ -234,7 +234,7 @@ open class DefaultAgentPlatform(
         )
         logger.debug("👶 Creating child process {} from {}", childAgentProcess.id, parentAgentProcess.id)
         agentProcessRepository.save(childAgentProcess)
-        eventListener.onProcessEvent(AgentProcessCreationEvent(childAgentProcess))
+        childAgentProcess.processContext.onProcessEvent(AgentProcessCreationEvent(childAgentProcess))
         return childAgentProcess
     }
 }

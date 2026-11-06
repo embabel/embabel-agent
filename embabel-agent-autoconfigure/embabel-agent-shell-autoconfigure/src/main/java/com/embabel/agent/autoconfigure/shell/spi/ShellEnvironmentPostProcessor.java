@@ -49,6 +49,7 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
     private static final String SHELL_QUIT_ENABLED_PROPERTY = "spring.shell.command.quit.enabled";
     private static final String SHELL_INTERACTIVE_ENABLED_PROPERTY = "spring.shell.interactive.enabled";
     private static final String SHELL_HISTORY_ENABLED_PROPERTY = "spring.shell.history.enabled";
+    private static final String SHELL_CONTEXT_CLOSE_PROPERTY = "spring.shell.context.close";
 
     @Override
     public int getOrder() {
@@ -96,7 +97,7 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
      * @param shellConfig the shell configuration to apply
      */
     private void applyShellConfiguration(ConfigurableEnvironment environment, ShellConfiguration shellConfig) {
-        Map<String, Object> shellProperties = buildShellProperties(shellConfig);
+        Map<String, Object> shellProperties = buildShellProperties(environment, shellConfig);
 
         environment.getPropertySources().addFirst(
                 new MapPropertySource(SHELL_PROPERTIES_SOURCE_NAME, shellProperties)
@@ -111,10 +112,16 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
      * <p>Sets the web application type to NONE to prevent web server startup when in shell mode,
      * ensuring the application operates as a command-line tool rather than a web service.
      *
+     * <p>Spring Shell 4 handles {@code quit}/{@code exit} by ending its input loop only; the
+     * application context stays open (and non-daemon threads keep the JVM alive) unless
+     * {@code spring.shell.context.close} is true. Default it to true unless the application
+     * has set it explicitly.
+     *
+     * @param environment the configurable environment
      * @param shellConfig the shell configuration
      * @return map of property names to values
      */
-    private Map<String, Object> buildShellProperties(ShellConfiguration shellConfig) {
+    private Map<String, Object> buildShellProperties(ConfigurableEnvironment environment, ShellConfiguration shellConfig) {
         Map<String, Object> properties = new HashMap<>();
 
         // Configure application type for shell mode - prevents web server startup
@@ -125,6 +132,9 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
         properties.put(SHELL_QUIT_ENABLED_PROPERTY, shellConfig.isQuitCommandEnabled());
         properties.put(SHELL_INTERACTIVE_ENABLED_PROPERTY, shellConfig.isInteractiveMode());
         properties.put(SHELL_HISTORY_ENABLED_PROPERTY, shellConfig.isHistoryEnabled());
+        if (!environment.containsProperty(SHELL_CONTEXT_CLOSE_PROPERTY)) {
+            properties.put(SHELL_CONTEXT_CLOSE_PROPERTY, true);
+        }
 
         return properties;
     }

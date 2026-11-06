@@ -38,7 +38,9 @@ fun LlmOptions.getOpenAiReasoningEffort(): String? =
 
 /**
  * Adds the configured reasoning effort to what [delegate] converts. Wraps only converters for
- * OpenAI's own endpoint: OpenAI-compatible providers share the delegates and may reject the field.
+ * servers known to accept the field - OpenAI's own endpoint, and the OpenAI-compatible providers
+ * that opt in (see `OpenAiCompatibleModelFactory.openAiCompatibleLlm`): other compatible servers
+ * share the delegates and may reject it.
  */
 @ApiStatus.Internal
 data class OpenAiReasoningEffortOptionsConverter(private val delegate: OptionsConverter) : OptionsConverter {

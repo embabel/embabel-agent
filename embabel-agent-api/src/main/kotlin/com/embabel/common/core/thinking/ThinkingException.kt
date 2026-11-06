@@ -18,8 +18,16 @@ package com.embabel.common.core.thinking
 /**
  * Exception that carries thinking blocks even when LLM operation fails.
  * This preserves the LLM's reasoning process for debugging and analysis.
+ *
+ * @JvmOverloads generates the two-argument Java constructor
+ * `ThinkingException(String, List)` so existing Java callers are not broken
+ * by the optional `cause` parameter added later.
  */
-class ThinkingException(
+class ThinkingException @JvmOverloads constructor(
     message: String,
-    val thinkingBlocks: List<ThinkingBlock>
-) : Exception(message)
+    val thinkingBlocks: List<ThinkingBlock>,
+    // Original exception preserved as cause so that hasNonRetryableDatabindException
+    // can walk the chain and detect InvalidDefinitionException as non-retryable.
+    // Defaults to null for callers that have no wrapping exception (e.g. policy failures).
+    cause: Throwable? = null,
+) : Exception(message, cause)

@@ -19,16 +19,38 @@ import com.embabel.agent.core.Goal
 import com.embabel.agent.core.internal.LlmOperations
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class LlmRankerTest {
 
     @Nested
     inner class Errors {
+
+        @Test
+        fun `rejects name with appended description`() {
+            val llmt = mockk<LlmOperations>()
+            every {
+                llmt.doTransform<RankingsResponse>(
+                    prompt = any(),
+                    interaction = any(),
+                    outputClass = RankingsResponse::class.java,
+                    llmRequestEvent = null,
+                )
+            } returns RankingsResponse(listOf(RankedChoiceResponse("horoscope: Get a horoscope", .95)))
+            val ranker = LlmRanker(llmt, RankingProperties(llm = "whatever"))
+
+            val exception = assertFailsWith<IllegalStateException> {
+                ranker.rank("goal", "My horoscope", listOf(Goal(name = "horoscope", description = "Get a horoscope")))
+            }
+
+            assertTrue(exception.message!!.contains("not in the list of available"))
+        }
 
         @Test
         @Disabled("not yet implemented")
@@ -52,6 +74,7 @@ class LlmRankerTest {
         @Test
         fun `successful choice`() {
             val llmt = mockk<LlmOperations>()
+            val prompt = slot<String>()
             val llmr = RankingsResponse(
                 rankings = listOf(
                     RankedChoiceResponse("horoscope", .2),
@@ -60,7 +83,7 @@ class LlmRankerTest {
             )
             every {
                 llmt.doTransform<RankingsResponse>(
-                    prompt = any(),
+                    prompt = capture(prompt),
                     interaction = any(),
                     outputClass = RankingsResponse::class.java,
                     llmRequestEvent = null,
@@ -82,6 +105,9 @@ class LlmRankerTest {
                 ),
             )
             assertEquals("weather", rankings.rankings()[0].match.name)
+            assertTrue(prompt.captured.contains("\"name\":\"horoscope\",\"description\":\"Get a horoscope\""))
+            assertTrue(prompt.captured.contains("\"rankings\":[{\"name\":\"horoscope\",\"confidence\":0.9}]"))
+            assertTrue(prompt.captured.contains("Copy only the exact name field"))
         }
     }
 

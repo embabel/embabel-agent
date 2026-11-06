@@ -1,0 +1,23 @@
+# Decision services configuration shown on the decision execution reference page.
+# tag::yaml[]
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          api-key: ${TYPESAFE_API_KEY}
+      decisions:
+        capture-content: false
+  models:
+    decision:
+      # A catalog model the TypeSafe starter registers as a bean named after the model.
+      default: jev-latest
+      roles:
+        support-triage: jev-latest
+        # A chat model name builds a prompted decision service on first use.
+        dice-revision-review: gpt-4.1-mini
+    classification:
+      roles:
+        dice-revision: gpt-4.1-mini
+        ticket-routing: gpt-4.1-mini
+# end::yaml[]

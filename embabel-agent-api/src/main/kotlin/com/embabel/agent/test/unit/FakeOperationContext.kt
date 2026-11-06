@@ -17,6 +17,7 @@ package com.embabel.agent.test.unit
 
 import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Agent
@@ -26,6 +27,7 @@ import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.common.Constants.EMBABEL_PROVIDER
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyProcessContext
+import com.embabel.common.ai.model.DecisionServiceRegistry
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import org.slf4j.LoggerFactory
@@ -92,6 +94,19 @@ class FakeOperationContext(
     }
 
     companion object {
+
+        /**
+         * Returns a test operation context whose `ai()` selects from [registry].
+         * Java tests can call `FakeOperationContext.withDecisionServices(registry)`.
+         */
+        @JvmStatic
+        fun withDecisionServices(registry: DecisionServiceRegistry): FakeOperationContext {
+            val base = dummyProcessContext(DummyAgent)
+            val services = object : PlatformServices by base.platformServices {
+                override fun decisionServices(): DecisionServiceRegistry = registry
+            }
+            return FakeOperationContext(processContext = base.copy(platformServices = services))
+        }
 
         @JvmOverloads
         @JvmStatic

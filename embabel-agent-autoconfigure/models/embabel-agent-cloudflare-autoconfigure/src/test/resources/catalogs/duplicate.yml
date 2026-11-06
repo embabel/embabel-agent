@@ -1,0 +1,5 @@
+models:
+  - name: clef-a
+    model_id: "@cf/cloudflare/clef"
+  - name: clef-a
+    model_id: "@cf/cloudflare/clef-flash"

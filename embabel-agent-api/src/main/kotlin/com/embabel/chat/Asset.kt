@@ -23,7 +23,14 @@ import java.util.*
 
 /**
  * Asset associated with a conversation.
- * An asset may be persistent or ephemeral.
+ *
+ * An asset represents a resource referenceable by the LLM (via [reference]) and
+ * tracked across conversations. Assets may be produced out-of-band by tools or agents,
+ * or supplied as inbound attachments on [UserMessage] and tracked via [AssetTracker].
+ *
+ * Content can be made durable across sessions by materializing via [MaterializableAsset]
+ * into an [com.embabel.chat.spi.AssetStore], yielding a [DurableAsset].
+ * For direct multimodal model inputs (such as image or document prompts), see [MediaPart].
  */
 interface Asset : LlmReferenceProvider, StableIdentified, Timestamped {
 

@@ -18,7 +18,10 @@ package com.embabel.agent.api.common
 import com.embabel.agent.core.LlmVerbosity
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.spi.LlmService
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.*
+import org.jetbrains.annotations.ApiStatus
 
 typealias Embedding = FloatArray
 
@@ -96,6 +99,38 @@ interface Ai {
      */
     fun withLlmService(llmService: LlmService<*>): PromptRunner =
         withLlm(LlmOptions(modelSelectionCriteria = PreResolvedModelSelectionCriteria(llmService)))
+
+    /**
+     * Returns the selector for decision services.
+     *
+     * The selector offers four terminals: `defaultService()`, `named(name)`, `byRole(role)` and
+     * `using(service)`. Inside a workflow operation each terminal returns a service bound to the
+     * operation, so its provider calls run under the operation's observation. A name, role or default
+     * that the platform's registry cannot resolve throws [ServiceSelectionException]. Selection does not
+     * fall back to an LLM. This default body selects from an empty registry, where only `using(service)`
+     * succeeds.
+     *
+     * @return the decision service selector
+     */
+    @ApiStatus.Experimental
+    fun decisions(): ServiceSelector<DecisionService> = DecisionServiceRegistry.empty().decisions()
+
+    /**
+     * Returns the selector for classification services. Decision services are also classification
+     * services, so this family includes them.
+     *
+     * The selector offers four terminals: `defaultService()`, `named(name)`, `byRole(role)` and
+     * `using(service)`. Inside a workflow operation each terminal returns a service bound to the
+     * operation, so its provider calls run under the operation's observation. A name, role or default
+     * that the platform's registry cannot resolve throws [ServiceSelectionException]. Selection does not
+     * fall back to an LLM. This default body selects from an empty registry, where only `using(service)`
+     * succeeds.
+     *
+     * @return the classification service selector
+     */
+    @ApiStatus.Experimental
+    fun classifications(): ServiceSelector<ClassificationService> =
+        DecisionServiceRegistry.empty().classifications()
 }
 
 /**

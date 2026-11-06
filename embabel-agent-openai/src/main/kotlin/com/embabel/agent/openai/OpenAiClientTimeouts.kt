@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.common.http.ClientTimeoutProperties
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.openai.core.Timeout
@@ -103,12 +104,12 @@ data class OpenAiClientTimeouts @JvmOverloads constructor(
  * extends this and binds it under its own prefix, so `connect-timeout` and `read-timeout` are
  * set per provider while the fields, defaults and documentation live here once.
  */
-abstract class OpenAiCompatibleClientProperties {
+abstract class OpenAiCompatibleClientProperties : ClientTimeoutProperties() {
 
     /**
      * How long to wait to connect to the provider.
      */
-    var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
+    override var connectTimeout: Duration? = OpenAiClientTimeouts.DEFAULT_CONNECT
 
     /**
      * The per-attempt response timeout: how long one attempt may take, from sending the request
@@ -117,9 +118,10 @@ abstract class OpenAiCompatibleClientProperties {
      * 10 minutes for Responses API models, the client's. The client retries a timed-out call
      * twice, so a caller can wait up to three times this value.
      */
-    var readTimeout: Duration? = null
+    override var readTimeout: Duration? = null
 
-    fun clientTimeouts(): OpenAiClientTimeouts = OpenAiClientTimeouts(connectTimeout, readTimeout)
+    fun clientTimeouts(): OpenAiClientTimeouts =
+        OpenAiClientTimeouts(connectTimeout ?: OpenAiClientTimeouts.DEFAULT_CONNECT, readTimeout)
 }
 
 /**

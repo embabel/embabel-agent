@@ -22,6 +22,7 @@ import com.embabel.agent.core.NonRetryable
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Retryable
 import com.embabel.agent.spi.support.LlmDataBindingProperties
+import com.embabel.common.ai.model.TransportFailureDiagnostics
 import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
 import org.springframework.web.client.RestClientResponseException
@@ -93,23 +94,19 @@ internal object LlmRetryDecision {
 
     /** A [Retryable] or [NonRetryable] marker anywhere in the cause chain overrides every other rule. */
     private fun marker(t: Throwable): Boolean? {
-        var cause: Throwable? = t
-        while (cause != null) {
+        for (cause in TransportFailureDiagnostics.causes(t)) {
             when (cause) {
                 is NonRetryable -> return false
                 is Retryable -> return true
             }
-            cause = cause.cause
         }
         return null
     }
 
     private fun httpStatus(t: Throwable): Int? {
-        var cause: Throwable? = t
-        while (cause != null) {
+        for (cause in TransportFailureDiagnostics.causes(t)) {
             if (cause is RestClientResponseException) return cause.statusCode.value()
             STATUS_PREFIX.find(cause.message ?: "")?.let { return it.groupValues[1].toInt() }
-            cause = cause.cause
         }
         return null
     }

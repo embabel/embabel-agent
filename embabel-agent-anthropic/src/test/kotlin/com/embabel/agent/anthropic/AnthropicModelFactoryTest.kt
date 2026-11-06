@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.anthropic
 
+import com.anthropic.client.AnthropicClient
+import com.anthropic.client.AnthropicClientAsync
+import com.anthropic.errors.AnthropicServiceException
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.PricingModel
@@ -27,18 +30,24 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
 class AnthropicModelFactoryTest {
@@ -95,6 +104,17 @@ class AnthropicModelFactoryTest {
     }
 
     @Test
+    fun `build wires AnthropicNativeThinkingExtractor so BYOK native thinking blocks are not lost`() {
+        val factory = AnthropicModelFactory(
+            apiKey = "test-key",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
+        assertEquals(AnthropicNativeThinkingExtractor, service.nativeThinkingExtractor)
+    }
+
+    @Test
     fun `build with custom baseUrl constructs without error`() {
         val factory = AnthropicModelFactory(
             apiKey = "test-key",
@@ -104,6 +124,58 @@ class AnthropicModelFactoryTest {
         )
         val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
         assertTrue(service.name.isNotEmpty())
+    }
+}
+
+/**
+ * A context that builds Anthropic models must be able to let them go. Spring AI builds the async client
+ * itself when it is not given one, wiring in the context's observation registry, and the SDK closes that
+ * client only once it is phantom-reachable — which a client whose interceptors reach back into the
+ * context never becomes. So the factory builds both clients, from its own credentials, and closes them.
+ */
+class AnthropicModelFactoryClientLifecycleTest {
+
+    private class RecordingFactory : AnthropicModelFactory(apiKey = "test-key", baseUrl = "https://gateway.example.com") {
+        val sync = mockk<AnthropicClient>(relaxed = true)
+        val async = mockk<AnthropicClientAsync>(relaxed = true)
+        override fun createAnthropicClient(): AnthropicClient = sync
+        override fun createAnthropicClientAsync(): AnthropicClientAsync = async
+    }
+
+    @Test
+    fun `build hands Spring AI both clients, so it never builds one of its own`() {
+        val factory = RecordingFactory()
+
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
+        val chatModel = service.chatModel as AnthropicChatModel
+
+        assertSame(factory.sync, chatModel.anthropicClient)
+        assertSame(factory.async, chatModel.anthropicClientAsync)
+    }
+
+    @Test
+    fun `closing the factory closes every client it built`() {
+        val factory = RecordingFactory()
+        factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5)
+
+        factory.close()
+
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `createAnthropicClientAsync returns a non-null client`() {
+        val factory = object : AnthropicModelFactory(apiKey = "test-key", baseUrl = "https://gateway.example.com") {
+            fun async(): AnthropicClientAsync = createAnthropicClientAsync()
+        }
+
+        val client = factory.async()
+        try {
+            assertNotNull(client)
+        } finally {
+            client.close()
+        }
     }
 }
 
@@ -214,5 +286,90 @@ class AnthropicModelFactoryBuildValidatedTest {
         val e = assertThrows<InvalidApiKeyException> { blankKeyFactory.buildValidated() }
         assertEquals(BLANK_API_KEY_MESSAGE, e.message)
         assertEquals(0, requests, "a blank key must not reach the provider")
+    }
+
+    /** The number of requests the local server has received from [answerWith]'s handler. */
+    private val requestCount = AtomicInteger()
+
+    /**
+     * Makes the local server answer every request with the given HTTP [status] and JSON [body],
+     * and starts it. Each request adds one to [requestCount].
+     *
+     * For example, after `answerWith(401, """{"error":{"message":"Invalid API key"}}""")` the
+     * server responds as a provider responds to a key it does not know.
+     */
+    private fun answerWith(status: Int, body: String) {
+        server.createContext("/v1/messages") { exchange ->
+            requestCount.incrementAndGet()
+            exchange.requestBody.use { it.readBytes() }
+            val bytes = body.toByteArray()
+            exchange.responseHeaders.set("Content-Type", "application/json")
+            exchange.sendResponseHeaders(status, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+    }
+
+    /**
+     * The provider knows the key and refuses the request because the key is not permitted to use
+     * the model. The SDK does not retry, so the provider receives one request. The exception
+     * reports status code 403. Its message includes the provider's message, so a person reading
+     * it sees why the key was refused. Its cause is the SDK's exception, and that exception holds
+     * the same status code.
+     */
+    @Test
+    fun `a 403 response reports status code 403, the provider's message and the SDK exception`() {
+        answerWith(403, """{"type":"error","error":{"type":"permission_error","message":"This key may not use that model."}}""")
+
+        val e = assertThrows<InvalidApiKeyException> { factory().buildValidated() }
+
+        assertEquals(403, e.statusCode)
+        assertEquals(1, requestCount.get(), "the SDK does not retry a 403")
+        assertTrue(
+            e.message.orEmpty().contains("This key may not use that model."),
+            "the message includes the provider's message: ${e.message}",
+        )
+        val cause = assertInstanceOf(AnthropicServiceException::class.java, e.cause, "the SDK's exception is the cause")
+        assertEquals(403, cause.statusCode())
+    }
+
+    @Test
+    fun `a 401 response reports status code 401 after one request`() {
+        answerWith(401, """{"type":"error","error":{"type":"authentication_error","message":"Invalid API Key"}}""")
+
+        assertEquals(401, assertThrows<InvalidApiKeyException> { factory().buildValidated() }.statusCode)
+        assertEquals(1, requestCount.get(), "the SDK does not retry a 401")
+    }
+
+    /**
+     * The provider knows the key and refuses the request because the key is rate limited. The SDK
+     * sends the request, then retries it twice, so the provider receives three requests. The
+     * exception reports status code 429.
+     */
+    @Test
+    fun `a 429 response reports status code 429 after the SDK has retried twice`() {
+        answerWith(429, """{"type":"error","error":{"type":"rate_limit_error","message":"Rate limit reached"}}""")
+
+        assertEquals(429, assertThrows<InvalidApiKeyException> { factory().buildValidated() }.statusCode)
+        assertEquals(3, requestCount.get(), "one request and two retries")
+    }
+
+    @Test
+    fun `a refused connection reports no status code and keeps the cause`() {
+        // Bind a free port and release it. Nothing listens on it afterwards, so the connection
+        // is refused and the provider sends no response.
+        port = ServerSocket(0).use { it.localPort }
+
+        val e = assertThrows<InvalidApiKeyException> { factory().buildValidated() }
+
+        assertNull(e.statusCode, "there was no response, so there is no status code")
+        assertNotNull(e.cause)
+    }
+
+    @Test
+    fun `a blank key reports no status code`() {
+        val e = assertThrows<InvalidApiKeyException> { AnthropicModelFactory(apiKey = " ").buildValidated() }
+
+        assertNull(e.statusCode)
     }
 }

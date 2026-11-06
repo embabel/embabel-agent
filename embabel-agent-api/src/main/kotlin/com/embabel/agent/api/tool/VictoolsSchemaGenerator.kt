@@ -24,8 +24,10 @@ import com.github.victools.jsonschema.generator.OptionPreset
 import com.github.victools.jsonschema.generator.SchemaGenerator
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.github.victools.jsonschema.generator.SchemaVersion
-import com.github.victools.jsonschema.module.jackson.JacksonModule
 import com.github.victools.jsonschema.module.jackson.JacksonOption
+import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule
+import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule
+import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption
 import org.jetbrains.annotations.ApiStatus
 import java.lang.reflect.Method
 import java.lang.reflect.Type
@@ -44,13 +46,21 @@ internal object VictoolsSchemaGenerator {
             SchemaVersion.DRAFT_2020_12,
             OptionPreset.PLAIN_JSON
         ).with(
-            JacksonModule(
+            JacksonSchemaModule(
                 // Parameter schemas are nested below the tool schema root, so subtype-generated
                 // root-relative $refs would no longer point to their accompanying $defs.
                 JacksonOption.SKIP_SUBTYPE_LOOKUP,
                 // Keep nested input types consistent with the existing Jackson-aware output schema.
                 JacksonOption.RESPECT_JSONPROPERTY_REQUIRED,
                 JacksonOption.RESPECT_JSONPROPERTY_ORDER,
+            )
+        ).with(
+            JakartaValidationModule(
+                // Non-nullable fields and methods (e.g. annotated with @NotNull) are marked as required in the schema
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED,
+                JakartaValidationOption.NOT_NULLABLE_METHOD_IS_REQUIRED,
+                // Include regex pattern expressions from @Pattern annotations in generated schema properties
+                JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
             )
         )
         // Don't include $schema and $id in generated schemas

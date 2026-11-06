@@ -16,6 +16,8 @@
 package com.embabel.agent.autoconfigure.shell;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 
 /**
@@ -25,9 +27,20 @@ import org.springframework.context.annotation.ComponentScan;
  * allowing Spring to detect and register shell-related components, commands, and services
  * when the application is started in shell mode.
  *
+ * <p>When Spring Shell is configured to close the context after the shell ends
+ * ({@code spring.shell.context.close=true}, defaulted by
+ * {@link com.embabel.agent.autoconfigure.shell.spi.ShellEnvironmentPostProcessor}), it also
+ * registers a {@link ShellExitListener} that forces the JVM to exit.
+ *
  * @since 0.3.1
  */
 @AutoConfiguration
 @ComponentScan(basePackages = "com.embabel.agent.shell")
 public class AgentShellAutoConfiguration {
+
+    @Bean
+    @ConditionalOnProperty(name = "spring.shell.context.close", havingValue = "true")
+    public ShellExitListener shellExitListener() {
+        return new ShellExitListener();
+    }
 }

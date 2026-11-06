@@ -20,6 +20,7 @@ import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.ToolReturnedError
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ToolGroupMetadata
@@ -58,6 +59,17 @@ private val Tool.Result.content: String
         is Tool.Result.Error -> message
     }
 
+private fun Result<Tool.Result>.toEventResult(toolName: String): Result<String> =
+    fold(
+        onSuccess = { r ->
+            when (r) {
+                is Tool.Result.Error -> Result.failure(ToolReturnedError(toolName, r.message, r.cause))
+                else -> Result.success(r.content)
+            }
+        },
+        onFailure = { Result.failure(it) },
+    )
+
 /**
  * Tool decorator that adds Micrometer Observability.
  */
@@ -92,8 +104,19 @@ class ObservabilityTool(
             .start()
         return try {
             val result = action()
-            observation.lowCardinalityKeyValue("status", "success")
-            observation.highCardinalityKeyValue("result", result.content)
+            // A tool can return an error without throwing. Record that as an error too.
+            if (result is Tool.Result.Error) {
+                val error = ToolReturnedError(delegate.definition.name, result.message, result.cause)
+                observation.lowCardinalityKeyValue("status", "error")
+                observation.highCardinalityKeyValue("error_type", (result.cause ?: error)::class.simpleName ?: "Unknown")
+                observation.highCardinalityKeyValue("error_message", result.message)
+                observation.error(error)
+            } else {
+                // successful path
+                observation.lowCardinalityKeyValue("status", "success")
+                observation.highCardinalityKeyValue("result", result.content)
+            }
+            // Return the result in both cases. Only a thrown exception is rethrown below.
             result
         } catch (ex: Exception) {
             observation.lowCardinalityKeyValue("status", "error")
@@ -212,7 +235,7 @@ class EventPublishingTool(
         }
         agentProcess.processContext.onProcessEvent(
             functionCallRequestEvent.responseEvent(
-                result = result.map { it.content },
+                result = result.toEventResult(delegate.definition.name),
                 runningTime = Duration.ofMillis(millis),
             )
         )

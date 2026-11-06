@@ -426,6 +426,26 @@ class SkillsTest {
         assertTrue(notes.contains("Second skill"))
     }
 
+    @Test
+    fun `notes references prefixed tool names matching withReference naming strategy`() {
+        // notes() text is injected into the system prompt alongside the tool catalog.
+        // Tool names in notes() must match the registered names (e.g. "docs_search", not "search"),
+        // otherwise the LLM reads instructions that refer to tools it does not recognise.
+        val skills = Skills(
+            name = "Skills",
+            description = "test",
+            skills = emptyList(),
+        )
+        val prefix = skills.toolPrefix() // "skills"
+
+        val notes = skills.notes()
+
+        assertTrue(notes.contains("${prefix}_activate"), "notes must reference ${prefix}_activate, was:\n$notes")
+        assertTrue(notes.contains("${prefix}_listResources"), "notes must reference ${prefix}_listResources, was:\n$notes")
+        assertTrue(notes.contains("${prefix}_readResource"), "notes must reference ${prefix}_readResource, was:\n$notes")
+        assertFalse(notes.contains("\"activate\""), "notes must not reference bare 'activate', was:\n$notes")
+    }
+
     // Script tools tests
 
     @Test

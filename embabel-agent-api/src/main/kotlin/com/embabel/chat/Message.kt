@@ -24,6 +24,9 @@ import com.embabel.agent.domain.io.UserContent
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.common.core.types.Timestamped
 import com.embabel.common.util.trim
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 /**
@@ -127,28 +130,71 @@ sealed class BaseMessage(
 }
 
 /**
- * Message sent by the user - supports multimodal content
+ * Message sent by the user - supports multimodal content and attached assets.
+ *
+ * Assets attached to a message that may be checkpointed (e.g. via blackboard persistence)
+ * or persisted across sessions must be serializable. Use [DurableAsset] (typically by
+ * materializing into an [com.embabel.chat.spi.AssetStore] first), or serializable assets
+ * such as [MaterializableAsset.fromBytes] or [MaterializableAsset.fromPath].
+ * Transient stream-based assets created via [MaterializableAsset.of] must be materialized
+ * before attaching to a message subject to checkpointing.
  */
-class UserMessage : BaseMessage, UserContent {
+@JsonIgnoreProperties(
+    value = [
+        "role",
+        "content",
+        "textContent",
+        "imageParts",
+        "documentParts",
+        "mediaParts",
+        "multimodal",
+        "isMultimodal",
+        "sender",
+    ],
+    allowGetters = true,
+)
+class UserMessage @JsonCreator constructor(
+    @JsonProperty("parts") parts: List<ContentPart>,
+    @JsonProperty("name") name: String? = null,
+    @JsonProperty("assets") override val assets: List<Asset> = emptyList(),
+    @JsonProperty("timestamp") timestamp: Instant = Instant.now(),
+) : BaseMessage(
+    role = Role.USER,
+    parts = parts,
+    name = name,
+    timestamp = timestamp,
+), UserContent, AssetView {
 
     /**
-     * Primary constructor for multimodal messages
+     * Preserves binary compatibility for 1.5.3 callers.
      */
+    @Deprecated("Binary compatibility", level = DeprecationLevel.HIDDEN)
     constructor(
         parts: List<ContentPart>,
         name: String? = null,
         timestamp: Instant = Instant.now(),
-    ) : super(role = Role.USER, parts = parts, name = name, timestamp = timestamp)
+    ) : this(parts = parts, name = name, assets = emptyList(), timestamp = timestamp)
 
     /**
-     * Convenience constructor for text-only messages (backward compatibility)
+     * Convenience constructor for text-only messages with optional assets.
      */
     @JvmOverloads
     constructor(
         content: String,
         name: String? = null,
+        assets: List<Asset> = emptyList(),
         timestamp: Instant = Instant.now(),
-    ) : this(parts = listOf(TextPart(content)), name = name, timestamp = timestamp)
+    ) : this(parts = listOf(TextPart(content)), name = name, assets = assets, timestamp = timestamp)
+
+    /**
+     * Preserves binary compatibility for 1.5.3 callers.
+     */
+    @Deprecated("Binary compatibility", level = DeprecationLevel.HIDDEN)
+    constructor(
+        content: String,
+        name: String? = null,
+        timestamp: Instant = Instant.now(),
+    ) : this(content = content, name = name, assets = emptyList(), timestamp = timestamp)
 
     override fun toString(): String {
         return "UserMessage(from='${role.displayName}', content='${trim(content, 80, 10)}')"

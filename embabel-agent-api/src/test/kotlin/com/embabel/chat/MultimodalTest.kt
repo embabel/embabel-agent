@@ -240,4 +240,38 @@ class MultimodalTest {
         assertThat(message.content).isEqualTo("Hello world!")
         assertThat(message.mediaParts).hasSize(2)
     }
+
+    @Test
+    fun `UserMessageBuilder supports assets`() {
+        val asset1 = testAsset("a1", "Asset 1")
+        val asset2 = testAsset("a2", "Asset 2")
+        val message = userMessage()
+            .text("Check these:")
+            .asset(asset1)
+            .assets(listOf(asset2))
+            .build()
+
+        assertThat(message.textContent).isEqualTo("Check these:")
+        assertThat(message.assets).containsExactly(asset1, asset2)
+    }
+
+    @Test
+    fun `UserMessage supports text and assets constructor`() {
+        val asset = testAsset("a1", "Asset 1")
+        val message = UserMessage(
+            content = "Analyze this",
+            assets = listOf(asset),
+        )
+
+        assertThat(message.content).isEqualTo("Analyze this")
+        assertThat(message.assets).containsExactly(asset)
+    }
+
+    private fun testAsset(id: String, name: String): Asset = object : Asset {
+        override val id: String = id
+        override val timestamp: java.time.Instant = java.time.Instant.now()
+        override fun persistent(): Boolean = false
+        override fun reference(): com.embabel.agent.api.reference.LlmReference =
+            com.embabel.agent.api.reference.LlmReference.of(name, "desc", emptyList())
+    }
 }

@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
 
 /**
@@ -62,9 +63,10 @@ fun interface ToolResponseContentAdapter {
  * that require valid JSON in tool responses (e.g., Google GenAI / Gemini).
  *
  * Behavior:
- * - Content that already looks like a JSON object (`{...}`) or array (`[...]`)
+ * - Content that is already a JSON object (`{...}`) or array (`[...]`)
  *   is passed through unchanged.
- * - All other content is wrapped as `{"result": "<content>"}`.
+ * - All other content is wrapped as `{"result": "<content>"}`, including text
+ *   that merely starts with a bracket, such as `[Done] 3 files written`.
  *
  * This acts as a safety net at the provider boundary. Tools are encouraged
  * to return structured JSON directly (see `enabledToolsJson()` in
@@ -72,10 +74,8 @@ fun interface ToolResponseContentAdapter {
  * catches any remaining plain-text responses from arbitrary [com.embabel.agent.api.tool.Tool]
  * implementations.
  *
- * Note: The `startsWith` check is a fast-path heuristic, not full JSON
- * validation. Malformed JSON-like strings (e.g., `{not json}`) will pass
- * through and may fail downstream — this is acceptable since such output
- * is extremely rare from well-behaved tools.
+ * Content starting with `{` or `[` is parsed before it is passed through: the
+ * provider parses it too, and text it cannot parse fails the whole request.
  */
 class JsonWrappingToolResponseContentAdapter : ToolResponseContentAdapter {
 
@@ -83,9 +83,17 @@ class JsonWrappingToolResponseContentAdapter : ToolResponseContentAdapter {
 
     override fun adapt(content: String): String {
         val trimmed = content.trimStart()
-        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && isJson(trimmed)) {
             return content
         }
         return objectMapper.writeValueAsString(mapOf("result" to content))
     }
+
+    private fun isJson(content: String): Boolean =
+        try {
+            objectMapper.readTree(content)
+            true
+        } catch (e: JacksonException) {
+            false
+        }
 }

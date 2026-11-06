@@ -128,8 +128,8 @@ public class FactCheckerAgentConfiguration {
     public Agent factChecker(FactCheckerProperties factCheckerProperties) {
         return factCheckerAgent(
             List.of(
-                LlmOptions.create(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(0.3),
-                LlmOptions.create(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(0.0)
+                LlmOptions.create(AnthropicModels.CLAUDE_HAIKU_4_5).withTemperature(0.3),
+                LlmOptions.create(AnthropicModels.CLAUDE_HAIKU_4_5).withTemperature(0.0)
             ),
             factCheckerProperties
         );
@@ -148,8 +148,8 @@ class FactCheckerAgentConfiguration {
     fun factChecker(factCheckerProperties: FactCheckerProperties): Agent {
         return factCheckerAgent(
             llms = listOf(
-                LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.3),
-                LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.0),
+                LlmOptions(AnthropicModels.CLAUDE_HAIKU_4_5).withTemperature(.3),
+                LlmOptions(AnthropicModels.CLAUDE_HAIKU_4_5).withTemperature(.0),
             ),
             properties = factCheckerProperties,
         )

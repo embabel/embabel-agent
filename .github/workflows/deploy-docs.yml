@@ -90,7 +90,7 @@ jobs:
           cache-dependency-path: embabel-agent-docs/package-lock.json
 
       - name: Install Locked Node Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Generate and Verify llms.txt
         env:

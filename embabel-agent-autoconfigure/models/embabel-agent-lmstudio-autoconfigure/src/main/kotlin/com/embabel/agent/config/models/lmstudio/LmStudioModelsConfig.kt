@@ -288,6 +288,8 @@ class LmStudioModelsConfig(
         provider = LmStudioModels.PROVIDER,
         knowledgeCutoffDate = null,
         retryTemplate = lmStudioProperties.retryTemplate("lmstudio-$model"),
+        // LM Studio accepts `reasoning_effort` (`none` turns a thinking model's reasoning off).
+        forwardsReasoningEffort = true,
     )
 
     private fun lmStudioEmbeddingServiceOf(model: String) = openAiCompatibleEmbeddingService(

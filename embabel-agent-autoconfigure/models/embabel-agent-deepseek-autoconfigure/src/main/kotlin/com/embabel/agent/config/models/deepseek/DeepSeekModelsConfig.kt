@@ -16,6 +16,13 @@
 package com.embabel.agent.config.models.deepseek
 
 import com.embabel.agent.api.models.DeepSeekModels
+import com.embabel.agent.common.http.ClientTimeoutProperties
+import com.embabel.agent.common.http.ProviderHttpClients
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.DEFAULT_CONNECT_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.DEFAULT_READ_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.HTTP_CONNECT_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.HTTP_READ_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.HTTP_USE_REACTOR_NETTY
 import com.embabel.agent.config.models.deepseek.DeepSeekProperties.Companion.PREFIX
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -31,17 +38,15 @@ import org.springframework.ai.deepseek.DeepSeekChatOptions
 import org.springframework.ai.deepseek.api.DeepSeekApi
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.convert.DurationStyle
-import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 import java.time.LocalDate
 
 /**
@@ -49,9 +54,17 @@ import java.time.LocalDate
  * These properties are bound from the Spring configuration with the prefix
  * "embabel.agent.platform.models.deepseek" and control retry behavior
  * when calling Deepseek APIs.
+ *
+ * `connect-timeout` and `read-timeout` ([ClientTimeoutProperties]) fall back to
+ * `embabel.agent.platform.http-client.connect-timeout` and `read-timeout` when unset. Setting either
+ * gives DeepSeek its own HTTP client, so a proxy, TLS or other transport customisation on the shared
+ * `aiModelRestClientBuilder` / `aiModelWebClientBuilder` beans does not apply to it. That client is
+ * reactor-netty, like the shared one, and its read timeout bounds each wait between reads, unless
+ * `embabel.agent.platform.http-client.use-reactor-netty` is false; then it is the JDK client, whose read
+ * timeout bounds only the wait for response headers.
  */
 @ConfigurationProperties(prefix = PREFIX)
-class DeepSeekProperties : RetryProperties {
+class DeepSeekProperties : ClientTimeoutProperties(), RetryProperties {
     /**
      * Base URL for DeepSeek API requests.
      */
@@ -96,7 +109,7 @@ class DeepSeekProperties : RetryProperties {
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(DeepSeekProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "DeepSeek configuration can't be unit tested")
-class DeepSeekModelsConfig(
+class DeepSeekModelsConfig @Autowired constructor(
     @param:Value("\${DEEPSEEK_BASE_URL:#{null}}")
     private val envBaseUrl: String?,
     @param:Value("\${DEEPSEEK_API_KEY:#{null}}")
@@ -107,14 +120,54 @@ class DeepSeekModelsConfig(
     private val restClientBuilderProvider: ObjectProvider<RestClient.Builder>,
     @param:Qualifier("aiModelWebClientBuilder")
     private val webClientBuilderProvider: ObjectProvider<WebClient.Builder>,
-    @param:Value("\${embabel.agent.platform.http-client.read-timeout:5m}")
+    @param:Value("\${$HTTP_READ_TIMEOUT:$DEFAULT_READ_TIMEOUT}")
     private val httpReadTimeout: String,
+    @param:Value("\${$HTTP_CONNECT_TIMEOUT:$DEFAULT_CONNECT_TIMEOUT}")
+    private val httpConnectTimeout: String,
+    @param:Value("\${$HTTP_USE_REACTOR_NETTY:true}")
+    private val httpUseReactorNetty: String,
 ) {
+
+    /**
+     * The constructor as it was before [httpConnectTimeout], so Java and compiled Kotlin callers
+     * keep working. Uses the http-client connect timeout's default and reactor-netty.
+     */
+    constructor(
+        envBaseUrl: String?,
+        envApiKey: String?,
+        properties: DeepSeekProperties,
+        observationRegistry: ObjectProvider<ObservationRegistry>,
+        restClientBuilderProvider: ObjectProvider<RestClient.Builder>,
+        webClientBuilderProvider: ObjectProvider<WebClient.Builder>,
+        httpReadTimeout: String,
+    ) : this(
+        envBaseUrl,
+        envApiKey,
+        properties,
+        observationRegistry,
+        restClientBuilderProvider,
+        webClientBuilderProvider,
+        httpReadTimeout,
+        DEFAULT_CONNECT_TIMEOUT,
+        "true",
+    )
+
     private val logger = LoggerFactory.getLogger(DeepSeekModelsConfig::class.java)
 
     private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
     private val apiKey: String = envApiKey ?: properties.apiKey
     ?: error("DeepSeek API key required: set DEEPSEEK_API_KEY env var or embabel.agent.platform.models.deepseek.api-key")
+
+    /** This provider's HTTP clients, with its own transport when it sets a timeout of its own. */
+    internal val httpClients = ProviderHttpClients.resolve(
+        provider = "DeepSeek",
+        providerConnect = properties.connectTimeout,
+        providerRead = properties.readTimeout,
+        httpConnect = httpConnectTimeout,
+        httpRead = httpReadTimeout,
+        httpUseReactorNetty = httpUseReactorNetty,
+        logger = logger,
+    )
 
     init {
         logger.info("DeepSeek models are available: {}", properties)
@@ -222,29 +275,16 @@ class DeepSeekModelsConfig(
         // classpath detection choose the transport: it lands on Apache HttpClient, which advertises brotli,
         // which DeepSeek honours and this client cannot decode. Clone so adding the observation registry
         // never mutates the shared singleton.
-        val sharedRestClientBuilder = restClientBuilderProvider.getIfAvailable(::fallbackRestClientBuilder)
-            .clone()
+        // Timeouts set under this provider's prefix replace the shared transport: see ProviderHttpClients.
+        val sharedRestClientBuilder = httpClients.restClientBuilder(restClientBuilderProvider)
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-        val sharedWebClientBuilder = webClientBuilderProvider.getIfAvailable(WebClient::builder)
-            .clone()
+        val sharedWebClientBuilder = httpClients.webClientBuilder(webClientBuilderProvider)
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
 
         return builder
             .restClientBuilder(sharedRestClientBuilder)
             .webClientBuilder(sharedWebClientBuilder)
             .build()
-    }
-
-    /**
-     * Fallback client builder for contexts where the shared [aiModelRestClientBuilder] bean is absent.
-     * Names the request factory rather than letting it be detected, and applies the platform read timeout
-     * ([httpReadTimeout]) so a slow response is not aborted at the ~10s ReactorClientHttpRequestFactory
-     * default.
-     */
-    private fun fallbackRestClientBuilder(): RestClient.Builder {
-        val readTimeout: Duration = DurationStyle.detectAndParse(httpReadTimeout)
-        val requestFactory = JdkClientHttpRequestFactory().apply { setReadTimeout(readTimeout) }
-        return RestClient.builder().requestFactory(requestFactory)
     }
 }
 

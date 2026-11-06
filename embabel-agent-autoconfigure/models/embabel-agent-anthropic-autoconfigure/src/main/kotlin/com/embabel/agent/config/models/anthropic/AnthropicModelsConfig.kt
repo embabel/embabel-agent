@@ -16,7 +16,11 @@
 package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.anthropic.AnthropicModelFactory
+import com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor
 import com.embabel.agent.anthropic.AnthropicOptionsConverter
+import com.embabel.agent.anthropic.ClaudeCapabilities
+import com.anthropic.models.messages.ThinkingConfigAdaptive
+import com.embabel.agent.anthropic.ThinkingMode
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.config.models.anthropic.AnthropicProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
@@ -169,7 +173,8 @@ class AnthropicModelsConfig(
         val chatModel = AnthropicChatModel
             .builder()
             .options(createDefaultOptions(modelDef))
-            .anthropicClient(createAnthropicClient())
+            .anthropicClient(syncClient())
+            .anthropicClientAsync(asyncClient())
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry)
@@ -192,6 +197,7 @@ class AnthropicModelsConfig(
                 )
             },
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
+            nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             nativeSupport = modelDef.nativeSupport,
         )
     }
@@ -201,23 +207,30 @@ class AnthropicModelsConfig(
      *
      * Spring AI 2.0 replaced the `AnthropicApi.ChatCompletionRequest.ThinkingConfig`
      * constructor with first-class `thinkingEnabled(tokenBudget)` / `thinkingDisabled()`
-     * methods on the options builder.
+     * / `thinkingAdaptive()` methods on the options builder.
      */
     private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions {
+        val caps = ClaudeCapabilities.of(modelDef.modelId)
+        val tokenBudget = modelDef.thinking?.tokenBudget?.takeIf { it > 0 }
+        val thinkingModeDecision = caps.resolveThinking(tokenBudget)
         return AnthropicChatOptions.builder()
             .model(modelDef.modelId)
             .maxTokens(modelDef.maxTokens)
-            .temperature(modelDef.temperature)
             .apply {
-                modelDef.topP?.let { topP(it) }
-                modelDef.topK?.let { topK(it) }
-
-                // Configure thinking mode if specified
-                val thinkingBudget = modelDef.thinking?.tokenBudget
-                if (thinkingBudget != null && thinkingBudget > 0) {
-                    thinkingEnabled(thinkingBudget.toLong())
-                } else {
-                    thinkingDisabled()
+                when (thinkingModeDecision) {
+                    is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ rejects thinking.type="disabled" with HTTP 400
+                    is ThinkingMode.Disabled    -> thinkingDisabled()
+                    is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(thinkingModeDecision.effort) }
+                    is ThinkingMode.BudgetBased -> thinkingEnabled(thinkingModeDecision.budgetTokens)
+                }
+                // Claude ≥4.7 rejects non-default temperature, topP and topK whatever the thinking mode.
+                if (caps.acceptsSampling) { // Claude <4.7
+                    modelDef.topK?.let { topK(it) }
+                    modelDef.topP?.let { topP(it) }
+                    temperature(modelDef.temperature)
+                } else { // Claude ≥4.7
+                    // Warns only for non-default values; runs once per model at startup.
+                    ClaudeCapabilities.warnAboutIgnoredSampling(modelDef.modelId, modelDef.temperature, modelDef.topP, modelDef.topK)
                 }
             }
             .build()

@@ -1,0 +1,425 @@
+[[reference.decision-specs]]
+=== Decision specs (experimental)
+
+A decision spec is an ordered set of named questions that a model answers in one decision.
+A decision response holds the model's answer to each question.
+The types are in `embabel-agent-ai`, in the package `com.embabel.common.ai.decision`.
+They carry their own Jackson annotations.
+
+This page covers building, serializing and reading specs and responses.
+<<reference.decision-execution>> covers selecting a decision service and running a spec on it.
+
+Every decision type on this page carries `@ApiStatus.Experimental`.
+The types become stable once they have a named owner, a consumer application that uses them, and a compatibility assessment.
+Promotion is decided at the first release after all three are in place.
+
+==== Types
+
+|===
+|Type |Holds
+
+|`DecisionRequest`
+|The input text and one `DecisionSpec`
+
+|`DecisionSpec`
+|An ordered list of `Question` values with unique names
+
+|`Question`
+|A kind, a name, instructions, and the options or levels for its kind
+
+|`DecisionResponse`
+|An optional request failure and one `DecisionAnswer` per question in spec order
+
+|`DecisionAnswer`
+|The question's name and kind, its options or levels, and a typed outcome
+|===
+
+A response holds no question objects, no instructions and no input.
+Code can read a response without the spec that produced it.
+
+==== Builder
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/DecisionSpecJavaTest.java[tag=builder,indent=0]
+----
+
+`DecisionSpec.builder()` starts an empty builder.
+The `proposition`, `choice` and `rating` methods each take a question name and a customizer.
+The customizer receives a builder of that kind that already carries the name.
+It runs once, before the method returns.
+
+A blank or repeated name throws `IllegalArgumentException`, and the customizer does not run.
+An invalid definition also throws `IllegalArgumentException`.
+A declaration that throws adds nothing to the builder.
+A customizer that declares a question on its own enclosing builder gets an `IllegalStateException`.
+
+`build()` returns a new spec on each call.
+Later declarations do not change specs already built.
+`build()` throws `IllegalArgumentException` when no question has been declared.
+A builder is not safe for use from several threads at once.
+
+A spec is immutable.
+`getQuestions()` returns the questions in declared order.
+`question(name)` returns the question with that name, or `null` when there is none.
+Two specs are equal when they hold equal questions in the same order.
+
+==== Named questions
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/DecisionSpecJavaTest.java[tag=named,indent=0]
+----
+
+`Questions.named(name)` starts a question on its own.
+Its `proposition`, `choice` and `rating` methods take the instructions and return the builder for that kind.
+A question built this way can live in a field, join several specs, and read its typed answer from a response.
+
+`DecisionSpec.of` takes questions as arguments or as a list.
+`DecisionSpec.Builder.question(question)` adds a question built earlier to a builder.
+The spec in this example equals a spec built with the builder from the same two questions.
+
+==== Kotlin DSL
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/kotlin/com/embabel/common/ai/decision/DecisionSpecDslTest.kt[tag=dsl,indent=0]
+----
+
+`decisionSpec { }` builds a spec from a receiver block on `DecisionSpecScope`.
+The block runs once.
+Each call inside it goes through the matching `DecisionSpec.Builder` method, so a DSL spec validates exactly like a builder spec.
+`DecisionSpecScope.question(question)` adds a question built earlier.
+The spec is built once, after the block returns.
+
+The `@DecisionSpecDsl` marker sits on the scope and on the three question builders.
+Code inside a question block cannot call the enclosing spec scope without an explicit label.
+Java code does not see `decisionSpec` or the scope methods.
+
+==== Classification specs
+
+A `ClassificationSpec` is a decision spec with one choice question.
+It equals a `DecisionSpec` that holds the same question, and it writes the same JSON.
+A `ClassificationRequest` is a `DecisionRequest` whose spec is a `ClassificationSpec`.
+<<reference.classification>> shows how to build one and classify with it.
+
+==== Question kinds
+
+|===
+|`QuestionKind` |Question class |Builder methods |Result type |Wire name
+
+|`PROPOSITION`
+|`PropositionQuestionSpec`
+|`asking`
+|`PropositionResult`
+|`proposition`
+
+|`CHOICE`
+|`ChoiceQuestionSpec`
+|`asking` and `option(id, description)`, with at least one option
+|`ClassificationResult`
+|`choice`
+
+|`RATING`
+|`RatingQuestionSpec`
+|`asking`, `level(label)` and `level(id, description)`, with at least two levels added lowest first
+|`RatingResult`
+|`rating`
+|===
+
+Every question needs a nonblank name and nonblank instructions.
+Option ids and level ids must be nonblank and unique within their question.
+`level(label)` uses the label as the level's id and description.
+Choice options are `Category` values.
+Rating levels are `RatingLevel` values, and the first level has index 0.
+
+`ChoiceQuestionSpec.validate(result)` and `RatingQuestionSpec.validate(result)` check that a result fits the question.
+Each returns the result unchanged or throws `IllegalArgumentException`.
+
+==== Rating evidence
+
+`RatingResult` has three classes: `Answered`, `Inconclusive` and `Failure`.
+`Inconclusive` holds a `ModelProvenance`.
+`Failure` holds a `FailureReason`.
+`Answered` holds the evidence in this table:
+
+|===
+|Property |Type |Rule
+
+|`provenance`
+|`ModelProvenance`
+|Required
+
+|`selectedLevelId`
+|`String`, optional
+|Nonblank. It must be one of the question's level ids.
+
+|`distribution`
+|`List<LevelProbability>`
+|Empty, or it covers exactly the question's levels in any order. Each probability is finite and between 0 and 1. The probabilities sum to 1 within `1e-6`.
+
+|`score`
+|`RatingScore`, optional
+|The value is finite, at least 0, and at most the index of the last level.
+
+|`confidence`
+|`Double`, optional
+|Finite and between 0 and 1
+|===
+
+An `Answered` result reports a selected level, a distribution, a score, or a combination of these.
+Each part comes from the provider's response as reported.
+A selected level is present only when the provider selected one, and a distribution only when the provider reported one.
+
+A `RatingScore` pairs a value with a `RatingStatistic`.
+The one statistic is `EXPECTED_LEVEL_INDEX`, the probability-weighted mean of the zero-based level positions.
+It is a continuous number over the level range.
+
+The checks against the question's levels run when a result is validated against a `RatingQuestionSpec` or added to a response.
+The other rules run when the result is constructed.
+
+==== Responses
+
+`DecisionResponse.builder(spec)` starts a response to a spec.
+Its `answer(question, outcome)` overloads take a question of each kind with the matching result type.
+Answers can be added in any order, and the response lists them in spec order.
+`DecisionResponse.failed(spec, reason)` records a request that failed as a whole.
+Every answer in a failed response is a failure with that reason, and `getRequestFailure()` returns it.
+
+The builder's `answer` method throws `IllegalArgumentException` in these cases:
+
+* The spec has no question with that name.
+* The spec's question with that name is not equal to the given question.
+* The question already has an answer.
+* A choice selection is not one of the options.
+* Rating evidence does not fit the levels.
+
+`build()` throws `IllegalArgumentException` when a question of the spec has no answer.
+
+A response read from JSON or storage is checked answer by answer, with no reference to a spec.
+`requireMatches(spec)` checks it against a spec.
+It throws `IllegalArgumentException` when an answer is missing, extra or out of order, or when an answer's kind, options or levels differ from its question's.
+
+===== Typed lookup
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/DecisionResponseJavaTest.java[tag=typed,indent=0]
+----
+
+`answer(question)` returns the outcome with the result type of the question's class.
+The question can be a different object from the one that built the response.
+The answer must have the question's name and kind, and a choice answer's options or a rating answer's levels must equal the question's.
+Otherwise the lookup throws `IllegalArgumentException`, and the message names the question and what differs.
+An answer holds no instructions, so a question whose instructions were reworded still matches.
+
+===== Lookup by name
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/DecisionResponseJavaTest.java[tag=by-name,indent=0]
+----
+
+`answer(name)` returns the `DecisionAnswer` with that name.
+It throws `IllegalArgumentException` when the response has no answer with that name.
+`DecisionAnswer` is sealed, with the classes `DecisionAnswer.Proposition`, `DecisionAnswer.Choice` and `DecisionAnswer.Rating`.
+A Java `switch` or a Kotlin `when` over an answer covers every case.
+`DecisionAnswer.Choice` also holds the options it was answered with, and `DecisionAnswer.Rating` holds its levels.
+An answer read from JSON holds them as written, and the typed lookup and `requireMatches` check them against a question.
+
+==== Requests and capabilities
+
+`DecisionRequest.of(input, spec)` pairs an input with a spec.
+`DecisionRequest.of(input, questions...)` builds the spec from the questions in order.
+The input may be empty.
+A request's `toString()` shows the spec and leaves the input out.
+
+`DecisionCapabilities` describes what a service accepts: the question kinds it answers.
+`DecisionCapabilities.of(questionKinds)` creates one.
+
+==== JSON format
+
+Each decision type has fixed member names:
+
+|===
+|Type |Members
+
+|`Question`
+|`kind`, `name`, `instructions`, then `options` for a choice or `levels` for a rating
+
+|`DecisionSpec`
+|`questions`
+
+|`DecisionRequest`
+|`input` and `spec`
+
+|`DecisionCapabilities`
+|`questionKinds`
+
+|`DecisionResponse`
+|The optional `requestFailure`, and `answers`
+
+|`DecisionAnswer`
+|`name`, `kind`, `options` or `levels` for its kind, and `outcome`
+
+|Option or level
+|`id` and `description`
+|===
+
+The `answers` member is an array of answers in spec order.
+Each answer carries its `name`.
+An answer written on its own has the same members.
+Failure reasons and rating statistics use the lower-case constant name, such as `invalid_response` and `expected_level_index`.
+Question kinds use the wire names from the question kinds table.
+
+Each outcome has a `status` member that names its result class:
+
+|===
+|Kind |`status` |Other members
+
+|Proposition
+|`answered`
+|`answer` and `provenance`, and the optional `pTrue`
+
+|Proposition, choice and rating
+|`inconclusive`
+|`provenance`
+
+|Proposition, choice and rating
+|`failure`
+|`reason`
+
+|Choice
+|`selected`
+|`categoryId` and `provenance`, and the optional `confidence`
+
+|Choice
+|`no_match`
+|`provenance`
+
+|Rating
+|`answered`
+|`provenance`, and the optional `selectedLevelId`, `distribution`, `score` and `confidence`
+|===
+
+A `provenance` object has `modelName` and `provider`, and the optional `version` and `requestId`.
+A `distribution` entry has `levelId` and `probability`.
+A `score` has `value` and `statistic`.
+An explicit `null` in an optional member reads the same as an absent member.
+
+The response from the typed lookup example writes this JSON, shown here with line breaks:
+
+[source,json]
+----
+{
+  "answers": [
+    {
+      "name": "is_urgent",
+      "kind": "proposition",
+      "outcome": {
+        "status": "answered",
+        "answer": true,
+        "pTrue": 0.93,
+        "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
+      }
+    },
+    {
+      "name": "department",
+      "kind": "choice",
+      "options": [
+        { "id": "billing", "description": "Payments, invoicing, refunds" },
+        { "id": "technical", "description": "Bugs, outages, integrations" },
+        { "id": "sales", "description": "Pricing, upgrades, new accounts" }
+      ],
+      "outcome": {
+        "status": "selected",
+        "categoryId": "billing",
+        "confidence": 0.91,
+        "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
+      }
+    },
+    {
+      "name": "frustration",
+      "kind": "rating",
+      "levels": [
+        { "id": "Calm", "description": "Calm" },
+        { "id": "Frustrated", "description": "Frustrated" },
+        { "id": "Very angry", "description": "Very angry" }
+      ],
+      "outcome": {
+        "status": "answered",
+        "selectedLevelId": "Frustrated",
+        "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
+      }
+    }
+  ]
+}
+----
+
+Spec and request JSON include each question's instructions.
+Response JSON holds no instructions and no input.
+
+==== Reading and writing with Jackson
+
+Any Jackson 3 mapper reads and writes the decision types, with no module or other registration:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/json/DecisionJsonJavaTest.java[tag=jackson,indent=0]
+----
+
+A Spring Boot application's auto-configured mapper and the platform's mapper from `EmbabelObjectMapperHolder.createDefault()` work the same way.
+The member names are fixed, so the mapper's naming strategy changes neither the written nor the accepted names.
+`PropositionResult`, `ClassificationResult`, `ModelProvenance` and `Category` write and read the same JSON on their own as inside decision JSON.
+
+Reading applies these rules:
+
+* An unknown member fails, whatever the mapper's `FAIL_ON_UNKNOWN_PROPERTIES` setting is.
+A member that a later version adds fails in a reader that does not know it.
+* A missing required member, an unknown kind, status, reason or statistic, and `answers` written as an object or a single value all fail.
+* Every value goes through the same builders and factories as Java code, so a value they refuse fails with the builder's message and the `IllegalArgumentException` as the cause.
+* Each answer in a response is checked on its own, so an outcome must fit the answer's own options or levels.
+Reading does not compare a response with a spec.
+Call `requireMatches(spec)` for that.
+* A member that appears twice in one object follows Jackson's default, where the last value wins.
+
+Each failure is a Jackson `DatabindException`.
+
+==== Projection
+
+`DecisionProjection.of(response, type)` reads the response's answered values and converts them to a caller type with Jackson.
+The result holds the converted `value` and the original `response`.
+`DecisionProjection.answeredValues(response)` returns the values as a map keyed by question name:
+
+|===
+|Answer |Value
+
+|Proposition
+|The `answer` of a `PropositionResult.Answered`
+
+|Choice
+|The `categoryId` of a `ClassificationResult.Selected`
+
+|Rating
+|The `selectedLevelId` of a `RatingResult.Answered`
+|===
+
+Any other outcome has no value, and neither does a rating answered with only a score or a distribution.
+Both calls then throw `DecisionProjectionException`, and its `getQuestions()` lists every answer without a value.
+
+A record whose component names match the question names receives the values.
+The `type` argument is a `Class<T>` or a `TypeReference<T>`, and a `TypeReference<T>` suits a generic target such as a map.
+Each overload also takes an optional `ObjectMapper`.
+The default mapper fails when a constructor parameter of the target has no answered value.
+A mapper passed in keeps its own settings.
+A failed conversion throws `DecisionProjectionException` with an empty `getQuestions()` and the Jackson exception as the cause.
+
+===== Converter
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/DecisionProjectionJavaTest.java[tag=converter,indent=0]
+----
+
+A Spring `Converter<DecisionResponse, T>` reads each answer with typed lookup.
+Its `switch` statements give a value for every outcome class, including inconclusive and failed answers.

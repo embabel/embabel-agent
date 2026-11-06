@@ -93,13 +93,6 @@ class OpenAiCatalogIT(
 
     companion object {
 
-        // Models deprecated by OpenAI and no longer callable — kept in the catalog so users who
-        // reference them by name receive the provider's own deprecation error rather than a silent
-        // "model not found" from Embabel's configuration layer.
-        private val DEPRECATED_MODELS = setOf(
-            "gpt-5.3-chat-latest",
-        )
-
         /**
          * Every chat model the catalog ships, so coverage tracks the YAML instead of a copy of it.
          */
@@ -107,7 +100,6 @@ class OpenAiCatalogIT(
         fun catalogModels(): List<String> =
             OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
                 .map { it.modelId }
-                .filter { it !in DEPRECATED_MODELS }
     }
 
     /**
@@ -194,7 +186,12 @@ class OpenAiCatalogIT(
                 )
         }
 
-        assertTrue(tool.invoked, "$model never called the tool, so the answer cannot be grounded")
+        // The answer tells the two causes apart: blank means the response was cut short, text means
+        // the model chose to answer without the tool.
+        assertTrue(
+            tool.invoked,
+            "$model never called the tool, so the answer cannot be grounded, got: '$answer'",
+        )
         assertTrue(
             answer.contains("QP-4471"),
             "The tool result never made it back into the answer from $model, got: $answer",

@@ -20,15 +20,20 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.config.models.openai.OpenAiNativeStructuredOutputConfigurer
+import com.embabel.agent.config.models.openai.OpenAiResponsesChatModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.firstOfType
 import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
 import com.openai.client.OpenAIClientAsyncImpl
@@ -36,18 +41,17 @@ import com.openai.client.OpenAIClientImpl
 import com.openai.client.okhttp.OpenAIOkHttpClient
 import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import com.openai.core.ClientOptions
+import com.openai.errors.OpenAIServiceException
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.document.MetadataMode
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
-import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
@@ -127,6 +131,7 @@ open class OpenAiCompatibleModelFactory(
     )
 
     companion object {
+        private val RESPONSES_OBJECT_MAPPER = ObjectMapper()
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
         private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
         private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
@@ -447,8 +452,8 @@ open class OpenAiCompatibleModelFactory(
      */
     private fun buildCustomizedClientOptions(): ClientOptions? {
         // Collect customizers in @Order / Ordered precedence; empty list → no-op path.
-        val customizers = httpClientCustomizers.orderedStream()
-            .collect(java.util.stream.Collectors.toUnmodifiableList())
+        val customizers: List<OpenAiHttpClientBuilderCustomizer> =
+            httpClientCustomizers.orderedStream().toList()
         if (customizers.isEmpty()) return null
 
         logger.info(
@@ -502,6 +507,15 @@ open class OpenAiCompatibleModelFactory(
         return builder.build()
     }
 
+    /**
+     * An LLM served over the OpenAI chat-completions API by [provider].
+     *
+     * [forwardsReasoningEffort] says whether a reasoning effort set on the call's
+     * [com.embabel.common.ai.model.LlmOptions] (see [withOpenAiReasoningEffort]) is sent as the
+     * request's `reasoning_effort`. It defaults to OpenAI's own endpoint only, because not every
+     * OpenAI-compatible server accepts the field; a provider whose server does - LM Studio, Docker
+     * Model Runner - passes true, so a caller can turn a local thinking model's reasoning down.
+     */
     @JvmOverloads
     fun openAiCompatibleLlm(
         model: String,
@@ -511,13 +525,14 @@ open class OpenAiCompatibleModelFactory(
         optionsConverter: OptionsConverter = OpenAiChatOptionsConverter,
         @Suppress("UNUSED_PARAMETER")
         retryTemplate: RetryTemplate? = null,
+        forwardsReasoningEffort: Boolean = provider.equals(OpenAiModels.PROVIDER, ignoreCase = true),
     ): LlmService<*> {
         return SpringAiLlmService(
             name = model,
             chatModel = chatModelOf(model),
             provider = provider,
             optionsConverter = timeouts.optionsConverter(
-                if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
+                if (forwardsReasoningEffort) {
                     OpenAiReasoningEffortOptionsConverter(optionsConverter)
                 } else {
                     optionsConverter
@@ -529,13 +544,58 @@ open class OpenAiCompatibleModelFactory(
     }
 
     /**
+     * An [LlmService] for [model] served over the OpenAI Responses API rather than Chat Completions.
+     *
+     * Use it for models that reject some Chat Completions features: the GPT-5.6 and GPT-6 tiers reject
+     * function tools there unless reasoning is turned off, and the `*-pro` models are not served
+     * there at all. Requests carry no sampling parameters and send the caller's limit as
+     * `max_output_tokens`, which is what [Gpt5ChatOptionsConverter] prepares for. An explicit
+     * reasoning effort ([withOpenAiReasoningEffort]) is forwarded whatever [provider] is called:
+     * choosing this transport is choosing the Responses API, whose `reasoning` field it fills.
+     *
+     * LlmOptions are used to request native structured output when [nativeSupport] declares it.
+     * Pass the
+     * shipped OpenAI catalog's settings, `OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults`
+     * from the OpenAI autoconfigure module, to get what catalog models get, including the schema
+     * compatibility check that falls back to prompt-based output. Without it, structured output
+     * is prompt-based, as with [openAiCompatibleLlm].
+     *
+     * The transport does not stream and rejects media.
+     */
+    @JvmOverloads
+    fun openAiResponsesLlm(
+        model: String,
+        pricingModel: PricingModel? = null,
+        provider: String,
+        knowledgeCutoffDate: LocalDate? = null,
+        optionsConverter: OptionsConverter = Gpt5ChatOptionsConverter,
+        nativeSupport: NativeSupport? = null,
+    ): LlmService<*> = SpringAiLlmService(
+        name = model,
+        chatModel = responsesChatModelOf(model, provider),
+        provider = provider,
+        optionsConverter = timeouts.optionsConverter(OpenAiReasoningEffortOptionsConverter(optionsConverter)),
+        pricingModel = pricingModel,
+        knowledgeCutoffDate = knowledgeCutoffDate,
+        thinkingSupported = true,
+        nativeStructuredOutputConfigurer = OpenAiNativeStructuredOutputConfigurer,
+        nativeSupport = nativeSupport,
+    )
+
+    /**
      * Validates the configured API key by making a probe call, then returns a production
      * [LlmService] if successful.
      *
-     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder,
-     * so the probe relies on the openai-java SDK's own no-retry default (any 401 fails fast).
-     * On any exception the provider-specific error is translated to [InvalidApiKeyException],
-     * keeping Spring AI types out of the caller.
+     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder, so the
+     * only retries are the openai-java SDK's own.
+     * - The SDK does not retry a 401, 402 or 403 response. A refused key is reported after one
+     *   request.
+     * - The SDK retries a 429 response twice. A rate limited key is reported after three
+     *   requests.
+     * - The SDK also retries other failures it treats as temporary, such as a failed connection.
+     * On any exception this throws [InvalidApiKeyException], so the caller catches one type. The
+     * provider's exception is its cause, and the HTTP status code of the provider's response is
+     * its status code.
      *
      * A blank key is rejected before any network call — see [requireUsableApiKey] for why a key
      * is set-but-empty far more often than it looks.
@@ -564,7 +624,9 @@ open class OpenAiCompatibleModelFactory(
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {
-            throw InvalidApiKeyException(e.message ?: "Invalid API key")
+            // The message is the text of the provider's exception. The exception itself is passed
+            // as the cause, and the HTTP status code of the response as the status code.
+            throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
         return openAiCompatibleLlm(
             model = model,
@@ -575,6 +637,20 @@ open class OpenAiCompatibleModelFactory(
     }
 
     /**
+     * Returns the HTTP status code of the response that caused [failure], or null if there was
+     * no response.
+     *
+     * The SDK throws [OpenAIServiceException] when the provider responds with an error status, and
+     * that exception holds the status code. It may be [failure] itself or one of its causes, so
+     * [firstOfType] looks at [failure] and then at each of its causes.
+     *
+     * There is no [OpenAIServiceException] when the request never got a response, for example
+     * when the connection was refused. The result is then null.
+     */
+    private fun providerStatus(failure: Throwable): Int? =
+        failure.firstOfType<OpenAIServiceException>()?.statusCode()
+
+    /**
      * Validates the configured API key by embedding a short probe text, then returns a
      * production [EmbeddingService] carrying the width the model actually produced.
      *
@@ -583,7 +659,8 @@ open class OpenAiCompatibleModelFactory(
      * OpenAI-compatible builder and the blank-key guard.
      *
      * @throws InvalidApiKeyException if the key is blank or invalid, the provider is
-     * unreachable, or the model returns no vector.
+     * unreachable, or the model returns no vector. Its status code is the HTTP status code of
+     * the provider's response, as it is for [buildValidated].
      */
     fun buildValidatedEmbeddingService(
         model: String,
@@ -591,7 +668,11 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
         requireUsableApiKey(apiKey)
-        return validatedEmbeddingService(model = model, provider = provider) { configuredDimensions ->
+        return validatedEmbeddingService(
+            model = model,
+            provider = provider,
+            statusCodeOf = ::providerStatus,
+        ) { configuredDimensions ->
             openAiCompatibleEmbeddingService(
                 model = model,
                 provider = provider,
@@ -607,12 +688,13 @@ open class OpenAiCompatibleModelFactory(
         configuredDimensions: Int? = null,
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
-        val embeddingModel = OpenAiEmbeddingModel.builder()
-            .openAiClient(openAiClient)
-            .metadataMode(MetadataMode.EMBED)
-            .options(timeouts.embeddingOptions(model).build())
-            .observationRegistry(observationRegistry)
-            .build()
+        // Not Spring AI's OpenAiEmbeddingModel, which requires the `index` and `usage` fields that
+        // OpenAI-compatible providers may leave out: see OpenAiCompatibleEmbeddingModel.
+        val embeddingModel = OpenAiCompatibleEmbeddingModel(
+            client = openAiClient,
+            options = timeouts.embeddingOptions(model).build(),
+            observationRegistry = observationRegistry,
+        )
         return SpringAiEmbeddingService(
             name = model,
             model = embeddingModel,
@@ -621,6 +703,20 @@ open class OpenAiCompatibleModelFactory(
             pricingModel = pricingModel,
         )
     }
+
+    /**
+     * The Responses API counterpart of [chatModelOf], sharing this factory's client. Its chat
+     * observations report [provider].
+     */
+    @JvmOverloads
+    protected fun responsesChatModelOf(model: String, provider: String = OpenAiModels.PROVIDER): ChatModel =
+        OpenAiResponsesChatModel(
+            client = openAiClient,
+            defaultOptions = timeouts.chatOptions(model).build(),
+            observationRegistry = observationRegistry,
+            objectMapper = RESPONSES_OBJECT_MAPPER,
+            provider = provider,
+        )
 
     /**
      * Build the underlying [ChatModel] for [model].

@@ -117,7 +117,7 @@ class LlmReferenceTest {
             )
 
             val toolPrefix = reference.toolPrefix()
-            assertThat(toolPrefix).isEqualTo("my api reference")
+            assertThat(toolPrefix).isEqualTo("my_api_reference")
         }
 
         @Test
@@ -314,8 +314,9 @@ class LlmReferenceTest {
             assertThat(outerTool).isInstanceOf(UnfoldingTool::class.java)
             val unfoldingTool = outerTool as UnfoldingTool
             assertThat(unfoldingTool.innerTools).hasSize(2)
+            // Inner tools carry prefixed names because the LLM must call them by those names.
             assertThat(unfoldingTool.innerTools.map { it.definition.name })
-                .containsExactlyInAnyOrder("tool_one", "tool_two")
+                .containsExactlyInAnyOrder("test_api_tool_one", "test_api_tool_two")
         }
 
         @Test

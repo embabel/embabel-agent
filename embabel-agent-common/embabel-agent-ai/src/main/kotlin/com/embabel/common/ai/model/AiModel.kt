@@ -15,13 +15,25 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.ai.classification.ClassificationServiceMetadata
+import com.embabel.common.ai.decision.DecisionServiceMetadata
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import org.jetbrains.annotations.ApiStatus
 
+/** Model families. External exhaustive switches must handle newly introduced families. */
 enum class ModelType {
     LLM, EMBEDDING,
+
+    /** Models that classify input against a closed category set. */
+    @ApiStatus.Experimental
+    CLASSIFICATION,
+
+    /** Models that support classification and proposition assessment. */
+    @ApiStatus.Experimental
+    DECISION,
 }
 
 /**
@@ -36,6 +48,8 @@ enum class ModelType {
 @JsonSubTypes(
     JsonSubTypes.Type(value = LlmMetadata::class),
     JsonSubTypes.Type(value = EmbeddingServiceMetadata::class),
+    JsonSubTypes.Type(value = ClassificationServiceMetadata::class),
+    JsonSubTypes.Type(value = DecisionServiceMetadata::class),
 )
 interface ModelMetadata {
 

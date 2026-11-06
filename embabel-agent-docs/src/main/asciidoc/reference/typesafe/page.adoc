@@ -1,0 +1,171 @@
+[[reference.typesafe]]
+=== TypeSafe decision services (experimental)
+
+TypeSafe is the provider, and Jev is its decision model.
+Jev speaks System One, so the TypeSafe integration is the System One client (<<reference.systemone>>) set up with TypeSafe's address, its provider name, its request id header and the `jev-latest` model.
+Cloudflare Workers AI also runs Jev as `typesafe/jev`, billed through Cloudflare (<<reference.cloudflare>>).
+
+Use Jev when an application needs closed-category classification, proposition assessment or ratings from a decision model with no chat model involved.
+The result is evidence.
+Routing, authorization, thresholds and proposition revision stay with the application.
+
+`DecisionService` extends `ClassificationService`, so every Jev service does both and reports `ModelType.DECISION`.
+A Jev service is not an `LlmService` or a Spring AI `ChatModel`.
+
+[source,mermaid]
+----
+flowchart LR
+    App[Embabel workflow] --> Service[DecisionService]
+    Service --> Observe[ObservedDecisionService]
+    Observe --> SystemOne[SystemOneDecisionService]
+    SystemOne --> Codec[SystemOneCodec]
+    SystemOne --> HTTP[Spring RestClient]
+    HTTP --> Provider[TypeSafe]
+----
+
+==== Dependencies and Spring configuration
+
+Add `com.embabel.agent:embabel-agent-starter-typesafe` to a Spring Boot application.
+The starter brings in `embabel-agent-typesafe-autoconfigure`, `embabel-agent-typesafe` and `embabel-agent-systemone`.
+
+Supply `TYPESAFE_API_KEY` or configure:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          api-key: ${TYPESAFE_API_KEY}
+----
+
+A nonblank environment value takes precedence over the property.
+Both are read through the Spring environment on every call, so a rotated key takes effect without rebuilding the service.
+Startup fails when neither source supplies a key.
+
+The complete property set under `embabel.agent.platform.models.typesafe` is:
+
+|===
+|Property |Default |Purpose
+
+|`api-key`
+|none
+|The key to use when `TYPESAFE_API_KEY` is absent or blank
+
+|`base-url`
+|`https://api.typesafe.ai`
+|The TypeSafe address, or a gateway in front of it
+
+|`max-response-bytes`
+|`1048576`
+|The largest response body that is read
+|===
+
+Auto-configuration contributes these beans:
+
+* `TypeSafeModelsConfig`, which is itself a `TypeSafeModelFactory`, the same way the Anthropic and OpenAI configurations extend their factories.
+Inject it by the `TypeSafeModelFactory` type.
+* One `DecisionService` bean per model in the starter's catalog, `models/typesafe-models.yml`, named after the model.
+The catalog holds `jev-latest`.
+A missing, invalid or empty catalog fails startup.
+Each bean is also injectable as `ClassificationService`.
+* `typeSafeModelsRegistrar`, which defines the catalog model beans, and `typeSafeModelsInitializer`, the `ProviderInitialization` that reports them.
+An application bean or alias named after a catalog model replaces that model.
+* `typeSafeDefaultCandidate`, which offers `jev-latest` as the default of the decision and classification families.
+It exists only when the starter defines the `jev-latest` bean, and an application bean with that name is kept.
+See <<reference.decision-execution>>.
+
+Select a TypeSafe model by name in `embabel.models.decision.default` or a role, the same way a chat model is selected with `embabel.models.default-llm`.
+A model outside the catalog is built with `TypeSafeModelFactory.build(model)`.
+
+An application that supplies its own `TypeSafeModelFactory` bean keeps it.
+Auto-configuration then registers no catalog models and needs no key.
+
+Spring uses the qualified `aiModelRestClientBuilder` first.
+Without it, Spring uses a unique application `RestClient.Builder`, and otherwise the factory's own client.
+With Embabel's shared Netty builder, `embabel.agent.platform.http-client.connect-timeout` and `embabel.agent.platform.http-client.read-timeout` set the timeouts.
+The factory's own client waits 10 seconds to connect and 10 seconds for data.
+
+==== Classification and proposition assessment
+
+The starter supports ordinary constructor injection:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/TypeSafeConsumerTest.java[tag=typesafe-consumer,indent=0]
+----
+
+A classification goes to Jev as a `choice` whose ids and descriptions come only from the request's categories.
+The reported distribution must cover exactly those categories and sum to 1.
+A selection keeps the reported confidence and the distribution.
+Neither is a calibrated probability of being right.
+A confidence of 0 is `Inconclusive`.
+
+Jev never answers `NoMatch`.
+When none-of-the-above matters, declare it as a category with a stable id and map it in application code.
+
+A proposition goes to Jev as a `noul`.
+Jev treats `0.5` as undecided, so exactly `0.5` is `Inconclusive`.
+Above it the answer is `Answered(true, ...)`, below it `Answered(false, ...)`, and the value is kept as `pTrue`.
+The integration adds no acceptance threshold.
+
+Provenance names the model Jev reports, the `TypeSafe` provider and the `x-typesafe-request-id` response header when it is present.
+<<reference.decision-execution>> gives the full evidence rules, and <<reference.systemone>> covers failures, logging and observations.
+
+==== Plain Java and multiple models
+
+`TypeSafeModelFactory` works without Spring.
+Pass the key as a `Supplier<String>` so each call reads the current key:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=service,indent=0]
+----
+
+One factory builds any number of models:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=model,indent=0]
+----
+
+`build()` returns `jev-latest`, and `build(model)` returns another Jev model or alias.
+The services share the factory's HTTP client and observation registry.
+Building never reads the key or contacts TypeSafe.
+Use another factory for another address or key source.
+
+TypeSafe always needs a key.
+A missing key fails each call with `UNAVAILABLE` and cause `credential`, before anything is sent.
+`buildValidated()` rejects it with `InvalidApiKeyException` and the message `TypeSafe credential is missing`, without contacting TypeSafe.
+
+`buildValidated()` checks the current key against TypeSafe's model listing and returns the default model.
+A rejected key throws `InvalidApiKeyException`:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=byok,indent=0]
+----
+
+In Spring, inject a catalog model with `@Qualifier("jev-latest")`, or declare more `DecisionService` beans from the configured `TypeSafeModelFactory`.
+
+==== Decision specs
+
+A Jev service answers a whole decision spec in one call, with proposition, choice and rating questions together.
+A single `classify`, `assess` or `rate` call is a question set of one.
+The rating score is an expected level index, and the answer carries a distribution over the levels with no selected level.
+
+==== Experimental status
+
+The API is experimental so real integrations can shape it.
+The code is maintained as production code.
+Promotion needs all of these:
+
+* stable Java and Kotlin use
+* observability
+* key rotation
+* several models wired together
+* strict response checks
+* sanitized failures
+* starter tests
+* a clean repository build

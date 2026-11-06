@@ -25,6 +25,7 @@ import java.nio.file.Path
  */
 class UserMessageBuilder {
     private val parts = mutableListOf<ContentPart>()
+    private val assets = mutableListOf<Asset>()
     private var name: String? = null
 
     fun text(text: String): UserMessageBuilder {
@@ -59,12 +60,26 @@ class UserMessageBuilder {
 
     fun document(path: Path): UserMessageBuilder = document(path.toFile())
 
+    fun asset(asset: Asset): UserMessageBuilder {
+        assets.add(asset)
+        return this
+    }
+
+    fun assets(assets: Collection<Asset>): UserMessageBuilder {
+        this.assets.addAll(assets)
+        return this
+    }
+
     fun name(name: String): UserMessageBuilder {
         this.name = name
         return this
     }
 
-    fun build(): UserMessage = UserMessage(parts.toList(), name)
+    fun build(): UserMessage = UserMessage(
+        parts = parts.toList(),
+        name = name,
+        assets = assets.toList(),
+    )
 }
 
 /**
