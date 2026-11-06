@@ -19,6 +19,7 @@ import com.embabel.agent.a2a.example.simple.horoscope.TestHoroscopeService
 import com.embabel.agent.a2a.example.simple.horoscope.kotlin.TestStarNewsFinder
 import com.embabel.agent.a2a.server.config.FakeAiConfiguration
 import com.embabel.agent.a2a.server.config.FakeRankerConfiguration
+import com.embabel.agent.a2a.server.support.TaskStateManager
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.core.AgentPlatform
@@ -37,12 +38,17 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import tools.jackson.databind.JsonNode
+import java.time.Duration
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 @SpringBootTest
 @ActiveProfiles(value = ["test"])
@@ -64,6 +70,8 @@ class A2AWebIntegrationTest(
     private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     @Autowired
     private val horoscopeService: TestHoroscopeService,
+    @Autowired
+    private val taskStateManager: TaskStateManager,
 ) {
 
     @BeforeEach
@@ -212,24 +220,124 @@ class A2AWebIntegrationTest(
         }
 
         @Test
-        fun `should handle tasks resubscribe request`() {
-            val resubscribeRequest = mapOf(
-                "jsonrpc" to "2.0",
-                "id" to "req-456",
-                "method" to "tasks/resubscribe",
-                "params" to mapOf("id" to "task-123")
+        fun `should replay task events when resubscribing to known task`() {
+            val taskId = "resub-${UUID.randomUUID()}"
+            taskStateManager.registerTask(taskId, "ctx-resub", "stream-original")
+            taskStateManager.recordEvent(
+                taskId,
+                TaskStatusUpdateEvent.Builder()
+                    .taskId(taskId)
+                    .contextId("ctx-resub")
+                    .status(TaskStatus(TaskState.WORKING))
+                    .build(),
             )
 
-            // Note: This will fail if task doesn't exist, which is expected
-            // We're just testing that the endpoint is routed correctly
-            mockMvc.post("/a2a") {
+            val result = mockMvc.post("/a2a") {
                 contentType = MediaType.APPLICATION_JSON
-                content = embabelObjectMapperHolder.get().writeValueAsString(resubscribeRequest)
+                content = resubscribeRequest(taskId)
+            }.andExpect {
+                request { asyncStarted() }
+            }.andReturn()
+
+            val data = awaitFirstSseData(result)
+            assertEquals(taskId, data.path("result").path("taskId").asString())
+            assertEquals("working", data.path("result").path("status").path("state").asString())
+        }
+
+        @Test
+        fun `should replay completed task and close stream without changing its state`() {
+            val taskId = "resub-done-${UUID.randomUUID()}"
+            taskStateManager.registerTask(taskId, "ctx-resub")
+            listOf(TaskState.WORKING, TaskState.COMPLETED).forEach { state ->
+                taskStateManager.recordEvent(
+                    taskId,
+                    TaskStatusUpdateEvent.Builder()
+                        .taskId(taskId)
+                        .contextId("ctx-resub")
+                        .status(TaskStatus(state))
+                        .isFinal(state == TaskState.COMPLETED)
+                        .build(),
+                )
             }
-                .andExpect {
-                    // Should return 200 even if task not found (SSE stream will error)
-                    status().isOk()
+            val eventCountBefore = taskStateManager.getTaskEvents(taskId).size
+            val completedAtBefore = taskStateManager.getTaskInfo(taskId)!!.completedAt
+
+            val result = mockMvc.post("/a2a") {
+                contentType = MediaType.APPLICATION_JSON
+                content = resubscribeRequest(taskId)
+            }.andExpect {
+                request { asyncStarted() }
+            }.andReturn()
+            // Returns once the stream is closed, fails if it stays open
+            result.getAsyncResult(Duration.ofSeconds(5).toMillis())
+
+            val states = sseData(result).map { it.path("result").path("status").path("state").asString() }
+            assertEquals(listOf("working", "completed"), states)
+            val after = taskStateManager.getTaskInfo(taskId)!!
+            assertEquals(eventCountBefore, after.events.size)
+            assertEquals(completedAtBefore, after.completedAt)
+            assertEquals(TaskState.COMPLETED, getTask(taskId).status.state)
+        }
+
+        @Test
+        fun `should return task not found error when resubscribing to unknown task`() {
+            val result = mockMvc.post("/a2a") {
+                contentType = MediaType.APPLICATION_JSON
+                content = resubscribeRequest("unknown-${UUID.randomUUID()}")
+            }.andExpect {
+                request { asyncStarted() }
+            }.andReturn()
+
+            val data = awaitFirstSseData(result)
+            assertEquals(JSONRPCRequest.JSONRPC_VERSION, data.path("jsonrpc").asString())
+            assertEquals("req-456", data.path("id").asString())
+            assertEquals(TaskNotFoundError.DEFAULT_CODE, data.path("error").path("code").asInt())
+        }
+
+        private fun resubscribeRequest(taskId: String): String =
+            embabelObjectMapperHolder.get().writeValueAsString(
+                mapOf(
+                    "jsonrpc" to "2.0",
+                    "id" to "req-456",
+                    "method" to TaskResubscriptionRequest.METHOD,
+                    "params" to mapOf("id" to taskId),
+                )
+            )
+
+        private fun sseData(result: MvcResult): List<JsonNode> =
+            result.response.contentAsString.lineSequence()
+                .filter { it.startsWith("data:") }
+                .map { embabelObjectMapperHolder.get().readTree(it.removePrefix("data:")) }
+                .toList()
+
+        private fun getTask(taskId: String): Task {
+            val request = GetTaskRequest.Builder()
+                .jsonrpc(JSONRPCRequest.JSONRPC_VERSION)
+                .method(GetTaskRequest.METHOD)
+                .id("get-$taskId")
+                .params(TaskQueryParams(taskId))
+                .build()
+            val content = mockMvc.post("/a2a") {
+                contentType = MediaType.APPLICATION_JSON
+                content = embabelObjectMapperHolder.get().writeValueAsString(request)
+            }.andExpect {
+                status { isOk() }
+            }.andReturn().response.contentAsString
+            val response = embabelObjectMapperHolder.get().readValue(content, GetTaskResponse::class.java)
+            return assertNotNull(response.result)
+        }
+
+        private fun awaitFirstSseData(result: MvcResult): JsonNode {
+            val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()
+            while (System.nanoTime() < deadline) {
+                val dataLine = result.response.contentAsString.lineSequence()
+                    .firstOrNull { it.startsWith("data:") }
+                if (dataLine != null) {
+                    return embabelObjectMapperHolder.get().readTree(dataLine.removePrefix("data:"))
                 }
+                Thread.sleep(20)
+            }
+            fail("No SSE event received: '${result.response.contentAsString}'")
         }
     }
 

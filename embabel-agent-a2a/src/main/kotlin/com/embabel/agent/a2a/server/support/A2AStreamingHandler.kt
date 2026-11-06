@@ -23,21 +23,19 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
+import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Handles streaming functionality for A2A messages
  */
 @Service
+@ThreadSafe
 class A2AStreamingHandler(
     private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     private val taskStateManager: TaskStateManager
 ) {
     private val logger = LoggerFactory.getLogger(A2AStreamingHandler::class.java)
     private val activeStreams = ConcurrentHashMap<String, SseEmitter>()
-    private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
 
     /**
      * Creates a new SSE stream for the given stream ID
@@ -79,16 +77,15 @@ class A2AStreamingHandler(
         }
 
         val taskInfo = taskStateManager.getTaskInfo(taskId)!!
-        val emitter = createStream(newStreamId, taskId, taskInfo.contextId)
-
-        // Update the stream ID for this task
+        // Attach the new stream without registering the task again, which would reset its state
+        val emitter = createStream(newStreamId)
         taskStateManager.updateStreamId(taskId, newStreamId)
 
-        // Replay all events for this task
+        // Replay all events for this task without recording them again
         Thread.startVirtualThread {
             try {
                 taskInfo.events.forEach { event ->
-                    sendStreamEvent(newStreamId, event, taskId)
+                    sendStreamEvent(newStreamId, event)
                 }
 
                 // If task is completed, close the stream
@@ -142,19 +139,5 @@ class A2AStreamingHandler(
     fun closeStream(streamId: String) {
         val emitter = activeStreams.remove(streamId)
         emitter?.complete()
-    }
-
-    /**
-     * Shuts down the streaming handler
-     */
-    fun shutdown() {
-        scheduler.shutdown()
-        try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow()
-            }
-        } catch (e: InterruptedException) {
-            scheduler.shutdownNow()
-        }
     }
 }

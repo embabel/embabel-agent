@@ -23,11 +23,14 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.ProcessOptions
 import io.a2a.spec.*
+import io.a2a.spec.InternalError
 import org.slf4j.LoggerFactory
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.OffsetDateTime
 import java.util.*
+import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Handle A2A messages according to the A2A protocol.
@@ -35,10 +38,12 @@ import java.util.*
  * in front of this class must handle that.
  */
 @Service
+@ThreadSafe
 class AutonomyA2ARequestHandler(
     private val autonomy: Autonomy,
     private val agenticEventListener: AgenticEventListener,
     private val streamingHandler: A2AStreamingHandler,
+    private val taskStateManager: TaskStateManager,
 ) : A2ARequestHandler {
 
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
@@ -46,20 +51,8 @@ class AutonomyA2ARequestHandler(
     override fun handleJsonRpcStream(request: StreamingJSONRPCRequest<*>): SseEmitter {
         return when (request) {
             is SendStreamingMessageRequest -> handleMessageStream(request)
+            is TaskResubscriptionRequest -> handleTaskResubscribe(request)
             else -> throw UnsupportedOperationException("Method ${request.method} is not supported for streaming")
-        }
-    }
-
-    /**
-     * Handles streaming JSON-RPC requests that are not part of the standard SDK
-     */
-    fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: tools.jackson.databind.ObjectMapper): SseEmitter {
-        return when (method) {
-            TaskResubscriptionRequest.METHOD -> {
-                val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
-                handleTaskResubscribe(request)
-            }
-            else -> throw UnsupportedOperationException("Method $method is not supported for streaming")
         }
     }
 
@@ -107,9 +100,11 @@ class AutonomyA2ARequestHandler(
         request: SendMessageRequest,
         params: MessageSendParams,
     ): JSONRPCResponse<*> {
-        // TODO handle other message parts and handle errors
-        val intent = params.message.parts.filterIsInstance<TextPart>().single().text
+        val intent = intentOf(params.message)
         logger.info("Handling message send request with intent: '{}'", intent)
+        val taskId = ensureTaskId(params.message.taskId)
+        val contextId = ensureContextId(params.message.contextId)
+        taskStateManager.registerTask(taskId, contextId)
         try {
             val result = autonomy.chooseAndRunAgent(
                 intent = intent,
@@ -120,8 +115,8 @@ class AutonomyA2ARequestHandler(
             val statusMessage = extractContentForDisplay(result)
 
             val task = Task.Builder()
-                .id(ensureTaskId(params.message.taskId))
-                .contextId(ensureContextId(params.message.contextId))
+                .id(taskId)
+                .contextId(contextId)
                 .status(createCompletedTaskStatus(params, statusMessage))
                 .history(listOfNotNull(params.message))
                 .artifacts(
@@ -130,21 +125,23 @@ class AutonomyA2ARequestHandler(
                     )
                 )
                 .build()
+            taskStateManager.recordEvent(taskId, task)
 
             val jSONRPCResponse = request.successResponseWith(result = task)
             logger.info("Handled message send request, response={}", jSONRPCResponse)
             return jSONRPCResponse
         } catch (e: Exception) {
             logger.error("Error handling message send request", e)
-            // TODO other kinds of errors
-            return JSONRPCErrorResponse(
-                ensureTaskId(params.message.taskId),
-                TaskNotFoundError(
-                    null,
-                    "Internal error: ${e.message}",
-                    e.stackTraceToString()
-                )
+            taskStateManager.recordEvent(
+                taskId,
+                Task.Builder()
+                    .id(taskId)
+                    .contextId(contextId)
+                    .status(createFailedTaskStatus(params, e))
+                    .history(listOfNotNull(params.message))
+                    .build()
             )
+            return JSONRPCErrorResponse(request.id, InternalError("Internal error: ${e.message}"))
         }
     }
 
@@ -169,17 +166,8 @@ class AutonomyA2ARequestHandler(
                     taskId
                 )
 
-                val intent = params.message?.parts?.filterIsInstance<TextPart>()?.firstOrNull()?.text
-                    ?: "Task $taskId"
+                val intent = intentOf(params.message).ifEmpty { "Task $taskId" }
 
-                // Execute the task using autonomy service
-                val result = autonomy.chooseAndRunAgent(
-                    intent = intent,
-                    processOptions = ProcessOptions()
-                )
-                logger.debug("Task execution result: {}", result)
-
-                // Send intermediate status updates
                 streamingHandler.sendStreamEvent(
                     streamId,
                     TaskStatusUpdateEvent.Builder()
@@ -189,6 +177,13 @@ class AutonomyA2ARequestHandler(
                         .build(),
                     taskId
                 )
+
+                // Execute the task using autonomy service
+                val result = autonomy.chooseAndRunAgent(
+                    intent = intent,
+                    processOptions = ProcessOptions()
+                )
+                logger.debug("Task execution result: {}", result)
 
                 // Extract content for status message if output is HasContent
                 val statusMessage = extractContentForDisplay(result)
@@ -215,6 +210,7 @@ class AutonomyA2ARequestHandler(
                             .taskId(taskId)
                             .contextId(contextId)
                             .status(createFailedTaskStatus(params, e))
+                            .isFinal(true)
                             .build(),
                         taskId
                     )
@@ -242,9 +238,13 @@ class AutonomyA2ARequestHandler(
         return try {
             streamingHandler.resubscribeToTask(taskId, streamId)
         } catch (e: IllegalArgumentException) {
-            logger.error("Task not found: {}", taskId, e)
+            logger.warn("Task not found for resubscribe: {}", taskId)
             val emitter = SseEmitter(Long.MAX_VALUE)
-            emitter.completeWithError(e)
+            emitter.send(
+                SseEmitter.event()
+                    .data(JSONRPCErrorResponse(request.id, TaskNotFoundError()), MediaType.APPLICATION_JSON)
+            )
+            emitter.complete()
             emitter
         } catch (e: Exception) {
             logger.error("Error resubscribing to task: {}", taskId, e)
@@ -258,14 +258,18 @@ class AutonomyA2ARequestHandler(
         request: GetTaskRequest,
         params: TaskQueryParams,
     ): GetTaskResponse {
-        TODO()
+        val task = taskStateManager.getTask(params.id)
+            ?: return GetTaskResponse(request.id, TaskNotFoundError())
+        return GetTaskResponse(request.id, task)
     }
 
     private fun handleCancelTask(
         request: CancelTaskRequest,
         tip: TaskIdParams,
     ): CancelTaskResponse {
-        TODO()
+        // Agent processes run to completion, so no task can be canceled
+        val error = if (taskStateManager.taskExists(tip.id)) TaskNotCancelableError() else TaskNotFoundError()
+        return CancelTaskResponse(request.id, error)
     }
 
     private fun createFailedTaskStatus(
@@ -313,6 +317,12 @@ class AutonomyA2ARequestHandler(
         OffsetDateTime.now()
     )
 
+    /**
+     * Joins every text part of the message, so no part of a multi-part message is lost
+     */
+    private fun intentOf(message: Message): String =
+        message.parts.filterIsInstance<TextPart>().joinToString("\n") { it.text }
+
     private fun ensureContextId(providedContextId: String?): String {
         return providedContextId ?: ("ctx_" + UUID.randomUUID().toString())
     }
@@ -339,8 +349,6 @@ class AutonomyA2ARequestHandler(
         result: AgentProcessExecution,
         acceptedOutputModes: List<String>? = emptyList(),
     ): Artifact {
-        // TODO result should be based on the outputMode received in the "params.configuration.acceptedOutputModes"
-
         val parts = buildList {
             val output = result.output
 
