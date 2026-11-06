@@ -58,6 +58,11 @@ class AutonomyA2ARequestHandler(
 
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
 
+    private val outputMapper = tools.jackson.databind.json.JsonMapper.builder()
+        .addModule(tools.jackson.module.kotlin.kotlinModule())
+        .findAndAddModules()
+        .build()
+
     override fun handleJsonRpcStream(
         request: StreamingJSONRPCRequest<*>,
         protocolVersion: A2AProtocolVersion,
@@ -357,11 +362,7 @@ class AutonomyA2ARequestHandler(
 
             // The A2A wire format keeps only maps, lists, strings, numbers and booleans in a DataPart,
             // so convert the output to those with Jackson
-            val objectMapper = tools.jackson.databind.json.JsonMapper.builder()
-                .addModule(tools.jackson.module.kotlin.kotlinModule())
-                .findAndAddModules()
-                .build()
-            val outputValue = objectMapper.convertValue(output, Any::class.java)
+            val outputValue = outputMapper.convertValue(output, Any::class.java)
 
             // Check if output implements HasContent
             if (output is HasContent) {
