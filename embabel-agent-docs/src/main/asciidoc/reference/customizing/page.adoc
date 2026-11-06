@@ -174,7 +174,7 @@ fun luna(): LlmService<*> =
 ----
 ====
 
-To build a model the way the shipped OpenAI catalog (`models/openai-models.yml`) declares it, call `llm` instead.
+`llm` picks the factory method for you: it builds a model the way the shipped OpenAI catalog (`models/openai-models.yml`) declares it, so you need not choose between `openAiResponsesLlm` and `openAiCompatibleLlm` yourself.
 For a model the catalog lists by its exact id, on OpenAI's own endpoint, it picks the catalog's transport, options and native structured output; GPT-6 gets the Responses API, GPT-4.1 gets Chat Completions.
 Any other model, provider or base URL gets `openAiCompatibleLlm`, so a gateway that only implements Chat Completions keeps working.
 
