@@ -25,6 +25,7 @@ import com.embabel.agent.core.ProcessOptions
 import io.a2a.spec.*
 import io.a2a.spec.InternalError
 import org.slf4j.LoggerFactory
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.OffsetDateTime
@@ -50,20 +51,8 @@ class AutonomyA2ARequestHandler(
     override fun handleJsonRpcStream(request: StreamingJSONRPCRequest<*>): SseEmitter {
         return when (request) {
             is SendStreamingMessageRequest -> handleMessageStream(request)
+            is TaskResubscriptionRequest -> handleTaskResubscribe(request)
             else -> throw UnsupportedOperationException("Method ${request.method} is not supported for streaming")
-        }
-    }
-
-    /**
-     * Handles streaming JSON-RPC requests that are not part of the standard SDK
-     */
-    fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: tools.jackson.databind.ObjectMapper): SseEmitter {
-        return when (method) {
-            TaskResubscriptionRequest.METHOD -> {
-                val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
-                handleTaskResubscribe(request)
-            }
-            else -> throw UnsupportedOperationException("Method $method is not supported for streaming")
         }
     }
 
@@ -249,9 +238,13 @@ class AutonomyA2ARequestHandler(
         return try {
             streamingHandler.resubscribeToTask(taskId, streamId)
         } catch (e: IllegalArgumentException) {
-            logger.error("Task not found: {}", taskId, e)
+            logger.warn("Task not found for resubscribe: {}", taskId)
             val emitter = SseEmitter(Long.MAX_VALUE)
-            emitter.completeWithError(e)
+            emitter.send(
+                SseEmitter.event()
+                    .data(JSONRPCErrorResponse(request.id, TaskNotFoundError()), MediaType.APPLICATION_JSON)
+            )
+            emitter.complete()
             emitter
         } catch (e: Exception) {
             logger.error("Error resubscribing to task: {}", taskId, e)
