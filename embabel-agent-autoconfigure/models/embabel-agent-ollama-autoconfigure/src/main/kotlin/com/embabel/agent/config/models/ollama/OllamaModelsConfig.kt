@@ -490,6 +490,7 @@ class OllamaOptionsConverter(
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .topK(options.topK)
+            .numPredict(options.maxTokens)
         toThinkOption(options.thinking)?.let { builder.thinkOption(it) }
         return builder.build()
     }
