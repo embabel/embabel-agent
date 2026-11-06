@@ -26,6 +26,12 @@
             <artifactId>embabel-agent-api</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.a2aproject.sdk</groupId>
+            <artifactId>a2a-java-sdk-spec</artifactId>
+            <version>${a2a-java-sdk.version}</version>
+        </dependency>
+
         <!-- JSON-RPC request and response types of A2A 1.0 -->
         <dependency>
             <groupId>org.a2aproject.sdk</groupId>

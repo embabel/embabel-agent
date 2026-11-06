@@ -148,12 +148,6 @@
             <artifactId>moby-names-generator</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.a2aproject.sdk</groupId>
-            <artifactId>a2a-java-sdk-spec</artifactId>
-            <version>${a2a-java-sdk.version}</version>
-        </dependency>
-
         <!-- SpotBugs annotations for thread-safety documentation (@ThreadSafe, @GuardedBy) -->
         <dependency>
             <groupId>com.github.spotbugs</groupId>
