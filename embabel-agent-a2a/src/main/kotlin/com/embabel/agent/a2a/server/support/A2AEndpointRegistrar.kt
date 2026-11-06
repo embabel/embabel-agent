@@ -62,13 +62,17 @@ class A2AEndpointRegistrar(
     }
 
     private fun registerWebEndpoints(agentCardHandler: AgentCardHandler) {
-        val endpointPath = "/${agentCardHandler.path}/.well-known/agent.json"
+        // A2A 0.3 serves the card at agent-card.json; agent.json (A2A 0.2) is kept for older clients
+        val agentCardPaths = arrayOf(
+            "/${agentCardHandler.path}/.well-known/agent-card.json",
+            "/${agentCardHandler.path}/.well-known/agent.json",
+        )
         logger.info(
             "Registering web endpoint under {} for {}",
-            endpointPath,
+            agentCardPaths.joinToString(),
             agentCardHandler.infoString(verbose = true),
         )
-        val agentCardGetMapping = RequestMappingInfo.paths(endpointPath)
+        val agentCardGetMapping = RequestMappingInfo.paths(*agentCardPaths)
             .methods(RequestMethod.GET)
             .produces(MediaType.APPLICATION_JSON_VALUE)
             .build()

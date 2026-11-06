@@ -115,6 +115,30 @@ class A2AWebIntegrationTest(
 //            assertEquals(listOf("Say hello!"), agentCard.skills[0].examples)
             assertEquals(false, agentCard.supportsAuthenticatedExtendedCard)
         }
+
+        @Test
+        fun `should return agent card at A2A 0_3 well-known path`() {
+            val result = mockMvc.get("/a2a/.well-known/agent-card.json")
+                .andExpect {
+                    status().isOk()
+                    content { contentType(MediaType.APPLICATION_JSON) }
+                }.andReturn()
+
+            val agentCard = embabelObjectMapperHolder.get()
+                .readValue(result.response.contentAsString, AgentCard::class.java)
+
+            assertNotNull(agentCard.name)
+        }
+
+        @Test
+        fun `should return the same agent card at the A2A 0_2 and 0_3 well-known paths`() {
+            val legacy = mockMvc.get("/a2a/.well-known/agent.json")
+                .andExpect { status().isOk() }.andReturn().response.contentAsString
+            val current = mockMvc.get("/a2a/.well-known/agent-card.json")
+                .andExpect { status().isOk() }.andReturn().response.contentAsString
+
+            assertEquals(legacy, current)
+        }
     }
 
     @Nested
