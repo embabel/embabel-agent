@@ -15,10 +15,12 @@
  */
 package com.embabel.agent.a2a.server.config
 
+import com.embabel.agent.a2a.config.A2AConfigurationProperties
 import com.embabel.agent.a2a.server.AgentCardHandler
 import com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler
 import com.embabel.agent.a2a.server.support.EmbabelServerGoalsAgentCardHandler
 import com.embabel.agent.core.AgentPlatform
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -27,6 +29,7 @@ import org.springframework.context.annotation.Configuration
  * Each will be exposed as an A2A endpoint with the path "a2a".
  */
 @Configuration
+@EnableConfigurationProperties(A2AConfigurationProperties::class)
 class A2AConfiguration {
 
     @Bean
