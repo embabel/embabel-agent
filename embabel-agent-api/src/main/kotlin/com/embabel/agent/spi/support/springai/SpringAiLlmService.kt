@@ -60,6 +60,8 @@ import java.time.LocalDate
  *        request metadata. Defaults to no-op so unsupported providers keep prompt-schema fallback.
  * @param nativeThinkingExtractor Extracts native thinking blocks from the raw ChatResponse.
  *        Defaults to no-op; Anthropic wires [com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor].
+ * @param promptTokensExcludeCache Whether the chat model reports prompt-cache reads and writes
+ *        on top of Spring AI's promptTokens (Anthropic) rather than within it (OpenAI).
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(
@@ -79,6 +81,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     val nativeThinkingExtractor: SpringAiNativeThinkingExtractor =
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
+    val promptTokensExcludeCache: Boolean = false,
 ) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
 
     /**
@@ -99,6 +102,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             nativeThinkingExtractor = nativeThinkingExtractor,
             nativeSupport = nativeSupport,
             llmMetadata = this,
+            promptTokensExcludeCache = promptTokensExcludeCache,
         )
     }
 
@@ -107,6 +111,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             chatModel = chatModel,
             chatOptions = convertOptions(options),
             toolResponseContentAdapter = toolResponseContentAdapter,
+            promptTokensExcludeCache = promptTokensExcludeCache,
         )
     }
 
