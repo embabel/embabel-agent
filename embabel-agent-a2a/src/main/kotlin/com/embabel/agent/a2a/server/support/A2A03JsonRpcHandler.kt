@@ -33,6 +33,7 @@ import org.a2aproject.sdk.compat03.spec.GetTaskRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.GetTaskResponse_v0_3
 import org.a2aproject.sdk.compat03.spec.InternalError_v0_3
 import org.a2aproject.sdk.compat03.spec.InvalidParamsError_v0_3
+import org.a2aproject.sdk.compat03.spec.InvalidRequestError_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONParseError_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONRPCErrorResponse_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONRPCError_v0_3
@@ -72,7 +73,7 @@ internal class A2A03JsonRpcHandler(
      */
     fun handle(body: String, requestId: Any?): Any {
         return try {
-            val method = JsonParser.parseString(body).asJsonObject.get("method")?.asString
+            val method = methodOf(body)
             logger.info("Received A2A 0.3 JSON-RPC request: method='{}', id='{}'", method, requestId)
             when (method) {
                 SendMessageRequest_v0_3.METHOD -> {
@@ -117,15 +118,26 @@ internal class A2A03JsonRpcHandler(
             errorJson(requestId, e)
         } catch (e: A2AError) {
             errorJson(requestId, ErrorConverter_v0_3.convertA2AError(e))
-        } catch (e: JsonSyntaxException) {
-            errorJson(requestId, JSONParseError_v0_3(e.message))
-        } catch (e: IllegalStateException) {
-            // The body is valid JSON but not a JSON object
-            errorJson(requestId, JSONParseError_v0_3(e.message))
         } catch (e: Throwable) {
             logger.error("Error handling A2A 0.3 JSON-RPC request: {}", e.message, e)
             errorJson(requestId, InternalError_v0_3("Internal server error: ${e.message}"))
         }
+    }
+
+    private fun methodOf(body: String): String {
+        val request = try {
+            JsonParser.parseString(body)
+        } catch (e: JsonSyntaxException) {
+            throw JSONParseError_v0_3(e.message)
+        }
+        if (!request.isJsonObject) {
+            throw JSONParseError_v0_3("A JSON-RPC request must be a JSON object")
+        }
+        val method = request.asJsonObject.get("method")
+        if (method == null || !method.isJsonPrimitive || !method.asJsonPrimitive.isString) {
+            throw InvalidRequestError_v0_3("A JSON-RPC request must have a string method")
+        }
+        return method.asString
     }
 
     private fun <T> read(body: String, type: Class<T>): T =
