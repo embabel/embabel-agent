@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.config.models.typesafe
 
-import com.embabel.common.ai.autoconfig.AbstractYamlModelLoader
+import com.embabel.common.ai.autoconfig.DecisionModelCatalogLoader
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadata
 import com.embabel.common.ai.autoconfig.LlmAutoConfigProvider
 import com.embabel.common.ai.model.PerTokenPricingModel
@@ -60,39 +60,15 @@ data class TypeSafeModelDefinition(
  * @param configPath location of the catalog
  */
 class TypeSafeModelLoader @JvmOverloads constructor(
-    private val resourceLoader: ResourceLoader = DefaultResourceLoader(),
-    private val configPath: String = DEFAULT_CONFIG_PATH,
-) : AbstractYamlModelLoader<TypeSafeModelDefinitions>(resourceLoader, configPath) {
-
-    /**
-     * Reads and validates the catalog.
-     *
-     * @return the catalog
-     * @throws IllegalStateException when the catalog is missing, unreadable, invalid or empty
-     */
-    override fun loadAutoConfigMetadata(): TypeSafeModelDefinitions {
-        val resource = resourceLoader.getResource(configPath)
-        check(resource.exists()) { "TypeSafe model catalog $configPath not found" }
-        return try {
-            resource.inputStream.use { yamlMapper.readValue(it, TypeSafeModelDefinitions::class.java) }
-                .also { validateModels(it) }
-        } catch (e: Exception) {
-            throw IllegalStateException("TypeSafe model catalog $configPath is invalid: ${e.message}", e)
-        }
-    }
+    resourceLoader: ResourceLoader = DefaultResourceLoader(),
+    configPath: String = DEFAULT_CONFIG_PATH,
+) : DecisionModelCatalogLoader<TypeSafeModelDefinitions>(resourceLoader, configPath) {
 
     override fun getProviderClass() = TypeSafeModelDefinitions::class
 
     override fun createEmptyProvider() = TypeSafeModelDefinitions()
 
     override fun getProviderName() = "TypeSafe"
-
-    override fun validateModels(provider: TypeSafeModelDefinitions) {
-        require(provider.models.isNotEmpty()) { "the catalog defines no models" }
-        provider.models.forEach(::validateCommonFields)
-        val dupModelNames = provider.models.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
-        require(dupModelNames.isEmpty()) { "TypeSafe model names must be unique. Repeated names: $dupModelNames" }
-    }
 
     companion object {
         private const val DEFAULT_CONFIG_PATH = "classpath:models/typesafe-models.yml"
