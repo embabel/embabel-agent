@@ -111,7 +111,7 @@ class AutonomyA2ARequestHandler(
         request: SendMessageRequest,
         params: MessageSendParams,
     ): JSONRPCResponse<*> {
-        val intent = params.message.parts.filterIsInstance<TextPart>().joinToString("\n") { it.text }
+        val intent = intentOf(params.message)
         logger.info("Handling message send request with intent: '{}'", intent)
         val taskId = ensureTaskId(params.message.taskId)
         val contextId = ensureContextId(params.message.contextId)
@@ -177,8 +177,7 @@ class AutonomyA2ARequestHandler(
                     taskId
                 )
 
-                val intent = params.message?.parts?.filterIsInstance<TextPart>()?.firstOrNull()?.text
-                    ?: "Task $taskId"
+                val intent = intentOf(params.message).ifEmpty { "Task $taskId" }
 
                 streamingHandler.sendStreamEvent(
                     streamId,
@@ -324,6 +323,12 @@ class AutonomyA2ARequestHandler(
             .build(),
         OffsetDateTime.now()
     )
+
+    /**
+     * Joins every text part of the message, so no part of a multi-part message is lost
+     */
+    private fun intentOf(message: Message): String =
+        message.parts.filterIsInstance<TextPart>().joinToString("\n") { it.text }
 
     private fun ensureContextId(providedContextId: String?): String {
         return providedContextId ?: ("ctx_" + UUID.randomUUID().toString())

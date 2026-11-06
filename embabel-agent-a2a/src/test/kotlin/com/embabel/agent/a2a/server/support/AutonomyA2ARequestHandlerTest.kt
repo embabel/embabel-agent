@@ -180,6 +180,17 @@ class AutonomyA2ARequestHandlerTest {
             assertEquals(listOf("Task started...", "Processing task..."), updatesBeforeAgentRun)
         }
 
+        @Test
+        fun `uses every text part of a multi-part message as the intent`() {
+            val intent = slot<String>()
+            every { autonomy.chooseAndRunAgent(capture(intent), any()) } returns execution("done")
+
+            handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params("task-1", "first", "second")))
+            awaitStatusUpdates("task-1")
+
+            assertEquals("first\nsecond", intent.captured)
+        }
+
         private fun statusUpdates(taskId: String): List<TaskStatusUpdateEvent> =
             taskStateManager.getTaskEvents(taskId).filterIsInstance<TaskStatusUpdateEvent>()
 
