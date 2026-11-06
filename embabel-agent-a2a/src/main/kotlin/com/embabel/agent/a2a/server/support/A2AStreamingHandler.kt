@@ -77,9 +77,8 @@ class A2AStreamingHandler(
         }
 
         val taskInfo = taskStateManager.getTaskInfo(taskId)!!
-        val emitter = createStream(newStreamId, taskId, taskInfo.contextId)
-
-        // Update the stream ID for this task
+        // Attach the new stream without registering the task again, which would reset its state
+        val emitter = createStream(newStreamId)
         taskStateManager.updateStreamId(taskId, newStreamId)
 
         // Replay all events for this task
