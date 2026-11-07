@@ -27,6 +27,7 @@ import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -206,6 +207,8 @@ data class FakePromptRunner(
         override fun withValidation(validation: Boolean): PromptExecutionDelegate {
             return this@FakePromptRunner.copy(validation = validation).DelegateAdapter()
         }
+
+        override fun withOutputValidator(validator: OutputValidator<Any?>): PromptExecutionDelegate = this
 
         override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate {
             return this@FakePromptRunner.copy(guardRails = this@FakePromptRunner.guardRails + guards).DelegateAdapter()

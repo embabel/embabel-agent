@@ -26,6 +26,7 @@ import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -96,6 +97,8 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withFieldFilter(filter: Predicate<Field>): PromptExecutionDelegate
 
     fun withValidation(validation: Boolean): PromptExecutionDelegate
+
+    fun withOutputValidator(validator: OutputValidator<Any?>): PromptExecutionDelegate
 
     fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate
 

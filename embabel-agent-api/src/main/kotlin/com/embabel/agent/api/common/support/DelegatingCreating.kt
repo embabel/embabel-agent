@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.CreationExample
 import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.prompt.PromptContributor
@@ -66,6 +67,13 @@ internal data class DelegatingCreating<T>(
         validation: Boolean
     ): PromptRunner.Creating<T> = copy(
         delegate = delegate.withValidation(validation)
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    override fun withOutputValidator(
+        validator: OutputValidator<T>,
+    ): PromptRunner.Creating<T> = copy(
+        delegate = delegate.withOutputValidator(validator as OutputValidator<Any?>)
     )
 
     override fun fromMessages(

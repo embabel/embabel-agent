@@ -42,6 +42,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
+import com.embabel.common.core.validation.ValidationError
 import com.embabel.common.util.time
 import tools.jackson.databind.ObjectMapper
 import jakarta.validation.ConstraintViolation
@@ -308,30 +309,27 @@ abstract class AbstractLlmOperations(
                     )
                 }
                 if (interaction.validation) {
-                    var constraintViolations = validator.validate(candidate)
-                    constraintViolations =
-                        filterConstraintViolations(constraintViolations, outputClass, interaction.fieldFilter)
-                    if (constraintViolations.isNotEmpty()) {
+                    var constraintViolations = constraintViolations(candidate, outputClass, interaction)
+                    var validationErrors = outputValidationErrors(candidate, interaction, agentProcess)
+                    if (constraintViolations.isNotEmpty() || validationErrors.isNotEmpty()) {
                         // If we had violations, try again, once, before throwing an exception
                         candidate = attempt {
                             doTransform(
                                 messages = messages + UserMessage(
-                                    validationPromptGenerator.generateViolationsReport(
-                                        constraintViolations
-                                    )
+                                    violationsReport(constraintViolations, validationErrors)
                                 ),
                                 interaction = interactionWithToolDecoration,
                                 outputClass = outputClass,
                                 llmRequestEvent = llmRequestEvent,
                             )
                         }
-                        constraintViolations = validator.validate(candidate)
-                        constraintViolations =
-                            filterConstraintViolations(constraintViolations, outputClass, interaction.fieldFilter)
-                        if (constraintViolations.isNotEmpty()) {
+                        constraintViolations = constraintViolations(candidate, outputClass, interaction)
+                        validationErrors = outputValidationErrors(candidate, interaction, agentProcess)
+                        if (constraintViolations.isNotEmpty() || validationErrors.isNotEmpty()) {
                             throw InvalidLlmReturnTypeException(
                                 returnedObject = candidate as Any,
                                 constraintViolations = constraintViolations,
+                                validationErrors = validationErrors,
                             )
                         }
                     }
@@ -348,6 +346,31 @@ abstract class AbstractLlmOperations(
         )
         return createdObject
     }
+
+    private fun <O> constraintViolations(
+        candidate: O,
+        outputClass: Class<O>,
+        interaction: LlmInteraction,
+    ): Set<ConstraintViolation<O>> =
+        filterConstraintViolations(validator.validate(candidate), outputClass, interaction.fieldFilter)
+
+    private fun outputValidationErrors(
+        candidate: Any?,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+    ): List<ValidationError> =
+        interaction.outputValidators
+            .map { it.validate(candidate, agentProcess) }
+            .filterNot { it.isValid }
+            .flatMap { it.errors }
+
+    private fun <O> violationsReport(
+        constraintViolations: Set<ConstraintViolation<O>>,
+        validationErrors: List<ValidationError>,
+    ): String = listOfNotNull(
+        constraintViolations.takeIf { it.isNotEmpty() }?.let { validationPromptGenerator.generateViolationsReport(it) },
+        validationErrors.takeIf { it.isNotEmpty() }?.let { validationPromptGenerator.generateValidationErrorsReport(it) },
+    ).joinToString("\n\n")
 
     private fun <O> filterConstraintViolations(
         constraintViolations: Set<ConstraintViolation<O>>,

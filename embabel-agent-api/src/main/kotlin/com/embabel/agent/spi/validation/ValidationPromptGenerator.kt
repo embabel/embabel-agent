@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.validation
 
+import com.embabel.common.core.validation.ValidationError
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import java.lang.reflect.Field
@@ -40,5 +41,11 @@ interface ValidationPromptGenerator {
      * This describes what went wrong after validation
      */
     fun <T> generateViolationsReport(violations: Set<ConstraintViolation<T>>): String
+
+    /**
+     * Generate a string describing errors from programmatic output validators
+     */
+    fun generateValidationErrorsReport(errors: List<ValidationError>): String =
+        "Validation Errors:\n" + errors.joinToString("\n") { "- ${it.message}" }
 
 }
