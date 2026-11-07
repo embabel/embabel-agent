@@ -136,7 +136,9 @@ val skills = Skills("my-skills", "Skills with scripts")
 
 ### DockerSkillScriptExecutionEngine (Sandboxed)
 
-Runs scripts in an isolated Docker container for security. This delegates to `DockerExecutor` from the `embabel-agent-sandbox` module:
+Runs packaged skill scripts in a fresh Docker container per execution. Docker and
+Podman engines share `AbstractContainerSkillScriptExecutionEngine` for staging,
+I/O, timeouts, and output collection; they do not depend on `embabel-agent-sandbox`:
 
 ```kotlin
 import com.embabel.agent.skills.script.DockerSkillScriptExecutionEngine
@@ -233,6 +235,20 @@ val engine = DockerSkillScriptExecutionEngine(
     fileTools = FileTools.readWrite("/path/to/allowed/directory"),
 )
 ```
+
+## Packaged scripts or persistent scratch sessions?
+
+Use `ScriptTool` and a `SkillScriptExecutionEngine` to run existing scripts from a
+skill's `scripts/` directory. `ScriptTool` accepts arguments, stdin, and input
+files; its tool schema does not accept new source code. Docker and Podman skill
+engines create a fresh container for each execution and collect `OUTPUT_DIR`.
+
+For model-written commands and files that persist between calls, add the optional
+[`embabel-agent-sandbox`](../embabel-agent-sandbox/README.md) module and explicitly
+register `ScratchTool` and `ScratchPublishTool`. The model creates and checks files
+with `scratch_run`, then selects finished files using `scratch_publish`. Skill
+instructions and scratch tools can be used together, but their execution
+workspaces are separate.
 
 ## Limitations
 
