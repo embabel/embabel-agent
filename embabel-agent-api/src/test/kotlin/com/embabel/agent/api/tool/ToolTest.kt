@@ -17,6 +17,8 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
+import com.embabel.agent.core.hitl.AwaitableResponseException
+import com.embabel.agent.core.hitl.confirm
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -769,6 +771,41 @@ class ToolTest {
 
             assertTrue(result is Tool.Result.Error)
             assertTrue((result as Tool.Result.Error).message.contains("Intentional failure"))
+        }
+
+        @Test
+        fun `propagates termination exceptions instead of returning an error`() {
+            class TerminatingTools {
+                @LlmTool(description = "Stops the agent")
+                fun stopAgent(): String {
+                    throw TerminateAgentException("Missing required permissions")
+                }
+
+                @LlmTool(description = "Stops the action")
+                fun stopAction(): String {
+                    throw TerminateActionException("Service unavailable")
+                }
+            }
+
+            val tools = Tool.fromInstance(TerminatingTools())
+
+            assertThrows<TerminateAgentException> { tools.first { it.definition.name == "stopAgent" }.call("{}") }
+            assertThrows<TerminateActionException> { tools.first { it.definition.name == "stopAction" }.call("{}") }
+        }
+
+        @Test
+        fun `propagates a pause for human input instead of returning an error`() {
+            class ConfirmingTools {
+                @LlmTool(description = "Deletes after a human confirms")
+                fun deleteAll(): String {
+                    confirm("all records", "Delete all records?")
+                    return "deleted"
+                }
+            }
+
+            val tool = Tool.fromInstance(ConfirmingTools()).first()
+
+            assertThrows<AwaitableResponseException> { tool.call("{}") }
         }
 
         @Test

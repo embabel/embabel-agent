@@ -15,11 +15,13 @@
  */
 package com.embabel.agent.api.termination;
 
+import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.common.TerminationScope;
 import com.embabel.agent.api.common.TerminationSignal;
 import com.embabel.agent.api.tool.TerminateActionException;
 import com.embabel.agent.api.tool.TerminateAgentException;
 import com.embabel.agent.api.tool.TerminationException;
+import com.embabel.agent.api.tool.Tool;
 import com.embabel.agent.api.tool.ToolControlFlowSignal;
 import org.junit.jupiter.api.Test;
 
@@ -94,6 +96,21 @@ class TerminationJavaTest {
             }
         }
         assertEquals(2, caughtCount);
+    }
+
+    static class PrerequisiteTools {
+        @LlmTool(description = "Validate critical prerequisites")
+        public String validatePrerequisites() {
+            throw new TerminateAgentException("Missing required permissions");
+        }
+    }
+
+    @Test
+    void terminateAgentExceptionPropagatesFromLlmToolMethod() {
+        var tool = Tool.fromInstance(new PrerequisiteTools()).get(0);
+
+        var exception = assertThrows(TerminateAgentException.class, () -> tool.call("{}"));
+        assertEquals("Missing required permissions", exception.getReason());
     }
 
     // Note: terminateAgent/terminateAction methods are now on AgentProcess interface.

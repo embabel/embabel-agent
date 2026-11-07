@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.loop
 
+import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.common.TerminationSignal
 import com.embabel.agent.api.tool.TerminateActionException
@@ -332,6 +333,49 @@ class ToolLoopTerminationTest {
             assertEquals("Agent terminated by tool", exception.reason)
             assertEquals(1, toolCallOrder.size)
             assertEquals("tool_one", toolCallOrder[0])
+        }
+
+        @Test
+        fun `TerminateAgentException from an LlmTool method propagates and stops tool loop`() {
+            val toolCallOrder = mutableListOf<String>()
+
+            class PrerequisiteTools {
+                @LlmTool(description = "Validate critical prerequisites")
+                fun validatePrerequisites(): String {
+                    toolCallOrder.add("validatePrerequisites")
+                    throw TerminateAgentException("Missing required permissions")
+                }
+
+                @LlmTool(description = "Should NOT be called")
+                fun doWork(): String {
+                    toolCallOrder.add("doWork")
+                    return "Work done"
+                }
+            }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("call_1", "validatePrerequisites", "{}"),
+                    MockLlmMessageSender.toolCallResponse("call_2", "doWork", "{}"),
+                    MockLlmMessageSender.textResponse("Done")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val exception = assertThrows<TerminateAgentException> {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Validate, then do the work")),
+                    initialTools = Tool.fromInstance(PrerequisiteTools()),
+                    outputParser = { it }
+                )
+            }
+
+            assertEquals("Missing required permissions", exception.reason)
+            assertEquals(listOf("validatePrerequisites"), toolCallOrder)
         }
     }
 
