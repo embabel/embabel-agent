@@ -22,6 +22,9 @@ import com.embabel.agent.api.tool.callback.AfterToolCallContext
 import com.embabel.agent.api.tool.callback.AfterToolResultContext
 import com.embabel.agent.api.tool.callback.BeforeLlmCallContext
 import com.embabel.agent.api.tool.callback.BeforeToolCallContext
+import com.embabel.agent.api.tool.callback.BeforeToolExecutionContext
+import com.embabel.agent.api.tool.callback.ToolCallDisposition
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.core.Usage
@@ -33,6 +36,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * Unit tests for exception isolation in ToolLoopCallbackSupport extension functions.
@@ -225,6 +229,92 @@ class ToolLoopCallbackSupportTest {
             assertEquals(2, events.size)
             assertTrue(events.contains("inspector1:afterToolCall"))
             assertTrue(events.contains("inspector2:afterToolCall"))
+        }
+    }
+
+    @Nested
+    inner class BeforeToolCallTransformTests {
+
+        private val tool = Tool.create("echo", "Echoes") { Tool.Result.text("echo") }
+
+        private fun context(toolCall: ToolCall) = createBeforeToolExecutionContext(
+            history = listOf(UserMessage("test")),
+            iteration = 1,
+            toolCall = toolCall,
+            tool = tool,
+        )
+
+        @Test
+        fun `no transformers proceed with the original call`() {
+            val call = ToolCall("1", "echo", """{"a":1}""")
+
+            val disposition = emptyList<ToolLoopTransformer>().applyBeforeToolCall(context(call))
+
+            assertEquals(ToolCallDisposition.Proceed(call), disposition)
+        }
+
+        @Test
+        fun `default transformer proceeds unchanged`() {
+            val call = ToolCall("1", "echo", """{"a":1}""")
+            val transformer = object : ToolLoopTransformer {}
+
+            val disposition = listOf(transformer).applyBeforeToolCall(context(call))
+
+            assertEquals(ToolCallDisposition.Proceed(call), disposition)
+        }
+
+        @Test
+        fun `a rewritten call is passed to the next transformer and returned`() {
+            val call = ToolCall("1", "echo", """{"a":1}""")
+            val seenBySecond = mutableListOf<ToolCall>()
+            val first = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext) =
+                    ToolCallDisposition.Proceed(context.toolCall.copy(arguments = """{"a":2}"""))
+            }
+            val second = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition {
+                    seenBySecond.add(context.toolCall)
+                    return ToolCallDisposition.Proceed(context.toolCall)
+                }
+            }
+
+            val disposition = listOf(first, second).applyBeforeToolCall(context(call))
+
+            assertEquals(listOf(call.copy(arguments = """{"a":2}""")), seenBySecond)
+            assertEquals(ToolCallDisposition.Proceed(call.copy(arguments = """{"a":2}""")), disposition)
+        }
+
+        @Test
+        fun `the first short circuit ends the chain`() {
+            val call = ToolCall("1", "echo", "{}")
+            var secondCalled = false
+            val first = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext) =
+                    ToolCallDisposition.ShortCircuit(Tool.Result.text("blocked"))
+            }
+            val second = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition {
+                    secondCalled = true
+                    return ToolCallDisposition.Proceed(context.toolCall)
+                }
+            }
+
+            val disposition = listOf(first, second).applyBeforeToolCall(context(call))
+
+            assertEquals(ToolCallDisposition.ShortCircuit(Tool.Result.text("blocked")), disposition)
+            assertTrue(!secondCalled, "second transformer must not run after a short circuit")
+        }
+
+        @Test
+        fun `a transformer exception propagates`() {
+            val call = ToolCall("1", "echo", "{}")
+            val failing = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+                    throw IllegalStateException("gate failed")
+            }
+
+            val e = assertThrows<IllegalStateException> { listOf(failing).applyBeforeToolCall(context(call)) }
+            assertEquals("gate failed", e.message)
         }
     }
 }
