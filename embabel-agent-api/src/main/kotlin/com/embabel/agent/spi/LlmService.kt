@@ -16,9 +16,9 @@
 package com.embabel.agent.spi
 
 import com.embabel.agent.spi.loop.LlmMessageSender
-import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelKind
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import java.time.LocalDate
@@ -36,39 +36,26 @@ import java.time.LocalDate
  * @see com.embabel.agent.spi.support.springai.SpringAiLlmService for the Spring AI implementation
  * @see LlmMessageSender for the interface used to make LLM calls
  */
-interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, PromptContributorConsumer {
+interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, ChatCompletion, PromptContributorConsumer {
 
-    /**
-     * Create a message sender for this LLM configured with the given options.
-     *
-     * The message sender handles the actual LLM API calls but does NOT execute tools -
-     * it returns the LLM's response including any tool call requests.
-     *
-     * @param options Configuration options for the LLM call (temperature, max tokens, etc.)
-     * @return A message sender configured for this LLM
-     */
-    fun createMessageSender(options: LlmOptions): LlmMessageSender
+    companion object {
 
-    /**
-     * Create a message streamer for this LLM configured with the given options.
-     *
-     * The message streamer handles streaming LLM API calls. Tool execution is
-     * handled internally by the underlying LLM framework during streaming.
-     *
-     * @param options Configuration options for the LLM call (temperature, max tokens, etc.)
-     * @return A message streamer configured for this LLM
-     */
-    fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer
+        /** Chat models. A role binds one to [LlmOptions]: a model name and the tuning that travels with it. */
+        @JvmField
+        val KIND: ModelKind<LlmService<*>, LlmOptions> = ModelKind("chat", LlmService::class.java)
+    }
 
     /**
      * Check if this LLM service supports streaming operations.
      *
      * Each LlmService instance is bound to a specific model, so this checks
-     * whether that particular model supports streaming.
+     * whether that particular model supports streaming. By default the answer is whether this
+     * service implements [StreamingChatCompletion]. A service whose provider can return an error
+     * for a streaming request overrides this to check with the provider.
      *
      * @return true if the underlying model supports streaming, false otherwise
      */
-    fun supportsStreaming(): Boolean
+    fun supportsStreaming(): Boolean = this is StreamingChatCompletion
 
     /**
      * Check if this LLM service supports thinking operations.

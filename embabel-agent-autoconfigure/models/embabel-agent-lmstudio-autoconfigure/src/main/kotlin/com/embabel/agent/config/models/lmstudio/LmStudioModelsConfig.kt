@@ -19,19 +19,21 @@ import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.config.models.lmstudio.LmStudioProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelName
+import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
 import com.embabel.common.ai.model.local.DiscoveryFailureReporter
 import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelBeans
 import com.embabel.common.ai.model.local.LocalModelCatalog
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
-import com.embabel.common.ai.model.local.LocalModelKind
 import com.embabel.common.ai.model.local.LocalModelRoleResolver
-import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.ai.model.PricingModel
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -304,7 +306,7 @@ class LmStudioModelsConfig(
      * loaded since, which otherwise needed a restart to become usable however plainly LM Studio was
      * serving it.
      */
-    private inner class LmStudioModelSource : LocalModelSource {
+    private inner class LmStudioModelSource : ChatAndEmbeddingModelSource() {
 
         override val provider: String = LmStudioModels.PROVIDER
 
@@ -315,15 +317,15 @@ class LmStudioModelsConfig(
                 LocalModel(
                     name = it.key,
                     kind = when (it.type) {
-                        LlmType.embedding -> LocalModelKind.EMBEDDING
-                        LlmType.llm -> LocalModelKind.CHAT
+                        LlmType.embedding -> EmbeddingService.KIND
+                        LlmType.llm -> LlmService.KIND
                     },
                 )
             }.toSet()
 
-        override fun llmService(model: String) = lmStudioLlmOf(model)
+        override fun chatModel(model: String): LlmService<*> = lmStudioLlmOf(model)
 
-        override fun embeddingService(model: String) = lmStudioEmbeddingServiceOf(model)
+        override fun embeddingModel(model: String): EmbeddingService = lmStudioEmbeddingServiceOf(model)
     }
 
     /**
@@ -341,9 +343,10 @@ class LmStudioModelsConfig(
     fun lmStudioLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
 
     @Bean
-    fun lmStudioLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
+    fun lmStudioLocalModelRoleResolver(): LocalModelRoleResolver<LlmService<*>, LlmOptions> =
+        localModelBeans.chatRoleResolver
 
     @Bean
-    fun lmStudioLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
+    fun lmStudioLocalModelEmbeddingRoleResolver(): LocalModelRoleResolver<EmbeddingService, ModelName> =
         localModelBeans.embeddingRoleResolver
 }

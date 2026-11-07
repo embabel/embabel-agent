@@ -167,7 +167,7 @@ data class LlmOptions @JvmOverloads constructor(
      * Internal field - use provider-specific extension functions to interact with it.
      */
     internal val extensions: Map<String, Any> = emptyMap(),
-) : LlmHyperparameters, HasInfoString {
+) : LlmHyperparameters, RoleBinding, HasInfoString {
 
     @get:Schema(
         description = "If provided, custom selection criteria for the LLM to use. If not provided, a default LLM will be used.",
@@ -237,7 +237,7 @@ data class LlmOptions @JvmOverloads constructor(
      * binding sets the [model] field, so neither one alone answers the question.
      */
     @get:JsonIgnore
-    val modelName: String?
+    override val modelName: String?
         get() = model ?: (criteria as? ByNameModelSelectionCriteria)?.name
 
     /**

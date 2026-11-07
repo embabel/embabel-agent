@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
@@ -79,7 +80,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     val nativeThinkingExtractor: SpringAiNativeThinkingExtractor =
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
-) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
+) : LlmService<SpringAiLlmService>, StreamingChatCompletion, AiModel<ChatModel> {
 
     /**
      * The underlying Spring AI ChatModel.
