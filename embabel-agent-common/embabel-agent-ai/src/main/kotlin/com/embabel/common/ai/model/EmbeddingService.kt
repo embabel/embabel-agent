@@ -59,7 +59,7 @@ interface EmbeddingServiceMetadata : ModelMetadata {
 /**
  * Embed text in vector space
  */
-interface EmbeddingService : EmbeddingServiceMetadata, HasInfoString {
+interface EmbeddingService : EmbeddingServiceMetadata, ModelCapability, HasInfoString {
 
     /**
      * Embed a single text in vector space
