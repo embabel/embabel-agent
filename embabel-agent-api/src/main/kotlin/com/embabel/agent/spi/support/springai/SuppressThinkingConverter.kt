@@ -185,7 +185,12 @@ internal fun thinkBlockSanitization(
         thinkBlockFinder(cleanedInput)?.let { found ->
             if (found.isNotEmpty()) {
                 thinkBlock = found
-                cleanedInput = cleanedInput.replace(found, "")
+                // The text around the object can also appear inside its values, so only remove it at the end it was found
+                cleanedInput = when (thinkBlockFinder) {
+                    FindPrefixThinkBlock -> cleanedInput.removePrefix(found)
+                    FindSuffixThinkBlock -> cleanedInput.removeSuffix(found)
+                    else -> cleanedInput.replace(found, "")
+                }
             }
         }
     }
