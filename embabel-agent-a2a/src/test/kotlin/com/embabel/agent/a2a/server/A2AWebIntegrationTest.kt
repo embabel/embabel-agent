@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.a2a.server
 
+import com.embabel.agent.AgentTestApplication
 import com.embabel.agent.a2a.example.simple.horoscope.TestHoroscopeService
 import com.embabel.agent.a2a.example.simple.horoscope.kotlin.TestStarNewsFinder
 import com.embabel.agent.a2a.server.config.FakeAiConfiguration
@@ -44,7 +45,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-@SpringBootTest
+@SpringBootTest(classes = [AgentTestApplication::class])
 @ActiveProfiles(value = ["test"])
 @AutoConfigureMockMvc(addFilters = false)
 @EnableAutoConfiguration
@@ -81,7 +82,7 @@ class A2AWebIntegrationTest(
     inner class AgentCardTests {
         @Test
         fun `should return agent card`() {
-            val result = mockMvc.get("/a2a/.well-known/agent.json")
+            val result = mockMvc.get("/.well-known/agent-card.json")
                 .andExpect {
                     status().isOk()
                     content { contentType(MediaType.APPLICATION_JSON) }

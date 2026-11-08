@@ -39,6 +39,7 @@ class AutonomyA2ARequestHandler(
     private val autonomy: Autonomy,
     private val agenticEventListener: AgenticEventListener,
     private val streamingHandler: A2AStreamingHandler,
+    private val taskStore: InMemoryTaskStore,
 ) : A2ARequestHandler {
 
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
@@ -47,19 +48,6 @@ class AutonomyA2ARequestHandler(
         return when (request) {
             is SendStreamingMessageRequest -> handleMessageStream(request)
             else -> throw UnsupportedOperationException("Method ${request.method} is not supported for streaming")
-        }
-    }
-
-    /**
-     * Handles streaming JSON-RPC requests that are not part of the standard SDK
-     */
-    fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: tools.jackson.databind.ObjectMapper): SseEmitter {
-        return when (method) {
-            TaskResubscriptionRequest.METHOD -> {
-                val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
-                handleTaskResubscribe(request)
-            }
-            else -> throw UnsupportedOperationException("Method $method is not supported for streaming")
         }
     }
 
@@ -103,6 +91,14 @@ class AutonomyA2ARequestHandler(
         return result
     }
 
+/**
+ * Handles a [SendMessageRequest] ("message/send"), the core A2A operation (v0.3.0 §7.1).
+ *
+ * @param request the parsed JSON-RPC request, used to echo the request ID
+ * @param params the message and optional [SendMessageParams.configuration]
+ * @return a [SendMessageResponse] wrapping the completed [Task] on success,
+ *         or a [JSONRPCErrorResponse] if agent execution fails
+ */
     private fun handleMessageSend(
         request: SendMessageRequest,
         params: MessageSendParams,
@@ -119,18 +115,20 @@ class AutonomyA2ARequestHandler(
             // Extract content for status message if output is HasContent
             val statusMessage = extractContentForDisplay(result)
 
+            val taskId = ensureTaskId(params.message.taskId)
+            val existing = taskStore.get(taskId)
+
             val task = Task.Builder()
                 .id(ensureTaskId(params.message.taskId))
                 .contextId(ensureContextId(params.message.contextId))
                 .status(createCompletedTaskStatus(params, statusMessage))
-                .history(listOfNotNull(params.message))
+                // append to prior history on follow-ups; [message] on first send
+                .history((existing?.history ?: emptyList()) + params.message)
                 .artifacts(
-                    listOf(
-                        createResultArtifact(result, params.configuration?.acceptedOutputModes)
-                    )
+                        listOf(createResultArtifact(result, params.configuration?.acceptedOutputModes))
                 )
                 .build()
-
+            taskStore.save(task)
             val jSONRPCResponse = request.successResponseWith(result = task)
             logger.info("Handled message send request, response={}", jSONRPCResponse)
             return jSONRPCResponse
@@ -148,7 +146,17 @@ class AutonomyA2ARequestHandler(
         }
     }
 
-    fun handleMessageStream(request: SendStreamingMessageRequest): SseEmitter {
+/**
+ * Handles a [SendStreamingMessageRequest] ("message/stream"), the streaming variant of
+ * [message/send][handleMessageSend] (A2A v0.3.0 §7.2).
+ *
+ * @param request the parsed JSON-RPC request carrying the message and optional
+ *        [MessageSendParams.configuration]
+ * @return an [SseEmitter] streaming the task's status events; errors during execution
+ *         are reported as a FAILED status-update event on the stream rather than a
+ *         JSON-RPC error envelope, since the HTTP 200 response has already committed
+ */
+fun handleMessageStream(request: SendStreamingMessageRequest): SseEmitter {
         val params = request.params
         val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
         val taskId = ensureTaskId(params.message.taskId)
@@ -179,7 +187,7 @@ class AutonomyA2ARequestHandler(
                 )
                 logger.debug("Task execution result: {}", result)
 
-                // Send intermediate status updates
+                // Send intermediate status updates.
                 streamingHandler.sendStreamEvent(
                     streamId,
                     TaskStatusUpdateEvent.Builder()
@@ -190,12 +198,12 @@ class AutonomyA2ARequestHandler(
                     taskId
                 )
 
-                // Extract content for status message if output is HasContent
+                // Extract content for status message if output is HasContent.
                 val statusMessage = extractContentForDisplay(result)
 
-                // Send FINAL status update with content
-                // Per A2A spec: final status-update with final=true is sufficient for completion
-                // Task objects in streaming should only appear at the beginning, not at the end
+                // Send FINAL status update with content.
+                // Per A2A spec: final status-update with final=true is sufficient for completion.
+                // Task objects in streaming should only appear at the beginning, not at the end.
                 streamingHandler.sendStreamEvent(
                     streamId,
                     TaskStatusUpdateEvent.Builder()
@@ -229,43 +237,75 @@ class AutonomyA2ARequestHandler(
         return emitter
     }
 
-    /**
-     * Handles task resubscription requests
-     */
-    fun handleTaskResubscribe(request: TaskResubscriptionRequest): SseEmitter {
-        val params = request.params
-        val taskId = params.id  // TaskIdParams.id contains the task identifier
+    override fun handleTaskResubscription(request: TaskResubscriptionRequest): SseEmitter {
+        val taskId = request.params.id
         val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
-
         logger.info("Handling task resubscribe request for taskId: {}, streamId: {}", taskId, streamId)
-
         return try {
             streamingHandler.resubscribeToTask(taskId, streamId)
         } catch (e: IllegalArgumentException) {
             logger.error("Task not found: {}", taskId, e)
-            val emitter = SseEmitter(Long.MAX_VALUE)
-            emitter.completeWithError(e)
-            emitter
+            SseEmitter(Long.MAX_VALUE).also { it.completeWithError(e) }
         } catch (e: Exception) {
             logger.error("Error resubscribing to task: {}", taskId, e)
-            val emitter = SseEmitter(Long.MAX_VALUE)
-            emitter.completeWithError(e)
-            emitter
+            SseEmitter(Long.MAX_VALUE).also { it.completeWithError(e) }
         }
     }
 
+    /**
+     * Handles a [GetTaskRequest] ("tasks/get") by returning the current state of the
+     * task identified by [TaskQueryParams.id], together with its status and message history.
+     *
+     * Per A2A v0.3.0 §7.3, all implementations MUST support task retrieval by ID.
+     *
+     * @param request the parsed JSON-RPC request, used to echo the request ID
+     * @param params the task query parameters: task ID, history length, and metadata
+     * @return a [GetTaskResponse] whose result is the requested [Task]
+     * @throws TaskNotFoundError if no task with the given ID is known to this server
+     */
     private fun handleTasksGet(
         request: GetTaskRequest,
         params: TaskQueryParams,
     ): GetTaskResponse {
-        TODO()
+        val task = taskStore.get(params.id)
+            ?: throw TaskNotFoundError()
+
+        // historyLength=0 means "no limit"; >0 takes the last N entries
+        val trimmed = if (params.historyLength > 0 && task.history != null)
+            Task.Builder(task)
+                .history(task.history!!.takeLast(params.historyLength))
+                .build()
+        else
+            task
+
+        return GetTaskResponse(request.id, trimmed)
     }
 
+    /**
+     * Handles a [CancelTaskRequest] ("tasks/cancel") by moving the identified task
+     * to the terminal [TaskState.CANCELED] state, persisting the update, and
+     * returning the canceled [Task].
+     *
+     * Per A2A v0.3.0 §7.4, all implementations MUST support task cancellation.
+     *
+     * @param request the parsed JSON-RPC request, used to echo the request ID
+     * @param tip the [TaskIdParams] carrying the ID of the task to cancel
+     * @return a [CancelTaskResponse] whose result is the canceled [Task]
+     * @throws TaskNotFoundError if no task with the given ID is known to this server
+     */
     private fun handleCancelTask(
         request: CancelTaskRequest,
         tip: TaskIdParams,
     ): CancelTaskResponse {
-        TODO()
+        val task = taskStore.get(tip.id)
+            ?: throw TaskNotFoundError()
+
+        val canceled = Task.Builder(task)
+            .status(TaskStatus(TaskState.CANCELED))
+            .build()
+        taskStore.save(canceled)
+
+        return CancelTaskResponse(request.id, canceled)
     }
 
     private fun createFailedTaskStatus(

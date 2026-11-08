@@ -18,6 +18,8 @@ package com.embabel.agent.a2a.server
 import io.a2a.spec.JSONRPCResponse
 import io.a2a.spec.NonStreamingJSONRPCRequest
 import io.a2a.spec.StreamingJSONRPCRequest
+import io.a2a.spec.TaskIdParams
+import io.a2a.spec.TaskResubscriptionRequest
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 
 /**
@@ -47,5 +49,25 @@ interface A2ARequestHandler {
      */
     fun handleJsonRpcStream(request: StreamingJSONRPCRequest<*>): SseEmitter {
         throw UnsupportedOperationException("Streaming not supported by this implementation")
+    }
+
+    /**
+     * Handles a "tasks/resubscribe" JSON-RPC request, allowing a client that lost its
+     * stream for an in-progress task to re-attach and continue receiving events
+     * (A2A v0.3.0 §7.6).
+     *
+     * The default implementation throws [UnsupportedOperationException] as streaming is not supported.
+     * Override this method in implementations that support streaming responses.
+     *
+     * @param request The JSON-RPC request carrying the task ID to re-attach to
+     * @return An [SseEmitter] that will replay recorded events and stream subsequent
+     *         ones for the task
+     * @throws UnsupportedOperationException if resubscription is not supported by
+     *         this implementation
+     * @see SseEmitter
+     * @see io.a2a.spec.TaskResubscriptionRequest
+     */
+    fun handleTaskResubscription(request: TaskResubscriptionRequest): SseEmitter {
+        throw UnsupportedOperationException("tasks/resubscribe not supported by this handler")
     }
 }

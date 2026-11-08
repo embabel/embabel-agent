@@ -15,8 +15,10 @@
  */
 package com.embabel.common.util
 
+import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jsonMapper
+
 
 /**
  * Immutable wrapper around the Jackson [tools.jackson.databind.ObjectMapper] used by the Embabel platform.
@@ -31,6 +33,12 @@ class EmbabelObjectMapperHolder(private val objectMapper: ObjectMapper) {
 
     companion object {
         @JvmStatic
-        fun createDefault(): EmbabelObjectMapperHolder = EmbabelObjectMapperHolder(jacksonObjectMapper())
+        fun createDefault(): EmbabelObjectMapperHolder = EmbabelObjectMapperHolder(jsonMapper {
+            // Jackson 3 enables FAIL_ON_NULL_FOR_PRIMITIVES by default (a change from
+            // Jackson 2). A2A payloads legitimately omit optional primitive fields —
+            // e.g. the SDK's TaskQueryParams(int historyLength) when a client calls
+            // tasks/get without historyLength — and must deserialize as 0, not fail.
+            disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+        })
     }
 }
