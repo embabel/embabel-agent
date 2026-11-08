@@ -273,25 +273,50 @@ class ModelRegistryTest {
     }
 
     @Test
-    fun `a default that a later source of the wrong kind serves at lookup fails with wrong capability`() {
+    fun `a default whose source returns nothing once is not taken over by a source of another type`() {
         // The animation source lists "x" first, so the build accepts "x" as the animation default.
-        // It then returns no model for "x", so the lookup falls through to the drawing source.
-        val listsButReturnsNothing = object : ModelSource<Drawing> {
-            override val provider = "empty"
+        // It returns no model on the first call and an animator on every call after.
+        val late = object : ModelSource<Drawing> {
+            var calls = 0
+            override val provider = "late"
             override val type = Animation::class.java
             override fun modelNames() = listOf("x")
-            override fun modelNamed(name: String): Drawing? = null
+            override fun modelNamed(name: String): Drawing? = if (calls++ == 0) null else Animator()
         }
+        val drawings = NamedSource("drawings", "x")
         val animations = builder()
-            .source(listsButReturnsNothing)
-            .source(NamedSource("drawings", "x"))
+            .source(late)
+            .source(drawings)
             .defaultFor(Animation::class.java, "x")
             .build()
             .select(Animation::class.java)
 
-        // The drawing source's model cannot animate, so the lookup fails with a selection error.
-        val failure = assertThrows<ServiceSelectionException> { animations.defaultService() }
-        assertEquals(Reason.WRONG_CAPABILITY, failure.reason)
+        // The first lookup finds no animation, and the drawing source is not asked.
+        assertEquals(Reason.UNKNOWN_NAME, assertThrows<ServiceSelectionException> { animations.defaultService() }.reason)
+        // The next lookup asks the animation source again and gets its model, which is then kept.
+        val model = animations.defaultService()
+        assertSame(model, animations.defaultService())
+        assertEquals(2, late.calls)
+        assertTrue(drawings.built.isEmpty())
+    }
+
+    @Test
+    fun `a source model one family cannot use does not hide the name from a family that can`() {
+        // Both sources list "x". The animation family must reach the animation source even after the
+        // drawing family has created the drawing source's model under that name.
+        val drawings = NamedSource("drawings", "x")
+        val animator = Animator()
+        val animationSource = object : ModelSource<Drawing> {
+            override val provider = "animations"
+            override val type = Animation::class.java
+            override fun modelNames() = listOf("x")
+            override fun modelNamed(name: String): Drawing? = if (name == "x") animator else null
+        }
+        val registry = builder().source(drawings).source(animationSource).build()
+
+        val drawing = registry.select(Drawing::class.java).named("x")
+        assertSame(drawings.built.single(), drawing)
+        assertSame(animator, registry.select(Animation::class.java).named("x"))
     }
 
     /** Serves drawing models under the given names, from a provider with the given name. */
