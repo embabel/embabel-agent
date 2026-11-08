@@ -36,7 +36,8 @@ import java.util.concurrent.ConcurrentHashMap
  * candidate eligible for the family, then the single registered model eligible for the family.
  * Otherwise [ServiceSelector.defaultService] throws [ServiceSelectionException].
  * A name no registered model holds is resolved through the [ModelSource]s, in the order they were
- * added. Each source model is created once, on first lookup. Defaults and roles may name a source
+ * added, asking only the sources whose type fits the family. Each source creates a model once, on
+ * the first lookup that returns one. Defaults and roles may name a source
  * model whose type fits the family. Source models are never chosen as a default by the candidate or
  * single-model rules.
  *
@@ -64,8 +65,8 @@ class ModelRegistry<M : ModelCapability> private constructor(
     private val describe: (M) -> String,
 ) {
 
-    // computeIfAbsent stores nothing when no source serves the name, so a later lookup asks again.
-    private val provided = ConcurrentHashMap<String, M?>()
+    // Kept per source, so a model one family cannot use never hides the name from a family that can.
+    private val cachedSources = sources.map(::CachedSource)
 
     private val selectors: Map<Class<*>, ServiceSelector<*>> =
         families.mapValues { (_, family) -> FamilySelector<ModelCapability>(family) }
@@ -410,6 +411,9 @@ class ModelRegistry<M : ModelCapability> private constructor(
     ) : ServiceSelector<S> {
         private val spec = family.spec
 
+        // Sources of another type are never asked, so their models can't take a name this family uses.
+        private val fittingSources = cachedSources.filter { family.type.isAssignableFrom(it.source.type) }
+
         override fun defaultService(): S = when (val state = family.defaultState) {
             is DefaultState.Resolved -> lookup(state.name)
             is DefaultState.Unresolved -> throw ServiceSelectionException(
@@ -420,12 +424,25 @@ class ModelRegistry<M : ModelCapability> private constructor(
 
         override fun named(name: String): S {
             // A registered model wins over a source model of the same name.
-            val model = models[name] ?: sourceModel(name) ?: throw ServiceSelectionException(
+            val model = models[name] ?: sourceModel(name) ?: throw unfittingSourceModel(name) ?: ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
                 "No ${spec.label} service is registered under the name '$name'. ${family.context()} Register a service under that name in configuration or with ${spec.builderName}.register(name, service), or select one of the listed names.",
             )
-            // The lookup above finds models of every capability, so check that this one fits the family.
+            // A registered model can have any capability, so check that this one fits the family.
             return requireFits(name, model)
+        }
+
+        /**
+         * Returns a WRONG_CAPABILITY error when a source of another type lists [name], or null. Reads
+         * only the listings, so no model is created, and a listing failure counts as no listing.
+         */
+        private fun unfittingSourceModel(name: String): ServiceSelectionException? {
+            val sourceType = runCatching { family.sourceModels.value.typeServing(name) }.getOrNull() ?: return null
+            if (family.type.isAssignableFrom(sourceType)) return null
+            return ServiceSelectionException(
+                Reason.WRONG_CAPABILITY,
+                "Provider model '$name' is a ${sourceType.simpleName} and cannot answer ${spec.label} requests. ${spec.selectAdvice(family.type.simpleName)} ${family.context()}",
+            )
         }
 
         override fun byRole(role: String): S {
@@ -439,9 +456,9 @@ class ModelRegistry<M : ModelCapability> private constructor(
         override fun using(service: S): S = service
 
         /**
-         * Returns the model a default or role names. [Builder.build] checked that the source listing
-         * the name first fits the family, but when that source returns nothing a later source of
-         * another type can serve the name, so the model is checked again here.
+         * Returns the model a default or role names. [Builder.build] checked that it is registered with
+         * the family's capability or listed by a source that fits the family; the fit is checked again
+         * in case a source returns a model that is not of its declared type.
          */
         private fun lookup(name: String): S = requireFits(
             name,
@@ -465,11 +482,18 @@ class ModelRegistry<M : ModelCapability> private constructor(
         /** The family's type is S: [select] hands this selector out only under that type. */
         @Suppress("UNCHECKED_CAST")
         private fun cast(model: M): S = family.type.cast(model) as S
+
+        /** Returns the model the first fitting source serves under [name], or null when none does. */
+        private fun sourceModel(name: String): M? = fittingSources.firstNotNullOfOrNull { it.modelNamed(name) }
     }
 
-    /** Returns the model a source creates for a name, creating it on the first lookup. */
-    private fun sourceModel(name: String): M? =
-        provided.computeIfAbsent(name) { sources.firstNotNullOfOrNull { it.modelNamed(name) } }
+    /** A source and the models it has created, by name. */
+    private class CachedSource<M : ModelCapability>(val source: ModelSource<M>) {
+        // computeIfAbsent stores nothing when the source returns null, so a later lookup asks again.
+        private val created = ConcurrentHashMap<String, M?>()
+
+        fun modelNamed(name: String): M? = created.computeIfAbsent(name) { source.modelNamed(it) }
+    }
 
     companion object {
 
