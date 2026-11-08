@@ -20,6 +20,8 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.hitl.ConfirmationRequest
+import com.embabel.agent.core.hitl.ConfirmationResponse
+import com.embabel.agent.core.hitl.ResponseImpact
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -32,6 +34,20 @@ import org.junit.jupiter.api.Test
 class DefaultProcessCallbackToolsTest {
 
     data class Payment(val amount: Int)
+
+    /** What a subclass hook recorded, standing in for a verdict record. */
+    data class Decision(val accepted: Boolean)
+
+    /**
+     * ConfirmationRequest subclass that records the decision instead of promoting the payload,
+     * and reports UPDATED for both outcomes, as ToolCallConfirmationRequest does.
+     */
+    class RecordingConfirmationRequest(payment: Payment) : ConfirmationRequest<Payment>(payment, "Pay?") {
+        override fun onResponse(response: ConfirmationResponse, agentProcess: AgentProcess): ResponseImpact {
+            agentProcess += Decision(response.accepted)
+            return ResponseImpact.UPDATED
+        }
+    }
 
     private val agentPlatform = mockk<AgentPlatform>()
     private val autonomy = mockk<Autonomy> {
@@ -82,7 +98,7 @@ class DefaultProcessCallbackToolsTest {
 
             val result = tools.confirmation(processId = "p1", confirmed = false)
 
-            assertTrue(result.contains("rejected", ignoreCase = true), result)
+            assertEquals("Confirmation request rejected: ${request.payload}", result)
             verify(exactly = 1) {
                 request.onResponse(
                     match { it.awaitableId == requestId && !it.accepted },
@@ -91,6 +107,47 @@ class DefaultProcessCallbackToolsTest {
             }
             verify(exactly = 0) { agentProcess.plusAssign(any<Any>()) }
             verify(exactly = 0) { agentProcess.run() }
+        }
+
+        @Test
+        fun `subclass hook decides what acceptance means`() {
+            val agentProcess = processWaitingOn(RecordingConfirmationRequest(Payment(42)))
+            every { textCommunicator.communicateResult(any()) } returns "done"
+
+            val result = tools.confirmation(processId = "p1", confirmed = true)
+
+            assertEquals("done", result)
+            // The subclass recorded its own thing; the payload was not promoted
+            verify(exactly = 1) { agentProcess.plusAssign(Decision(accepted = true)) }
+            verify(exactly = 0) { agentProcess.plusAssign(Payment(42)) }
+            verify(exactly = 1) { agentProcess.run() }
+        }
+
+        @Test
+        fun `rejection recorded by a subclass resumes the process so it can act on it`() {
+            val agentProcess = processWaitingOn(RecordingConfirmationRequest(Payment(42)))
+            every { textCommunicator.communicateResult(any()) } returns "cancelled"
+
+            val result = tools.confirmation(processId = "p1", confirmed = false)
+
+            assertEquals("cancelled", result)
+            verify(exactly = 1) { agentProcess.plusAssign(Decision(accepted = false)) }
+            // UPDATED means something changed: resume, like the shell path does
+            verify(exactly = 1) { agentProcess.run() }
+        }
+
+        @Test
+        fun `a resumed process that waits again is communicated as an awaitable`() {
+            val request = ConfirmationRequest(Payment(42), "Pay 42?")
+            val agentProcess = processWaitingOn(request)
+            every { agentProcess.status } returns AgentProcessStatusCode.WAITING
+            every { textCommunicator.communicateAwaitable(any(), any()) } returns "now waiting on something else"
+
+            val result = tools.confirmation(processId = "p1", confirmed = true)
+
+            assertEquals("now waiting on something else", result)
+            verify(exactly = 1) { agentProcess.run() }
+            verify(exactly = 1) { textCommunicator.communicateAwaitable(any(), match { it.agentProcess === agentProcess }) }
         }
 
         @Test

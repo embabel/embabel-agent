@@ -108,12 +108,14 @@ class DefaultProcessCallbackTools(
         // means. The base ConfirmationRequest promotes its payload on acceptance; subclasses
         // may record something else, and both see rejections too.
         val impact = confirmationRequest.onResponse(confirmationResponse, agentProcess)
-        if (!confirmationResponse.accepted) {
-            logger.info("Confirmation request rejected ({}): {}", impact, confirmationRequest.payload)
-            // A rejection does not resume the process
+        if (!confirmationResponse.accepted && impact == ResponseImpact.UNCHANGED) {
+            // Nothing was recorded, so there is nothing for the process to act on.
+            // Resuming would only raise the same confirmation again.
+            logger.info("Confirmation request rejected: {}", confirmationRequest.payload)
             return "Confirmation request rejected: ${confirmationRequest.payload}"
         }
-        // Resume the agent process with the form data
+        // Resume the agent process so it can act on what onResponse recorded,
+        // as the shell path does. A rejection that returned UPDATED resumes too.
         agentProcess.run()
         try {
             val ape = AgentProcessExecution.fromProcessStatus(confirmationRequest.payload, agentProcess)
