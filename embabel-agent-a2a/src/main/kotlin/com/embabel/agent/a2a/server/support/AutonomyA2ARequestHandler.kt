@@ -300,6 +300,10 @@ fun handleMessageStream(request: SendStreamingMessageRequest): SseEmitter {
         val task = taskStore.get(tip.id)
             ?: throw TaskNotFoundError()
 
+        if (task.status.state == TaskState.CANCELED) {
+            throw TaskNotCancelableError()
+        }
+
         val canceled = Task.Builder(task)
             .status(TaskStatus(TaskState.CANCELED))
             .build()
