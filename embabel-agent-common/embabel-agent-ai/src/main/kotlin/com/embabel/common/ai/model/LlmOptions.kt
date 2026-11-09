@@ -46,16 +46,29 @@ class Thinking private constructor(
     val includedTags: Set<String>? = null,
     val excludedTags: Set<String>? = null,
     val injectSystemPrompt: Boolean = true,
+    @JsonProperty("optOut") optOut: Boolean = false,
 ) {
 
     /**
      * The thinking mode the caller chose: null when it chose none, so JSON and configuration binding
      * keep [NONE]'s `false` apart from extraction-only thinking. Omitted from JSON when null, since
      * readers that map `enabled` to a primitive boolean reject `null` but default a missing field to false.
+     *
+     * Extraction-only thinking used to be written and configured as `enabled=false`, so `enabled=false` with
+     * extraction and no budget reads as no mode unless `optOut` marks it as [NONE] with extraction applied.
      */
     @field:JsonProperty("enabled")
     @field:JsonInclude(JsonInclude.Include.NON_NULL)
-    private val mode: Boolean? = enabled
+    private val mode: Boolean? =
+        if (enabled == false && extractThinking && tokenBudget == null && !optOut) null else enabled
+
+    /**
+     * Written as `optOut: true` only for [NONE] with extraction applied, the one state whose `enabled=false`
+     * would otherwise read as extraction-only. Readers before it ignore it unless they fail on unknown properties.
+     */
+    @field:JsonProperty("optOut")
+    @field:JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    private val optOutMarker: Boolean = mode == false && extractThinking
 
     @get:JsonIgnore
     val enabled: Boolean get() = mode == true
@@ -104,6 +117,7 @@ class Thinking private constructor(
         includedTags = this.includedTags,
         excludedTags = this.excludedTags,
         injectSystemPrompt = this.injectSystemPrompt,
+        optOut = disabled,
     )
 
     /**
@@ -128,6 +142,7 @@ class Thinking private constructor(
         includedTags = this.includedTags,
         excludedTags = this.excludedTags,
         injectSystemPrompt = inject,
+        optOut = disabled,
     )
 
     /**

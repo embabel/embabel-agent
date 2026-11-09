@@ -33,6 +33,8 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
 import tools.jackson.databind.JsonNode
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.net.InetSocketAddress
@@ -650,6 +652,23 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
             val body = send(AnthropicModels.CLAUDE_HAIKU_5_5, optedOut.withThinking(optedOut.thinking!!.applyExtraction()))
             assertEquals("disabled", body["thinking"]["type"].asString())
             assertEquals("low", body["output_config"]["effort"].asString())
+        }
+
+        @Test
+        fun `claude-haiku-5-5 reads extraction written as disabled before the opt-out marker as extraction-only`() {
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.LOW)
+            val legacy = mapOf(
+                "JSON" to mapper.readValue("""{"thinking":{"enabled":false,"extractThinking":true}}""", LlmOptions::class.java),
+                "properties" to Binder(
+                    MapConfigurationPropertySource(mapOf("opts.thinking.enabled" to "false", "opts.thinking.extract-thinking" to "true")),
+                ).bind("opts", LlmOptions::class.java).get(),
+            )
+            for ((source, options) in legacy) {
+                captured.clear()
+                val body = send(AnthropicModels.CLAUDE_HAIKU_5_5, options.withDefaultsFrom(role))
+                assertFalse(body.has("thinking"), "$source sent thinking ${body["thinking"]}")
+                assertEquals("low", body["output_config"]?.get("effort")?.asString(), source)
+            }
         }
     }
 }

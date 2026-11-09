@@ -24,7 +24,10 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.context.properties.bind.Bindable
 import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
+import org.springframework.boot.env.YamlPropertySourceLoader
+import org.springframework.core.io.ByteArrayResource
 import java.time.Duration
 
 /**
@@ -225,6 +228,51 @@ class LlmOptionsDefaultsTest {
             val bound = bind("opts.thinking.extract-thinking" to "true")
             assertEquals(ReasoningEffort.NONE, bound.withDefaultsFrom(none).reasoningEffort)
             assertEquals(ReasoningEffort.NONE, bind("opts.model" to "m").withDefaultsFrom(none).reasoningEffort)
+        }
+
+        private fun bindYaml(yaml: String): LlmOptions =
+            Binder(ConfigurationPropertySources.from(YamlPropertySourceLoader().load("test", ByteArrayResource(yaml.toByteArray()))))
+                .bind("opts", Bindable.of(LlmOptions::class.java)).get()
+
+        @Test
+        fun `thinking written as disabled with extraction before the opt-out marker is extraction-only`() {
+            // Before Thinking kept an unset mode apart from false, extraction-only thinking read and wrote enabled=false.
+            val low = LlmOptions().withReasoningEffort(ReasoningEffort.LOW)
+            val legacy = mapOf(
+                "JSON" to mapper.readValue("""{"thinking":{"enabled":false,"extractThinking":true}}""", LlmOptions::class.java),
+                "YAML" to bindYaml("opts:\n  thinking:\n    enabled: false\n    extract-thinking: true\n"),
+            )
+            for ((source, options) in legacy) {
+                val merged = options.withDefaultsFrom(low)
+                assertEquals(ReasoningEffort.LOW, merged.reasoningEffort, source)
+                assertFalse(merged.thinking!!.disabled, source)
+                assertTrue(merged.thinking!!.extractThinking, source)
+            }
+        }
+
+        @Test
+        fun `thinking bound as an opt-out with extraction keeps the opt-out`() {
+            val bound = bindYaml("opts:\n  thinking:\n    enabled: false\n    extract-thinking: true\n    opt-out: true\n")
+            assertTrue(bound.thinking!!.disabled)
+            assertNull(bound.withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `each thinking state is written as exactly this JSON`() {
+            val states = mapOf(
+                """{"enabled":false,"tokenBudget":null,"extractThinking":false,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true}"""
+                    to LlmOptions().withoutThinking(),
+                """{"enabled":false,"tokenBudget":null,"extractThinking":true,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true,"optOut":true}"""
+                    to withExtraction(LlmOptions().withoutThinking()),
+                """{"tokenBudget":null,"extractThinking":true,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true}"""
+                    to LlmOptions().withThinking(Thinking.withExtraction()),
+                """{"enabled":true,"tokenBudget":8192,"extractThinking":false,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true}"""
+                    to LlmOptions().withThinking(Thinking.withTokenBudget(8192)),
+            )
+            for ((json, options) in states) {
+                assertEquals(json, mapper.writeValueAsString(options.thinking))
+                assertEquals(json, mapper.writeValueAsString(roundTrip(options).thinking), "round trip of $json")
+            }
         }
 
         @Test
