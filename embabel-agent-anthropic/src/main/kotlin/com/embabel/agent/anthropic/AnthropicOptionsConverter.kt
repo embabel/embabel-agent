@@ -119,18 +119,10 @@ object AnthropicOptionsConverter : OptionsConverter {
     }
 
     /**
-     * True only when the caller called [LlmOptions.withoutThinking], i.e. thinking is set but both
-     * `enabled` and `extractThinking` are false.
-     *
-     * False for two states that look similar but are not opt-outs:
-     * - [LlmOptions.thinking] is null: thinking was never configured.
-     * - `extractThinking` is true: the thinking prompt runner's mode, which sends no thinking budget
-     *   but still extracts reasoning from the response.
+     * True only when the caller called [LlmOptions.withoutThinking], even if the thinking prompt runner
+     * added extraction afterwards. False when thinking was never configured or is extraction-only.
      */
-    private fun isThinkingOptOut(options: LlmOptions): Boolean {
-        val thinking = options.thinking ?: return false
-        return !thinking.enabled && !thinking.extractThinking
-    }
+    private fun isThinkingOptOut(options: LlmOptions): Boolean = options.thinking?.disabled == true
 
     /**
      * [ReasoningEffort.NONE]: thinking disabled where the catalog declares [model] accepts it. Anywhere

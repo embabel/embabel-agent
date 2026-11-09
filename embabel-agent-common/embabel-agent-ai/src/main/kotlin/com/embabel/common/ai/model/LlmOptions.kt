@@ -60,6 +60,10 @@ class Thinking private constructor(
     @get:JsonIgnore
     val enabled: Boolean get() = mode == true
 
+    /** True when the caller turned thinking off with [NONE], even with extraction applied on top. */
+    @get:JsonIgnore
+    val disabled: Boolean get() = mode == false
+
     companion object {
 
         @JvmStatic

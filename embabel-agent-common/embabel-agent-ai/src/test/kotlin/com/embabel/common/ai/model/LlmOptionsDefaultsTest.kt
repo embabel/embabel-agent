@@ -19,6 +19,7 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.context.properties.bind.Bindable
@@ -194,8 +195,9 @@ class LlmOptionsDefaultsTest {
                 "default" to LlmOptions(),
             )
             for ((name, options) in states) {
-                val enabled = mapper.readTree(mapper.writeValueAsString(options)).path("thinking").path("enabled")
-                assertFalse(enabled.isNull, "$name wrote enabled:null")
+                val thinking = mapper.readTree(mapper.writeValueAsString(options)).path("thinking")
+                assertFalse(thinking.path("enabled").isNull, "$name wrote enabled:null")
+                assertTrue(thinking.path("disabled").isMissingNode, "$name wrote disabled")
             }
         }
 

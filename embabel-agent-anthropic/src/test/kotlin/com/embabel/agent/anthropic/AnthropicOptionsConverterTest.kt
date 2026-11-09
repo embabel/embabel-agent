@@ -641,5 +641,15 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
             assertEquals("disabled", body["thinking"]["type"].asString())
             assertFalse(body.has("output_config"))
         }
+
+        @Test
+        fun `claude-haiku-5-5 keeps a thinking opt-out with an effort after extraction is added`() {
+            // thinking() on a prompt runner applies extraction to the caller's thinking, here NONE.
+            val optedOut = LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withoutThinking()
+                .withReasoningEffort(ReasoningEffort.LOW)
+            val body = send(AnthropicModels.CLAUDE_HAIKU_5_5, optedOut.withThinking(optedOut.thinking!!.applyExtraction()))
+            assertEquals("disabled", body["thinking"]["type"].asString())
+            assertEquals("low", body["output_config"]["effort"].asString())
+        }
     }
 }
