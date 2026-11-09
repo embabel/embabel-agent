@@ -187,7 +187,8 @@ class AnthropicModelsConfig(
             name = modelDef.modelId,
             chatModel = chatModel,
             provider = AnthropicModels.PROVIDER,
-            optionsConverter = AnthropicOptionsConverter,
+            optionsConverter = modelDef.thinking?.canBeDisabled?.let { AnthropicOptionsConverter.declaring(it) }
+                ?: AnthropicOptionsConverter,
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = modelDef.pricingModel?.let {

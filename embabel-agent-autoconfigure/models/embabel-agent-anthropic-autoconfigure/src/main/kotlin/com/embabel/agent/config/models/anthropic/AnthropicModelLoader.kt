@@ -83,9 +83,12 @@ data class AnthropicModelDefinition(
  * Configuration for Anthropic's extended thinking mode.
  *(in the futur for Gemini 3.0 we will add thinking level when Spring AI will support this feature)
  * @property tokenBudget maximum tokens allocated for thinking
+ * @property canBeDisabled whether the model accepts `thinking: {type: disabled}`, which
+ * [com.embabel.common.ai.model.ReasoningEffort.NONE] needs; NONE fails as unsupported where this is not declared
  */
 data class ThinkingConfiguration(
-    val tokenBudget: Int? = null
+    val tokenBudget: Int? = null,
+    val canBeDisabled: Boolean? = null,
 )
 
 /**

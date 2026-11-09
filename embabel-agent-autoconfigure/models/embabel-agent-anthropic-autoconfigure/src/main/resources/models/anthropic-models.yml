@@ -34,6 +34,9 @@ models:
   # 1M context, 128K max output. Thinking is adaptive and cannot be turned
   # off on Opus 5.5 and Fable 5.1; Sonnet 5.5 also rejects "disabled".
   # Haiku 5.5 accepts "disabled" only at effort high or below.
+  # thinking.can_be_disabled declares whether a model accepts thinking
+  # "disabled", which ReasoningEffort.NONE needs: platform.claude.com/docs/en/
+  # build-with-claude/thinking#configuring-thinking.
   # ========================================
 
   # Claude Fable 5.1 - Demanding reasoning and long-horizon agentic work
@@ -43,6 +46,8 @@ models:
     display_name: "Claude Fable 5.1"
     knowledge_cutoff_date: "2026-06-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 10.0
       usd_per1m_output_tokens: 50.0
@@ -53,6 +58,8 @@ models:
     display_name: "Claude Opus 5.5"
     knowledge_cutoff_date: "2026-06-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 4.0
       usd_per1m_output_tokens: 20.0
@@ -63,6 +70,8 @@ models:
     display_name: "Claude Sonnet 5.5"
     knowledge_cutoff_date: "2026-06-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 2.0
       usd_per1m_output_tokens: 10.0
@@ -75,6 +84,8 @@ models:
     display_name: "Claude Haiku 5.5"
     knowledge_cutoff_date: "2026-06-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 0.10
       usd_per1m_output_tokens: 0.50
@@ -90,6 +101,8 @@ models:
     # Reliable knowledge cutoff per Anthropic models overview (Jan 2026)
     knowledge_cutoff_date: "2026-01-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 5.0
       usd_per1m_output_tokens: 25.0
@@ -104,6 +117,8 @@ models:
     display_name: "Claude Opus 4.6"
     knowledge_cutoff_date: "2025-10-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 5.0
       usd_per1m_output_tokens: 25.0
@@ -114,6 +129,8 @@ models:
     display_name: "Claude Sonnet 4.6"
     knowledge_cutoff_date: "2025-10-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
@@ -128,6 +145,8 @@ models:
     display_name: "Claude Sonnet 4.5"
     knowledge_cutoff_date: "2025-01-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
@@ -137,6 +156,8 @@ models:
     display_name: "Claude Haiku 4.5"
     knowledge_cutoff_date: "2025-02-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 1.0
       usd_per1m_output_tokens: 5.0

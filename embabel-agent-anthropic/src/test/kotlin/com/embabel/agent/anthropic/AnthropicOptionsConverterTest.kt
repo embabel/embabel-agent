@@ -24,6 +24,7 @@ import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.Thinking
@@ -39,6 +40,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -474,13 +476,48 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         private fun convert(options: LlmOptions, model: String) =
             optionsConverter.convertOptions(options, model) as AnthropicChatOptions
 
+        private fun assertEffortWithDefaultThinking(opts: AnthropicChatOptions, effort: ReasoningEffort, label: String) {
+            assertNull(opts.thinking, "$label keeps the provider's thinking default")
+            assertEquals(effort.value, opts.outputConfig?.effort()?.orElseThrow()?.asString(), label)
+        }
+
         @Test
-        fun `every level from low to max becomes adaptive thinking at that effort`() {
+        fun `every level from low to max is sent as output_config effort with the provider's thinking default`() {
             for (effort in ReasoningEffort.entries - ReasoningEffort.NONE) {
-                val opts = convert(LlmOptions().withReasoningEffort(effort), AnthropicModels.CLAUDE_HAIKU_5_5)
-                assertTrue(opts.thinking.isAdaptive(), "$effort")
-                assertEquals(effort.value, opts.outputConfig?.effort()?.orElseThrow()?.asString())
+                assertEffortWithDefaultThinking(convert(LlmOptions().withReasoningEffort(effort), AnthropicModels.CLAUDE_HAIKU_5_5), effort, "$effort")
             }
+        }
+
+        @Test
+        fun `models before 4-7 that accept effort get it too`() {
+            for (model in listOf("claude-opus-4-5", AnthropicModels.CLAUDE_OPUS_4_6, AnthropicModels.CLAUDE_SONNET_4_6)) {
+                assertEffortWithDefaultThinking(convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), model), ReasoningEffort.LOW, model)
+            }
+        }
+
+        @Test
+        fun `a model whose default is thinking off keeps it off and still gets the effort`() {
+            assertEffortWithDefaultThinking(
+                convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), AnthropicModels.CLAUDE_OPUS_4_8),
+                ReasoningEffort.LOW, AnthropicModels.CLAUDE_OPUS_4_8,
+            )
+        }
+
+        @Test
+        fun `model names without a parsable version get the effort and never disabled thinking`() {
+            for (model in listOf("claude-fable-5", "claude-mythos-preview")) {
+                assertEffortWithDefaultThinking(convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), model), ReasoningEffort.LOW, model)
+            }
+        }
+
+        @Test
+        fun `the effort composes with a token budget on a model that thinks by budget`() {
+            val opts = convert(
+                LlmOptions().withThinking(Thinking.withTokenBudget(2048)).withReasoningEffort(ReasoningEffort.LOW),
+                "claude-opus-4-5",
+            )
+            assertEquals(2048L, opts.thinking.asEnabled().budgetTokens())
+            assertEquals(OutputConfig.Effort.LOW, opts.outputConfig?.effort()?.orElse(null))
         }
 
         @Test
@@ -488,33 +525,51 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
             val options = LlmOptions()
                 .withThinking(Thinking.withTokenBudget(32768)) // maps to MAX
                 .withReasoningEffort(ReasoningEffort.LOW)
-            assertEquals(OutputConfig.Effort.LOW, convert(options, AnthropicModels.CLAUDE_SONNET_5_5).outputConfig?.effort()?.orElse(null))
+            val opts = convert(options, AnthropicModels.CLAUDE_SONNET_5_5)
+            assertTrue(opts.thinking.isAdaptive())
+            assertEquals(OutputConfig.Effort.LOW, opts.outputConfig?.effort()?.orElse(null))
         }
 
         @Test
-        fun `none turns thinking off where the model allows it`() {
-            val haiku = convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_HAIKU_5_5)
-            assertTrue(haiku.thinking.isDisabled())
-            assertNull(haiku.outputConfig)
-            assertTrue(convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_SONNET_4_5).thinking.isDisabled())
+        fun `none is unsupported on a model that declares no thinking capability`() {
+            for (model in listOf("claude-fable-5", "claude-mythos-preview", AnthropicModels.CLAUDE_HAIKU_5_5)) {
+                val error = assertThrows(UnsupportedOperationException::class.java) {
+                    convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), model)
+                }
+                assertTrue(error.message!!.contains(model), error.message)
+            }
         }
 
         @Test
-        fun `none omits thinking on a model that cannot disable it`() {
-            val opts = convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_OPUS_5_5)
-            assertNull(opts.thinking)
+        fun `none turns thinking off where the catalog declares it can`() {
+            val opts = AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = true)
+                .convertOptions(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_HAIKU_5_5) as AnthropicChatOptions
+            assertTrue(opts.thinking.isDisabled())
             assertNull(opts.outputConfig)
         }
 
         @Test
-        fun `a model older than 4-7 ignores the effort and keeps its thinking settings`() {
-            val budget = convert(
-                LlmOptions().withThinking(Thinking.withTokenBudget(2048)).withReasoningEffort(ReasoningEffort.LOW),
-                AnthropicModels.CLAUDE_SONNET_4_5,
-            )
-            assertTrue(budget.thinking.isEnabled())
-            assertNull(budget.outputConfig)
-            assertTrue(convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), AnthropicModels.CLAUDE_SONNET_4_5).thinking.isDisabled())
+        fun `none fails where the catalog declares thinking cannot be turned off`() {
+            val error = assertThrows(UnsupportedOperationException::class.java) {
+                AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = false)
+                    .convertOptions(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_OPUS_5_5)
+            }
+            assertTrue(error.message!!.contains(AnthropicModels.CLAUDE_OPUS_5_5), error.message)
+        }
+
+        @Test
+        fun `a caller who turned thinking off is not overridden by a role's effort`() {
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.HIGH)
+            val opts = convert(LlmOptions().withoutThinking().withDefaultsFrom(role), AnthropicModels.CLAUDE_HAIKU_5_5)
+            assertTrue(opts.thinking.isDisabled())
+            assertNull(opts.outputConfig)
+        }
+
+        @Test
+        fun `a caller's thinking budget is not overridden by a role's none`() {
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_SONNET_4_6).withReasoningEffort(ReasoningEffort.NONE)
+            val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(8192)).withDefaultsFrom(role), AnthropicModels.CLAUDE_SONNET_4_6)
+            assertEquals(8192L, opts.thinking.asEnabled().budgetTokens())
         }
     }
 
@@ -544,18 +599,36 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         @AfterEach
         fun stopServer() = server.stop(0)
 
-        @Test
-        fun `claude-sonnet-5-5 sends the effort as output_config effort with adaptive thinking`() {
-            val model = AnthropicModels.CLAUDE_SONNET_5_5
+        private fun send(model: String, options: LlmOptions, converter: OptionsConverter = AnthropicOptionsConverter): JsonNode {
             val llm = AnthropicModelFactory(apiKey = "test-key", baseUrl = "http://localhost:${server.address.port}")
                 .build(model) as SpringAiLlmService
-            val options = llm.optionsConverter.convertOptions(LlmOptions.withModel(model).withReasoningEffort(ReasoningEffort.LOW), model)
+            llm.chatModel.call(Prompt(listOf(UserMessage("hi")), converter.convertOptions(options, model)))
+            return captured.single()
+        }
 
-            llm.chatModel.call(Prompt(listOf(UserMessage("hi")), options))
-
-            val body = captured.single()
+        @Test
+        fun `claude-sonnet-5-5 sends the effort as output_config effort and leaves thinking to the model`() {
+            val body = send(AnthropicModels.CLAUDE_SONNET_5_5, LlmOptions.withModel(AnthropicModels.CLAUDE_SONNET_5_5).withReasoningEffort(ReasoningEffort.LOW))
             assertEquals("low", body["output_config"]["effort"].asString())
-            assertEquals("adaptive", body["thinking"]["type"].asString())
+            assertFalse(body.has("thinking"))
+        }
+
+        @Test
+        fun `claude-haiku-5-5 sends the effort as output_config effort and leaves thinking to the model`() {
+            val body = send(AnthropicModels.CLAUDE_HAIKU_5_5, LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.LOW))
+            assertEquals("low", body["output_config"]["effort"].asString())
+            assertFalse(body.has("thinking"))
+        }
+
+        @Test
+        fun `claude-haiku-5-5 sends none as disabled thinking without an effort where the catalog declares it`() {
+            val body = send(
+                AnthropicModels.CLAUDE_HAIKU_5_5,
+                LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.NONE),
+                AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = true),
+            )
+            assertEquals("disabled", body["thinking"]["type"].asString())
+            assertFalse(body.has("output_config"))
         }
     }
 }

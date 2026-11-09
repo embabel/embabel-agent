@@ -95,6 +95,18 @@ class ReasoningEffortWireTest {
     }
 
     @Test
+    fun `Responses sends no effort when none is set`() {
+        val body = send(responses(), LlmOptions.withModel(MODEL))
+        assertFalse(body.path("reasoning").has("effort"), body.toString())
+    }
+
+    @Test
+    fun `Chat Completions on OpenAI sends no effort when none is set`() {
+        val body = send(chatCompletions(OpenAiModels.PROVIDER), LlmOptions.withModel(MODEL))
+        assertFalse(body.has("reasoning_effort"), body.toString())
+    }
+
+    @Test
     fun `the OpenAI-specific effort takes precedence over the provider-neutral one`() {
         val options = LlmOptions.withModel(MODEL)
             .withReasoningEffort(ReasoningEffort.LOW)

@@ -40,13 +40,31 @@ object AnthropicOptionsConverter : OptionsConverter {
     /** Keyed by model ID only, so bounded by the number of models. */
     internal val warnedThinkingNotDisabled = ConcurrentHashMap.newKeySet<String>()
 
-    /** Keyed by model ID only, so bounded by the number of models. */
-    internal val warnedEffortIgnored = ConcurrentHashMap.newKeySet<String>()
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions = convert(options, model, null)
 
-    override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
+    /**
+     * This converter for a model whose catalog entry declares whether its thinking can be turned off.
+     * [ReasoningEffort.NONE] needs that declaration: without it, NONE fails as unsupported.
+     */
+    fun declaring(thinkingCanBeDisabled: Boolean): OptionsConverter = object : OptionsConverter {
+        override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
+            convert(options, model, thinkingCanBeDisabled)
+    }
+
+    private fun convert(options: LlmOptions, model: String, thinkingCanBeDisabled: Boolean?): ChatOptions {
         val caps = ClaudeCapabilities.of(model)
-        val thinkingModeDecision = options.reasoningEffort?.let { thinkingFor(it, model, caps) }
-            ?: if (isThinkingOptOut(options)) thinkingOff(model) else caps.resolveThinking(resolveThinkingBudget(options))
+        val effort = options.reasoningEffort
+        val budget = resolveThinkingBudget(options)
+        val thinkingModeDecision = when {
+            effort == ReasoningEffort.NONE -> noneThinking(model, thinkingCanBeDisabled)
+            isThinkingOptOut(options) -> thinkingOff(model)
+            // Effort works with thinking on or off, so it leaves thinking at the model's default.
+            effort != null && budget == null -> ThinkingMode.Omit
+            else -> caps.resolveThinking(budget)
+        }
+        // An explicit effort wins over the effort a budget maps to.
+        val outputEffort = effort?.takeIf { it != ReasoningEffort.NONE }?.let { OutputConfig.Effort.of(it.value) }
+            ?: (thinkingModeDecision as? ThinkingMode.Adaptive)?.effort
         if (!caps.acceptsSampling) {
             ClaudeCapabilities.warnAboutIgnoredSampling(model, options.temperature, options.topP, options.topK)
         }
@@ -55,19 +73,20 @@ object AnthropicOptionsConverter : OptionsConverter {
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .apply {
                 when (thinkingModeDecision) {
-                    is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ (except Haiku) rejects thinking.type="disabled" with HTTP 400
+                    is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ (except Haiku) rejects thinking.type="disabled" with HTTP 400, and an effort alone keeps the model's default
                     is ThinkingMode.Disabled    -> {
                         thinkingDisabled() // send "thinking": {"type": "disabled"} — Claude ≤5.0, or explicit opt-out on Haiku 5.5
-                        // No outputConfig here: Spring AI replaces it wholesale when merging, so setting effort
-                        // would drop a caller's or default output config (schema, effort).
+                        // No outputConfig unless the caller set an effort: Spring AI replaces it wholesale when
+                        // merging, so setting effort would drop a caller's or default output config (schema, effort).
                     }
-                    is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(thinkingModeDecision.effort) }
+                    is ThinkingMode.Adaptive    -> thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED)
                     // Claude ≥4.7: adaptive thinking. SUMMARIZED must be set explicitly — the default
                     // display on 5.x is "omitted" (empty thinking fields). SUMMARIZED is the only option
                     // that returns visible reasoning (a summarized representation; full reasoning is encrypted in
                     // the "signature" field). There is no "full" display option in the adaptive API.
                     is ThinkingMode.BudgetBased -> thinkingEnabled(thinkingModeDecision.budgetTokens)      // send "thinking": {"type": "enabled", "budget_tokens": N}
                 }
+                outputEffort?.let { effort(it) }
                 if (caps.acceptsSampling) { // Claude <4.7
                     temperature(options.temperature)
                     topP(options.topP)
@@ -114,15 +133,18 @@ object AnthropicOptionsConverter : OptionsConverter {
     }
 
     /**
-     * The thinking an explicit [ReasoningEffort] asks for, which takes precedence over the thinking
-     * settings: low to max become adaptive thinking at that effort, [ReasoningEffort.NONE] turns
-     * thinking off as far as [model] allows. Null on models before 4.7, where the thinking settings decide.
+     * [ReasoningEffort.NONE]: thinking disabled where the catalog declares [model] accepts it. Anywhere
+     * else the request would either fail at Anthropic or keep thinking on, so it fails here instead.
      */
-    private fun thinkingFor(effort: ReasoningEffort, model: String, caps: ClaudeCapabilities): ThinkingMode? = when {
-        effort == ReasoningEffort.NONE -> thinkingOff(model)
-        caps.usesAdaptiveThinking -> ThinkingMode.Adaptive(OutputConfig.Effort.of(effort.value))
-        // ponytail: Opus 4.5/4.6 and Sonnet 4.6 accept effort too; send it there if a caller needs it.
-        else -> null.also { warnEffortIgnored(model, effort) }
+    private fun noneThinking(model: String, thinkingCanBeDisabled: Boolean?): ThinkingMode = when (thinkingCanBeDisabled) {
+        true -> ThinkingMode.Disabled
+        false -> throw UnsupportedOperationException(
+            "Reasoning effort NONE is unsupported on model '$model': its catalog entry declares thinking cannot be turned off",
+        )
+        null -> throw UnsupportedOperationException(
+            "Reasoning effort NONE is unsupported on model '$model': its catalog entry does not declare whether " +
+                "thinking can be turned off (thinking.can_be_disabled in anthropic-models.yml)",
+        )
     }
 
     /** Thinking off: disabled where [model] accepts it, otherwise omitted with a warning. */
@@ -133,12 +155,6 @@ object AnthropicOptionsConverter : OptionsConverter {
         } else {
             ThinkingMode.Disabled
         }
-
-    private fun warnEffortIgnored(model: String, effort: ReasoningEffort) {
-        if (warnedEffortIgnored.add(model)) {
-            logger.warn("Model '{}' predates reasoning effort, so effort {} is ignored and the thinking settings apply", model, effort)
-        }
-    }
 
     /** Warns once per model: the request still runs, with Anthropic's adaptive default thinking. */
     private fun warnThinkingCannotBeDisabled(model: String) {

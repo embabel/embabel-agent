@@ -247,6 +247,7 @@ LlmOptions.withModel("claude-sonnet-5-5").withReasoningEffort(ReasoningEffort.LO
 ----
 
 Set it for a role in configuration, for example `embabel.models.roles.best.anthropic.reasoning-effort=low`.
+A caller that sets its own thinking, such as `withoutThinking()` or a token budget, does not inherit the role's effort; a caller's own effort always applies.
 
 [cols="1,3"]
 |===
@@ -256,7 +257,7 @@ Set it for a role in configuration, for example `embabel.models.roles.best.anthr
 | `reasoning.effort` on the Responses API. On Chat Completions, `reasoning_effort` is sent only to OpenAI's own endpoint and to compatible providers that opt in. A model rejects a level it does not offer. `withOpenAiReasoningEffort` takes precedence when both are set.
 
 | Anthropic
-| On Claude ≥4.7, `output_config.effort` with adaptive thinking. The effort takes precedence over the effort a `Thinking.withTokenBudget` budget maps to. `NONE` turns thinking off where the model allows it; otherwise the model's adaptive default applies. Older models ignore the effort.
+| `LOW` to `MAX` as `output_config.effort`, with thinking left at the model's default unless the caller set thinking. The effort takes precedence over the effort a `Thinking.withTokenBudget` budget maps to. A model rejects a level it does not offer; see https://platform.claude.com/docs/en/build-with-claude/effort[Anthropic's effort levels]. `NONE` disables thinking on models whose catalog entry declares `thinking.can_be_disabled: true` in `anthropic-models.yml`, and fails with `UnsupportedOperationException` on any other model.
 
 | Others
 | Ignored.

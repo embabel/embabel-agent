@@ -128,5 +128,20 @@ class LlmOptionsDefaultsTest {
                 LlmOptions().withReasoningEffort(ReasoningEffort.LOW).withDefaultsFrom(defaults).reasoningEffort,
             )
         }
+
+        @Test
+        fun `an explicit caller thinking choice suppresses the inherited effort`() {
+            val high = LlmOptions().withReasoningEffort(ReasoningEffort.HIGH)
+            assertNull(LlmOptions().withoutThinking().withDefaultsFrom(high).reasoningEffort)
+            val none = LlmOptions().withReasoningEffort(ReasoningEffort.NONE)
+            assertNull(LlmOptions().withThinking(Thinking.withTokenBudget(8192)).withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `an explicit caller effort still wins alongside the caller's thinking`() {
+            val caller = LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW)
+            val merged = caller.withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.HIGH))
+            assertEquals(ReasoningEffort.LOW, merged.reasoningEffort)
+        }
     }
 }

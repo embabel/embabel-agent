@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Duration
+import kotlin.jvm.internal.DefaultConstructorMarker
 
 /**
  * Thinking config. Set on Anthropic models
@@ -120,9 +121,10 @@ class Thinking private constructor(
  * - OpenAI sends [value] as-is: `reasoning.effort` on the Responses API, `reasoning_effort` on Chat
  *   Completions. A model that does not offer a level rejects it. `withOpenAiReasoningEffort` takes
  *   precedence when both are set.
- * - Anthropic sends `output_config.effort` with adaptive thinking on Claude ≥4.7, and the effort takes
- *   precedence over the effort a [Thinking.withTokenBudget] budget maps to. [NONE] turns thinking off
- *   where the model allows it and otherwise leaves the model's adaptive default. Older models ignore it.
+ * - Anthropic sends low to max as `output_config.effort` and leaves thinking at the model's default
+ *   unless [Thinking] says otherwise; the effort takes precedence over the effort a
+ *   [Thinking.withTokenBudget] budget maps to. A model that does not offer a level rejects it.
+ *   [NONE] turns thinking off where the model catalog declares it can be, and fails as unsupported elsewhere.
  * - Other providers ignore it.
  */
 enum class ReasoningEffort {
@@ -179,8 +181,6 @@ data class LlmOptions @JvmOverloads constructor(
     override var topP: Double? = null,
     var thinking: Thinking? = null,
     var timeout: Duration? = null,
-    /** Provider-neutral reasoning effort; see [ReasoningEffort] for how each provider sends it. */
-    var reasoningEffort: ReasoningEffort? = null,
     /**
      * Provider-specific extensions for features not common across all LLMs.
      * Allows provider-specific modules to add their own configuration without
@@ -188,7 +188,48 @@ data class LlmOptions @JvmOverloads constructor(
      * Internal field - use provider-specific extension functions to interact with it.
      */
     internal val extensions: Map<String, Any> = emptyMap(),
+    /**
+     * Provider-neutral reasoning effort; see [ReasoningEffort] for how each provider sends it.
+     * Last, so that the overloads without it keep the JVM signatures callers compiled before it link to.
+     */
+    var reasoningEffort: ReasoningEffort? = null,
 ) : LlmHyperparameters, HasInfoString {
+
+    /**
+     * Binary compatibility: the synthetic constructor that Kotlin callers compiled before [reasoningEffort]
+     * link to when they leave arguments out. Every omitted argument arrives as null, which is its default
+     * except for [extensions].
+     */
+    @Suppress("UNUSED_PARAMETER")
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    constructor(
+        modelSelectionCriteria: ModelSelectionCriteria?, model: String?, role: String?, temperature: Double?,
+        frequencyPenalty: Double?, maxTokens: Int?, presencePenalty: Double?, topK: Int?, topP: Double?,
+        thinking: Thinking?, timeout: Duration?, extensions: Map<String, Any>?, mask: Int, marker: DefaultConstructorMarker?,
+    ) : this(
+        modelSelectionCriteria, model, role, temperature, frequencyPenalty, maxTokens, presencePenalty, topK, topP,
+        thinking, timeout, extensions ?: emptyMap(),
+    )
+
+    /** Binary compatibility: `copy` and its `copy$default` as callers compiled before [reasoningEffort] link to them. */
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    fun copy(
+        modelSelectionCriteria: ModelSelectionCriteria? = this.modelSelectionCriteria,
+        model: String? = this.model,
+        role: String? = this.role,
+        temperature: Double? = this.temperature,
+        frequencyPenalty: Double? = this.frequencyPenalty,
+        maxTokens: Int? = this.maxTokens,
+        presencePenalty: Double? = this.presencePenalty,
+        topK: Int? = this.topK,
+        topP: Double? = this.topP,
+        thinking: Thinking? = this.thinking,
+        timeout: Duration? = this.timeout,
+        extensions: Map<String, Any> = this.extensions,
+    ): LlmOptions = copy(
+        modelSelectionCriteria, model, role, temperature, frequencyPenalty, maxTokens, presencePenalty, topK, topP,
+        thinking, timeout, extensions, reasoningEffort,
+    )
 
     @get:Schema(
         description = "If provided, custom selection criteria for the LLM to use. If not provided, a default LLM will be used.",
@@ -275,6 +316,9 @@ data class LlmOptions @JvmOverloads constructor(
      *
      * Model selection is taken from [defaults] wholesale, since the point of resolving a role is
      * to decide which model it means.
+     *
+     * A caller that chose its own [thinking] but no [reasoningEffort] does not inherit the effort
+     * from [defaults], since the effort would override that thinking choice.
      */
     fun withDefaultsFrom(defaults: LlmOptions): LlmOptions =
         copy(
@@ -289,8 +333,8 @@ data class LlmOptions @JvmOverloads constructor(
             topP = topP ?: defaults.topP,
             thinking = thinking ?: defaults.thinking,
             timeout = timeout ?: defaults.timeout,
-            reasoningEffort = reasoningEffort ?: defaults.reasoningEffort,
             extensions = defaults.extensions + extensions,
+            reasoningEffort = reasoningEffort ?: defaults.reasoningEffort.takeIf { thinking == null },
         )
 
     /**
