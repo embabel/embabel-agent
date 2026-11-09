@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonAlias
 import org.springframework.core.io.DefaultResourceLoader
 import org.springframework.core.io.ResourceLoader
 import java.time.LocalDate
+import kotlin.jvm.internal.DefaultConstructorMarker
 
 /**
  * Container for Anthropic model definitions loaded from YAML.
@@ -86,10 +87,20 @@ data class AnthropicModelDefinition(
  * @property canBeDisabled whether the model accepts `thinking: {type: disabled}`, which
  * [com.embabel.common.ai.model.ReasoningEffort.NONE] needs; NONE fails as unsupported where this is not declared
  */
-data class ThinkingConfiguration(
+data class ThinkingConfiguration @JvmOverloads constructor(
     val tokenBudget: Int? = null,
     val canBeDisabled: Boolean? = null,
-)
+) {
+
+    /** Binary compatibility: the synthetic constructor Kotlin callers compiled before [canBeDisabled] link to. */
+    @Suppress("UNUSED_PARAMETER")
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    constructor(tokenBudget: Int?, mask: Int, marker: DefaultConstructorMarker?) : this(tokenBudget)
+
+    /** Binary compatibility: `copy` and its `copy$default` as callers compiled before [canBeDisabled] link to them. */
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    fun copy(tokenBudget: Int? = this.tokenBudget): ThinkingConfiguration = copy(tokenBudget, canBeDisabled)
+}
 
 /**
  * Loader for Anthropic model definitions from YAML configuration.
