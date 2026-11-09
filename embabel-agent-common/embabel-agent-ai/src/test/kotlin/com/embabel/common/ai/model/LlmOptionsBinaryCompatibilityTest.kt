@@ -54,4 +54,14 @@ class LlmOptionsBinaryCompatibilityTest {
         val copied = copyWithDefaults.invoke(null, original, *args, allButTemperature, null) as LlmOptions
         assertEquals(original.copy(temperature = 0.3), copied)
     }
+
+    /** Compiling is the check: an ambiguous overload would fail this file. */
+    @Test
+    @Suppress("DEPRECATION")
+    fun `Kotlin named and twelve-argument copy calls still compile and keep the effort`() {
+        val original = LlmOptions(model = "m").withReasoningEffort(ReasoningEffort.LOW)
+        assertEquals(ReasoningEffort.LOW, original.copy(temperature = 0.3).reasoningEffort)
+        val positional = original.copy(null, "m", null, 0.3, null, null, null, null, null, null, null, emptyMap())
+        assertEquals(original.copy(temperature = 0.3), positional)
+    }
 }

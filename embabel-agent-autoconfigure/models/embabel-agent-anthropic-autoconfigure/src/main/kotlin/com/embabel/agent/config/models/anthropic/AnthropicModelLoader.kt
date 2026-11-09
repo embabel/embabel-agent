@@ -97,9 +97,26 @@ data class ThinkingConfiguration @JvmOverloads constructor(
     @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
     constructor(tokenBudget: Int?, mask: Int, marker: DefaultConstructorMarker?) : this(tokenBudget)
 
-    /** Binary compatibility: `copy` and its `copy$default` as callers compiled before [canBeDisabled] link to them. */
-    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
-    fun copy(tokenBudget: Int? = this.tokenBudget): ThinkingConfiguration = copy(tokenBudget, canBeDisabled)
+    /**
+     * Source and binary compatibility: the `copy(tokenBudget)` that Java and Kotlin callers written before
+     * [canBeDisabled] call. It keeps [canBeDisabled]. It has no default value, so `copy()` and
+     * `copy(canBeDisabled = …)` still resolve to the data-class `copy`; the old `copy$default` is
+     * [Companion.copyDefault]. Not deprecated, since Kotlin's `copy(tokenBudget = …)` resolves here.
+     */
+    fun copy(tokenBudget: Int?): ThinkingConfiguration = copy(tokenBudget, canBeDisabled)
+
+    companion object {
+        /**
+         * Binary compatibility: the `copy$default` that Kotlin callers compiled before [canBeDisabled]
+         * link to. Bit 0 of [mask] set means the token budget was omitted, so [self]'s is kept.
+         */
+        @Suppress("UNUSED_PARAMETER")
+        @JvmStatic
+        @JvmName("copy\$default")
+        @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+        fun copyDefault(self: ThinkingConfiguration, tokenBudget: Int?, mask: Int, marker: Any?): ThinkingConfiguration =
+            self.copy(if (mask and 1 != 0) self.tokenBudget else tokenBudget, self.canBeDisabled)
+    }
 }
 
 /**

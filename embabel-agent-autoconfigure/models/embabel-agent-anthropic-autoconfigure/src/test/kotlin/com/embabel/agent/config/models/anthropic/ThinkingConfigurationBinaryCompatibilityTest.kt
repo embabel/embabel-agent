@@ -44,4 +44,14 @@ class ThinkingConfigurationBinaryCompatibilityTest {
         assertEquals(original, copyWithDefaults.invoke(null, original, null, 1, null))
         assertEquals(original.copy(tokenBudget = 300), copyWithDefaults.invoke(null, original, 300, 0, null))
     }
+
+    /** Compiling is the check: an ambiguous overload would fail this file. */
+    @Test
+    fun `Kotlin named and positional copy calls still compile and keep canBeDisabled`() {
+        val original = ThinkingConfiguration(tokenBudget = 100, canBeDisabled = true)
+        assertEquals(ThinkingConfiguration(200, true), original.copy(tokenBudget = 200))
+        assertEquals(ThinkingConfiguration(200, true), original.copy(200))
+        assertEquals(ThinkingConfiguration(100, false), original.copy(canBeDisabled = false))
+        assertEquals(original, original.copy())
+    }
 }

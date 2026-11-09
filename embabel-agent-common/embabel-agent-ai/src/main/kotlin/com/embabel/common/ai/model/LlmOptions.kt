@@ -211,21 +211,26 @@ data class LlmOptions @JvmOverloads constructor(
         thinking, timeout, extensions ?: emptyMap(),
     )
 
-    /** Binary compatibility: `copy` and its `copy$default` as callers compiled before [reasoningEffort] link to them. */
-    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    /**
+     * Source and binary compatibility: the twelve-argument `copy` that Java and positional Kotlin callers
+     * written before [reasoningEffort] call. It keeps the effort. It has no default values, so Kotlin
+     * named-argument calls such as `copy(temperature = 0.3)` still resolve only to the data-class `copy`;
+     * the old `copy$default` is [Companion.copyDefault].
+     */
+    @Deprecated("Use the copy that takes reasoningEffort, or named arguments")
     fun copy(
-        modelSelectionCriteria: ModelSelectionCriteria? = this.modelSelectionCriteria,
-        model: String? = this.model,
-        role: String? = this.role,
-        temperature: Double? = this.temperature,
-        frequencyPenalty: Double? = this.frequencyPenalty,
-        maxTokens: Int? = this.maxTokens,
-        presencePenalty: Double? = this.presencePenalty,
-        topK: Int? = this.topK,
-        topP: Double? = this.topP,
-        thinking: Thinking? = this.thinking,
-        timeout: Duration? = this.timeout,
-        extensions: Map<String, Any> = this.extensions,
+        modelSelectionCriteria: ModelSelectionCriteria?,
+        model: String?,
+        role: String?,
+        temperature: Double?,
+        frequencyPenalty: Double?,
+        maxTokens: Int?,
+        presencePenalty: Double?,
+        topK: Int?,
+        topP: Double?,
+        thinking: Thinking?,
+        timeout: Duration?,
+        extensions: Map<String, Any>,
     ): LlmOptions = copy(
         modelSelectionCriteria, model, role, temperature, frequencyPenalty, maxTokens, presencePenalty, topK, topP,
         thinking, timeout, extensions, reasoningEffort,
@@ -317,8 +322,9 @@ data class LlmOptions @JvmOverloads constructor(
      * Model selection is taken from [defaults] wholesale, since the point of resolving a role is
      * to decide which model it means.
      *
-     * A caller that chose its own [thinking] but no [reasoningEffort] does not inherit the effort
-     * from [defaults], since the effort would override that thinking choice.
+     * A caller that chose its own thinking mode or budget but no [reasoningEffort] does not inherit the
+     * effort from [defaults], since the effort would override that choice. Extraction-only thinking
+     * chooses neither, so it inherits the effort.
      */
     fun withDefaultsFrom(defaults: LlmOptions): LlmOptions =
         copy(
@@ -334,7 +340,9 @@ data class LlmOptions @JvmOverloads constructor(
             thinking = thinking ?: defaults.thinking,
             timeout = timeout ?: defaults.timeout,
             extensions = defaults.extensions + extensions,
-            reasoningEffort = reasoningEffort ?: defaults.reasoningEffort.takeIf { thinking == null },
+            reasoningEffort = reasoningEffort ?: defaults.reasoningEffort.takeIf {
+                thinking.let { it == null || (!it.enabled && it.extractThinking) }
+            },
         )
 
     /**
@@ -377,6 +385,37 @@ data class LlmOptions @JvmOverloads constructor(
     }
 
     companion object {
+
+        /**
+         * Binary compatibility: the `copy$default` that Kotlin callers compiled before [reasoningEffort]
+         * link to. Bit `i` of [mask] set means argument `i` was omitted, so [self]'s value is kept.
+         */
+        @Suppress("UNUSED_PARAMETER")
+        @JvmStatic
+        @JvmName("copy\$default")
+        @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+        fun copyDefault(
+            self: LlmOptions, modelSelectionCriteria: ModelSelectionCriteria?, model: String?, role: String?,
+            temperature: Double?, frequencyPenalty: Double?, maxTokens: Int?, presencePenalty: Double?, topK: Int?,
+            topP: Double?, thinking: Thinking?, timeout: Duration?, extensions: Map<String, Any>?, mask: Int, marker: Any?,
+        ): LlmOptions {
+            fun omitted(i: Int) = mask and (1 shl i) != 0
+            return self.copy(
+                modelSelectionCriteria = if (omitted(0)) self.modelSelectionCriteria else modelSelectionCriteria,
+                model = if (omitted(1)) self.model else model,
+                role = if (omitted(2)) self.role else role,
+                temperature = if (omitted(3)) self.temperature else temperature,
+                frequencyPenalty = if (omitted(4)) self.frequencyPenalty else frequencyPenalty,
+                maxTokens = if (omitted(5)) self.maxTokens else maxTokens,
+                presencePenalty = if (omitted(6)) self.presencePenalty else presencePenalty,
+                topK = if (omitted(7)) self.topK else topK,
+                topP = if (omitted(8)) self.topP else topP,
+                thinking = if (omitted(9)) self.thinking else thinking,
+                timeout = if (omitted(10)) self.timeout else timeout,
+                extensions = if (omitted(11)) self.extensions else extensions ?: emptyMap(),
+                reasoningEffort = self.reasoningEffort,
+            )
+        }
 
         /**
          * Create an LlmOptions instance we can build.

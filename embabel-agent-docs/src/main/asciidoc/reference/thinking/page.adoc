@@ -247,7 +247,8 @@ LlmOptions.withModel("claude-sonnet-5-5").withReasoningEffort(ReasoningEffort.LO
 ----
 
 Set it for a role in configuration, for example `embabel.models.roles.best.anthropic.reasoning-effort=low`.
-A caller that sets its own thinking, such as `withoutThinking()` or a token budget, does not inherit the role's effort; a caller's own effort always applies.
+A caller that chooses its own thinking, such as `withoutThinking()` or a token budget, does not inherit the role's effort; a caller's own effort always applies.
+Extraction-only thinking, such as `Thinking.withExtraction()` or `PromptRunner.thinking()`, chooses neither, so it inherits the role's effort.
 
 [cols="1,3"]
 |===

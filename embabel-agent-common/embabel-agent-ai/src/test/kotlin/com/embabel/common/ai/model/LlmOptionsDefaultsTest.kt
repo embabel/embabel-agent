@@ -138,6 +138,14 @@ class LlmOptionsDefaultsTest {
         }
 
         @Test
+        fun `extraction-only thinking inherits the effort and keeps the extraction`() {
+            val merged = LlmOptions().withThinking(Thinking.withExtraction())
+                .withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.LOW))
+            assertEquals(ReasoningEffort.LOW, merged.reasoningEffort)
+            assertEquals(true, merged.thinking?.extractThinking)
+        }
+
+        @Test
         fun `an explicit caller effort still wins alongside the caller's thinking`() {
             val caller = LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW)
             val merged = caller.withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.HIGH))
