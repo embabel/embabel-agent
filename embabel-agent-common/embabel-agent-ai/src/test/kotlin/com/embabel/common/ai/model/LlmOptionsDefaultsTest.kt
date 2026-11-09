@@ -146,6 +146,15 @@ class LlmOptionsDefaultsTest {
         }
 
         @Test
+        fun `extraction added after a caller's opt-out does not bring back the inherited effort`() {
+            val optedOut = LlmOptions().withoutThinking()
+            val merged = optedOut.withThinking(optedOut.thinking!!.applyExtraction())
+                .withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.NONE))
+            assertNull(merged.reasoningEffort)
+            assertEquals(true, merged.thinking?.extractThinking)
+        }
+
+        @Test
         fun `an explicit caller effort still wins alongside the caller's thinking`() {
             val caller = LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW)
             val merged = caller.withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.HIGH))

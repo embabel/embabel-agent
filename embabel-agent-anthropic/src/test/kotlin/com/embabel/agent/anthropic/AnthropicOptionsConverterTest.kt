@@ -566,6 +566,17 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
 
         @Test
+        fun `a caller who turned thinking off and then asked for extraction is not overridden by a role's none`() {
+            // thinking() on a prompt runner applies extraction to the caller's thinking, here NONE.
+            val optedOut = LlmOptions().withoutThinking()
+            val caller = optedOut.withThinking(optedOut.thinking!!.applyExtraction())
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_SONNET_5_5).withReasoningEffort(ReasoningEffort.NONE)
+            val opts = AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = false)
+                .convertOptions(caller.withDefaultsFrom(role), AnthropicModels.CLAUDE_SONNET_5_5) as AnthropicChatOptions
+            assertNull(opts.outputConfig)
+        }
+
+        @Test
         fun `a caller's thinking budget is not overridden by a role's none`() {
             val role = LlmOptions.withModel(AnthropicModels.CLAUDE_SONNET_4_6).withReasoningEffort(ReasoningEffort.NONE)
             val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(8192)).withDefaultsFrom(role), AnthropicModels.CLAUDE_SONNET_4_6)

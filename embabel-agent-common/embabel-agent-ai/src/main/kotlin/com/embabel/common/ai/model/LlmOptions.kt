@@ -45,6 +45,8 @@ class Thinking private constructor(
     val includedTags: Set<String>? = null,
     val excludedTags: Set<String>? = null,
     val injectSystemPrompt: Boolean = true,
+    /** True when this descends from [NONE] without a budget since: extraction keeps the caller's opt-out. */
+    private val optedOut: Boolean = false,
 ) {
 
     companion object {
@@ -74,6 +76,7 @@ class Thinking private constructor(
 
         val NONE: Thinking = Thinking(
             enabled = false,
+            optedOut = true,
         )
     }
 
@@ -87,6 +90,7 @@ class Thinking private constructor(
         includedTags = this.includedTags,
         excludedTags = this.excludedTags,
         injectSystemPrompt = this.injectSystemPrompt,
+        optedOut = this.optedOut,
     )
 
     /**
@@ -111,7 +115,14 @@ class Thinking private constructor(
         includedTags = this.includedTags,
         excludedTags = this.excludedTags,
         injectSystemPrompt = inject,
+        optedOut = this.optedOut,
     )
+
+    /**
+     * True when this thinking chooses neither a mode nor a budget, only extraction, so a role's
+     * [ReasoningEffort] may apply. False after [NONE], even with extraction applied on top.
+     */
+    internal fun inheritsEffort(): Boolean = !enabled && extractThinking && !optedOut
 }
 
 /**
@@ -323,8 +334,8 @@ data class LlmOptions @JvmOverloads constructor(
      * to decide which model it means.
      *
      * A caller that chose its own thinking mode or budget but no [reasoningEffort] does not inherit the
-     * effort from [defaults], since the effort would override that choice. Extraction-only thinking
-     * chooses neither, so it inherits the effort.
+     * effort from [defaults], since the effort would override that choice; extraction added after
+     * [withoutThinking] keeps that opt-out. Extraction-only thinking chooses neither, so it inherits the effort.
      */
     fun withDefaultsFrom(defaults: LlmOptions): LlmOptions =
         copy(
@@ -341,7 +352,7 @@ data class LlmOptions @JvmOverloads constructor(
             timeout = timeout ?: defaults.timeout,
             extensions = defaults.extensions + extensions,
             reasoningEffort = reasoningEffort ?: defaults.reasoningEffort.takeIf {
-                thinking.let { it == null || (!it.enabled && it.extractThinking) }
+                thinking.let { it == null || it.inheritsEffort() }
             },
         )
 
