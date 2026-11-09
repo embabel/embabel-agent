@@ -114,6 +114,25 @@ class Thinking private constructor(
 }
 
 /**
+ * How hard a reasoning model should think, whatever the provider. Set it with
+ * [LlmOptions.withReasoningEffort]; provider integrations translate it:
+ *
+ * - OpenAI sends [value] as-is: `reasoning.effort` on the Responses API, `reasoning_effort` on Chat
+ *   Completions. A model that does not offer a level rejects it. `withOpenAiReasoningEffort` takes
+ *   precedence when both are set.
+ * - Anthropic sends `output_config.effort` with adaptive thinking on Claude ≥4.7, and the effort takes
+ *   precedence over the effort a [Thinking.withTokenBudget] budget maps to. [NONE] turns thinking off
+ *   where the model allows it and otherwise leaves the model's adaptive default. Older models ignore it.
+ * - Other providers ignore it.
+ */
+enum class ReasoningEffort {
+    NONE, LOW, MEDIUM, HIGH, XHIGH, MAX;
+
+    /** The level as providers name it on the wire, e.g. `low`. */
+    val value: String get() = name.lowercase()
+}
+
+/**
  * Common hyperparameters for LLMs.
  */
 interface LlmHyperparameters {
@@ -160,6 +179,8 @@ data class LlmOptions @JvmOverloads constructor(
     override var topP: Double? = null,
     var thinking: Thinking? = null,
     var timeout: Duration? = null,
+    /** Provider-neutral reasoning effort; see [ReasoningEffort] for how each provider sends it. */
+    var reasoningEffort: ReasoningEffort? = null,
     /**
      * Provider-specific extensions for features not common across all LLMs.
      * Allows provider-specific modules to add their own configuration without
@@ -230,6 +251,11 @@ data class LlmOptions @JvmOverloads constructor(
         return copy(timeout = timeout)
     }
 
+    /** Set the provider-neutral reasoning effort; see [ReasoningEffort] for how each provider sends it. */
+    fun withReasoningEffort(reasoningEffort: ReasoningEffort): LlmOptions {
+        return copy(reasoningEffort = reasoningEffort)
+    }
+
     /**
      * The model these options name, however they name it.
      *
@@ -263,6 +289,7 @@ data class LlmOptions @JvmOverloads constructor(
             topP = topP ?: defaults.topP,
             thinking = thinking ?: defaults.thinking,
             timeout = timeout ?: defaults.timeout,
+            reasoningEffort = reasoningEffort ?: defaults.reasoningEffort,
             extensions = defaults.extensions + extensions,
         )
 

@@ -15,10 +15,12 @@
  */
 package com.embabel.agent.anthropic
 
+import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.ThinkingConfigAdaptive
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
+import com.embabel.common.ai.model.ReasoningEffort
 import org.springframework.ai.anthropic.AnthropicCacheOptions
 import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicChatOptions
@@ -38,18 +40,13 @@ object AnthropicOptionsConverter : OptionsConverter {
     /** Keyed by model ID only, so bounded by the number of models. */
     internal val warnedThinkingNotDisabled = ConcurrentHashMap.newKeySet<String>()
 
+    /** Keyed by model ID only, so bounded by the number of models. */
+    internal val warnedEffortIgnored = ConcurrentHashMap.newKeySet<String>()
+
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val caps = ClaudeCapabilities.of(model)
-        val thinkingModeDecision = if (isThinkingOptOut(options)) {
-            if (ClaudeCapabilities.rejectsThinkingDisabled(model)) {
-                warnThinkingCannotBeDisabled(model)
-                ThinkingMode.Omit
-            } else {
-                ThinkingMode.Disabled
-            }
-        } else {
-            caps.resolveThinking(resolveThinkingBudget(options))
-        }
+        val thinkingModeDecision = options.reasoningEffort?.let { thinkingFor(it, model, caps) }
+            ?: if (isThinkingOptOut(options)) thinkingOff(model) else caps.resolveThinking(resolveThinkingBudget(options))
         if (!caps.acceptsSampling) {
             ClaudeCapabilities.warnAboutIgnoredSampling(model, options.temperature, options.topP, options.topK)
         }
@@ -114,6 +111,33 @@ object AnthropicOptionsConverter : OptionsConverter {
     private fun isThinkingOptOut(options: LlmOptions): Boolean {
         val thinking = options.thinking ?: return false
         return !thinking.enabled && !thinking.extractThinking
+    }
+
+    /**
+     * The thinking an explicit [ReasoningEffort] asks for, which takes precedence over the thinking
+     * settings: low to max become adaptive thinking at that effort, [ReasoningEffort.NONE] turns
+     * thinking off as far as [model] allows. Null on models before 4.7, where the thinking settings decide.
+     */
+    private fun thinkingFor(effort: ReasoningEffort, model: String, caps: ClaudeCapabilities): ThinkingMode? = when {
+        effort == ReasoningEffort.NONE -> thinkingOff(model)
+        caps.usesAdaptiveThinking -> ThinkingMode.Adaptive(OutputConfig.Effort.of(effort.value))
+        // ponytail: Opus 4.5/4.6 and Sonnet 4.6 accept effort too; send it there if a caller needs it.
+        else -> null.also { warnEffortIgnored(model, effort) }
+    }
+
+    /** Thinking off: disabled where [model] accepts it, otherwise omitted with a warning. */
+    private fun thinkingOff(model: String): ThinkingMode =
+        if (ClaudeCapabilities.rejectsThinkingDisabled(model)) {
+            warnThinkingCannotBeDisabled(model)
+            ThinkingMode.Omit
+        } else {
+            ThinkingMode.Disabled
+        }
+
+    private fun warnEffortIgnored(model: String, effort: ReasoningEffort) {
+        if (warnedEffortIgnored.add(model)) {
+            logger.warn("Model '{}' predates reasoning effort, so effort {} is ignored and the thinking settings apply", model, effort)
+        }
     }
 
     /** Warns once per model: the request still runs, with Anthropic's adaptive default thinking. */

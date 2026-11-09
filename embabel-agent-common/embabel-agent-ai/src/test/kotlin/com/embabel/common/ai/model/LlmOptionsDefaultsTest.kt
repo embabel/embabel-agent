@@ -118,5 +118,15 @@ class LlmOptionsDefaultsTest {
             val merged = LlmOptions.withModel("caller-choice").withDefaultsFrom(defaults)
             assertEquals("gpt-4.1-nano", merged.modelName)
         }
+
+        @Test
+        fun `reasoning effort is filled in from the defaults unless the caller set one`() {
+            val defaults = LlmOptions().withReasoningEffort(ReasoningEffort.HIGH)
+            assertEquals(ReasoningEffort.HIGH, LlmOptions().withDefaultsFrom(defaults).reasoningEffort)
+            assertEquals(
+                ReasoningEffort.LOW,
+                LlmOptions().withReasoningEffort(ReasoningEffort.LOW).withDefaultsFrom(defaults).reasoningEffort,
+            )
+        }
     }
 }

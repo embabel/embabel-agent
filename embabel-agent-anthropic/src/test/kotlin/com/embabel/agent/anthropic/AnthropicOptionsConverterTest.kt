@@ -24,7 +24,18 @@ import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.Thinking
+import com.sun.net.httpserver.HttpServer
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.prompt.Prompt
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import java.net.InetSocketAddress
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -457,4 +468,94 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
     }
 
+    @Nested
+    inner class ReasoningEffortTests {
+
+        private fun convert(options: LlmOptions, model: String) =
+            optionsConverter.convertOptions(options, model) as AnthropicChatOptions
+
+        @Test
+        fun `every level from low to max becomes adaptive thinking at that effort`() {
+            for (effort in ReasoningEffort.entries - ReasoningEffort.NONE) {
+                val opts = convert(LlmOptions().withReasoningEffort(effort), AnthropicModels.CLAUDE_HAIKU_5_5)
+                assertTrue(opts.thinking.isAdaptive(), "$effort")
+                assertEquals(effort.value, opts.outputConfig?.effort()?.orElseThrow()?.asString())
+            }
+        }
+
+        @Test
+        fun `the effort wins over the effort a token budget maps to`() {
+            val options = LlmOptions()
+                .withThinking(Thinking.withTokenBudget(32768)) // maps to MAX
+                .withReasoningEffort(ReasoningEffort.LOW)
+            assertEquals(OutputConfig.Effort.LOW, convert(options, AnthropicModels.CLAUDE_SONNET_5_5).outputConfig?.effort()?.orElse(null))
+        }
+
+        @Test
+        fun `none turns thinking off where the model allows it`() {
+            val haiku = convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_HAIKU_5_5)
+            assertTrue(haiku.thinking.isDisabled())
+            assertNull(haiku.outputConfig)
+            assertTrue(convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_SONNET_4_5).thinking.isDisabled())
+        }
+
+        @Test
+        fun `none omits thinking on a model that cannot disable it`() {
+            val opts = convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_OPUS_5_5)
+            assertNull(opts.thinking)
+            assertNull(opts.outputConfig)
+        }
+
+        @Test
+        fun `a model older than 4-7 ignores the effort and keeps its thinking settings`() {
+            val budget = convert(
+                LlmOptions().withThinking(Thinking.withTokenBudget(2048)).withReasoningEffort(ReasoningEffort.LOW),
+                AnthropicModels.CLAUDE_SONNET_4_5,
+            )
+            assertTrue(budget.thinking.isEnabled())
+            assertNull(budget.outputConfig)
+            assertTrue(convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), AnthropicModels.CLAUDE_SONNET_4_5).thinking.isDisabled())
+        }
+    }
+
+    /** What the effort puts on the wire, captured by a local server standing in for Anthropic. */
+    @Nested
+    inner class ReasoningEffortWireTests {
+
+        private val mapper = jacksonObjectMapper()
+        private val captured = CopyOnWriteArrayList<JsonNode>()
+        private lateinit var server: HttpServer
+
+        @BeforeEach
+        fun startServer() {
+            server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/v1/messages") { exchange ->
+                captured.add(mapper.readTree(exchange.requestBody.readBytes()))
+                val reply = """{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],
+                    "model":"${AnthropicModels.CLAUDE_SONNET_5_5}","stop_reason":"end_turn","stop_sequence":null,
+                    "usage":{"input_tokens":1,"output_tokens":1}}""".toByteArray()
+                exchange.responseHeaders.set("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, reply.size.toLong())
+                exchange.responseBody.use { it.write(reply) }
+            }
+            server.start()
+        }
+
+        @AfterEach
+        fun stopServer() = server.stop(0)
+
+        @Test
+        fun `claude-sonnet-5-5 sends the effort as output_config effort with adaptive thinking`() {
+            val model = AnthropicModels.CLAUDE_SONNET_5_5
+            val llm = AnthropicModelFactory(apiKey = "test-key", baseUrl = "http://localhost:${server.address.port}")
+                .build(model) as SpringAiLlmService
+            val options = llm.optionsConverter.convertOptions(LlmOptions.withModel(model).withReasoningEffort(ReasoningEffort.LOW), model)
+
+            llm.chatModel.call(Prompt(listOf(UserMessage("hi")), options))
+
+            val body = captured.single()
+            assertEquals("low", body["output_config"]["effort"].asString())
+            assertEquals("adaptive", body["thinking"]["type"].asString())
+        }
+    }
 }
