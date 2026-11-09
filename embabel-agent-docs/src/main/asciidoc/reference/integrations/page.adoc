@@ -830,6 +830,20 @@ embabel:
 [[reference.integrations__a2a]]
 ==== A2A
 
+The A2A server keeps each task and its events in memory so that `tasks/get` and `tasks/resubscribe` can serve it.
+A task is evicted once it has been in a final state, such as completed or failed, for longer than the task retention, which defaults to one hour.
+Tasks that are still running are never evicted.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      a2a:
+        server:
+          task-retention: 30m
+----
+
 [[reference.integrations__observability]]
 ==== Observability
 
