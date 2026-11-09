@@ -19,6 +19,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.boot.context.properties.bind.Bindable
+import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Duration
 
 /**
@@ -152,6 +156,42 @@ class LlmOptionsDefaultsTest {
                 .withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.NONE))
             assertNull(merged.reasoningEffort)
             assertEquals(true, merged.thinking?.extractThinking)
+        }
+
+        private val none = LlmOptions().withReasoningEffort(ReasoningEffort.NONE)
+
+        private fun withExtraction(options: LlmOptions) = options.withThinking(options.thinking!!.applyExtraction())
+
+        private fun roundTrip(options: LlmOptions): LlmOptions =
+            jacksonObjectMapper().let { it.readValue(it.writeValueAsString(options), LlmOptions::class.java) }
+
+        private fun bind(vararg properties: Pair<String, String>): LlmOptions =
+            Binder(MapConfigurationPropertySource(properties.toMap()))
+                .bind("opts", Bindable.of(LlmOptions::class.java)).get()
+
+        @Test
+        fun `a caller's opt-out survives a JSON round trip`() {
+            assertNull(withExtraction(roundTrip(LlmOptions().withoutThinking())).withDefaultsFrom(none).reasoningEffort)
+            assertNull(roundTrip(withExtraction(LlmOptions().withoutThinking())).withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `extraction-only thinking still inherits the effort after a JSON round trip`() {
+            val restored = roundTrip(LlmOptions().withThinking(Thinking.withExtraction()))
+            assertEquals(ReasoningEffort.NONE, restored.withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `thinking bound as disabled is an opt-out that extraction keeps`() {
+            val bound = bind("opts.thinking.enabled" to "false")
+            assertNull(withExtraction(bound).withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `thinking bound with extraction only inherits the effort`() {
+            val bound = bind("opts.thinking.extract-thinking" to "true")
+            assertEquals(ReasoningEffort.NONE, bound.withDefaultsFrom(none).reasoningEffort)
+            assertEquals(ReasoningEffort.NONE, bind("opts.model" to "m").withDefaultsFrom(none).reasoningEffort)
         }
 
         @Test

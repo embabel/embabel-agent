@@ -39,15 +39,23 @@ import kotlin.jvm.internal.DefaultConstructorMarker
  *   instructing the model to wrap reasoning in the first included tag.
  */
 class Thinking private constructor(
-    val enabled: Boolean = false,
+    @JsonProperty("enabled") enabled: Boolean? = null,
     val tokenBudget: Int? = null,
     val extractThinking: Boolean = false,
     val includedTags: Set<String>? = null,
     val excludedTags: Set<String>? = null,
     val injectSystemPrompt: Boolean = true,
-    /** True when this descends from [NONE] without a budget since: extraction keeps the caller's opt-out. */
-    private val optedOut: Boolean = false,
 ) {
+
+    /**
+     * The thinking mode the caller chose: null when it chose none, so JSON and configuration binding
+     * keep [NONE]'s `false` apart from extraction-only thinking.
+     */
+    @field:JsonProperty("enabled")
+    private val mode: Boolean? = enabled
+
+    @get:JsonIgnore
+    val enabled: Boolean get() = mode == true
 
     companion object {
 
@@ -76,7 +84,6 @@ class Thinking private constructor(
 
         val NONE: Thinking = Thinking(
             enabled = false,
-            optedOut = true,
         )
     }
 
@@ -84,13 +91,12 @@ class Thinking private constructor(
      * Enable thinking block extraction for user access.
      */
     fun applyExtraction(): Thinking = Thinking(
-        enabled = this.enabled,
+        enabled = this.mode,
         tokenBudget = this.tokenBudget,
         extractThinking = true,
         includedTags = this.includedTags,
         excludedTags = this.excludedTags,
         injectSystemPrompt = this.injectSystemPrompt,
-        optedOut = this.optedOut,
     )
 
     /**
@@ -109,20 +115,19 @@ class Thinking private constructor(
      * Control whether a system prompt hint is injected when [includedTags] is set.
      */
     fun withInjectSystemPrompt(inject: Boolean): Thinking = Thinking(
-        enabled = this.enabled,
+        enabled = this.mode,
         tokenBudget = this.tokenBudget,
         extractThinking = this.extractThinking,
         includedTags = this.includedTags,
         excludedTags = this.excludedTags,
         injectSystemPrompt = inject,
-        optedOut = this.optedOut,
     )
 
     /**
-     * True when this thinking chooses neither a mode nor a budget, only extraction, so a role's
-     * [ReasoningEffort] may apply. False after [NONE], even with extraction applied on top.
+     * True when this thinking chooses neither a mode nor a budget, so a role's [ReasoningEffort] may
+     * apply. False after [NONE], even with extraction applied on top.
      */
-    internal fun inheritsEffort(): Boolean = !enabled && extractThinking && !optedOut
+    internal fun inheritsEffort(): Boolean = mode == null && tokenBudget == null
 }
 
 /**
