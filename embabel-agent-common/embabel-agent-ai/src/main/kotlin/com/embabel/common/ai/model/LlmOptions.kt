@@ -22,6 +22,7 @@ import com.embabel.common.ai.model.spi.InternalExtensionApi
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Duration
@@ -49,9 +50,11 @@ class Thinking private constructor(
 
     /**
      * The thinking mode the caller chose: null when it chose none, so JSON and configuration binding
-     * keep [NONE]'s `false` apart from extraction-only thinking.
+     * keep [NONE]'s `false` apart from extraction-only thinking. Omitted from JSON when null, since
+     * readers that map `enabled` to a primitive boolean reject `null` but default a missing field to false.
      */
     @field:JsonProperty("enabled")
+    @field:JsonInclude(JsonInclude.Include.NON_NULL)
     private val mode: Boolean? = enabled
 
     @get:JsonIgnore

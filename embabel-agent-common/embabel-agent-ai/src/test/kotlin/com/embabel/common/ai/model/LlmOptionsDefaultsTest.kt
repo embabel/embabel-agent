@@ -15,14 +15,15 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.context.properties.bind.Bindable
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Duration
 
 /**
@@ -160,10 +161,12 @@ class LlmOptionsDefaultsTest {
 
         private val none = LlmOptions().withReasoningEffort(ReasoningEffort.NONE)
 
+        private val mapper = EmbabelObjectMapperHolder.createDefault().get()
+
         private fun withExtraction(options: LlmOptions) = options.withThinking(options.thinking!!.applyExtraction())
 
         private fun roundTrip(options: LlmOptions): LlmOptions =
-            jacksonObjectMapper().let { it.readValue(it.writeValueAsString(options), LlmOptions::class.java) }
+            mapper.readValue(mapper.writeValueAsString(options), LlmOptions::class.java)
 
         private fun bind(vararg properties: Pair<String, String>): LlmOptions =
             Binder(MapConfigurationPropertySource(properties.toMap()))
@@ -179,6 +182,34 @@ class LlmOptionsDefaultsTest {
         fun `extraction-only thinking still inherits the effort after a JSON round trip`() {
             val restored = roundTrip(LlmOptions().withThinking(Thinking.withExtraction()))
             assertEquals(ReasoningEffort.NONE, restored.withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `written thinking never carries a null enabled, which older readers cannot parse`() {
+            val states = mapOf(
+                "none" to LlmOptions().withoutThinking(),
+                "none plus extraction" to withExtraction(LlmOptions().withoutThinking()),
+                "extraction only" to LlmOptions().withThinking(Thinking.withExtraction()),
+                "budget" to LlmOptions().withThinking(Thinking.withTokenBudget(8192)),
+                "default" to LlmOptions(),
+            )
+            for ((name, options) in states) {
+                val enabled = mapper.readTree(mapper.writeValueAsString(options)).path("thinking").path("enabled")
+                assertFalse(enabled.isNull, "$name wrote enabled:null")
+            }
+        }
+
+        @Test
+        fun `each thinking state keeps its meaning after a JSON round trip`() {
+            fun effortAfterRoundTrip(options: LlmOptions) = roundTrip(options).withDefaultsFrom(none).reasoningEffort
+            assertNull(effortAfterRoundTrip(LlmOptions().withoutThinking()))
+            assertNull(effortAfterRoundTrip(withExtraction(LlmOptions().withoutThinking())))
+            assertEquals(ReasoningEffort.NONE, effortAfterRoundTrip(LlmOptions().withThinking(Thinking.withExtraction())))
+            assertNull(effortAfterRoundTrip(LlmOptions().withThinking(Thinking.withTokenBudget(8192))))
+            assertEquals(ReasoningEffort.NONE, effortAfterRoundTrip(LlmOptions()))
+            val budget = roundTrip(LlmOptions().withThinking(Thinking.withTokenBudget(8192))).thinking!!
+            assertEquals(true, budget.enabled)
+            assertEquals(8192, budget.tokenBudget)
         }
 
         @Test
