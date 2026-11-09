@@ -42,7 +42,7 @@ class ConfigurableModelProviderTest {
          */
         const val DEFAULT_MODEL = "gpt-4.1-mini"
         const val BEST_MODEL = "gpt-4.1"
-        const val CHEAPEST_MODEL = "gpt-4.1-nano"
+        const val CHEAPEST_MODEL = "gpt-6-luna"
     }
 
     /**

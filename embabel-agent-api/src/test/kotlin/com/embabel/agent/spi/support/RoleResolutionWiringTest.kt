@@ -68,12 +68,12 @@ class RoleResolutionWiringTest {
         val expensive = FakeChatModel(jacksonObjectMapper().writeValueAsString(Dog("Rex")))
 
         val modelProvider = ConfigurableModelProvider(
-            llms = listOf(llm("gpt-4.1-nano", cheap), llm("gpt-4.1-mini", expensive)),
+            llms = listOf(llm("gpt-6-luna", cheap), llm("gpt-4.1-mini", expensive)),
             embeddingServices = emptyList(),
             properties = ConfigurableModelProviderProperties(
                 roles = mapOf(
                     CHEAPEST_ROLE to mapOf(
-                        "openai" to LlmOptions.withModel("gpt-4.1-nano").withTemperature(0.2),
+                        "openai" to LlmOptions.withModel("gpt-6-luna").withTemperature(0.2),
                     ),
                 ),
                 defaultLlm = "gpt-4.1-mini",
@@ -101,15 +101,15 @@ class RoleResolutionWiringTest {
     fun `what the caller sets explicitly still beats the role`() {
         val cheap = FakeChatModel(jacksonObjectMapper().writeValueAsString(Dog("Duke")))
         val modelProvider = ConfigurableModelProvider(
-            llms = listOf(llm("gpt-4.1-nano", cheap)),
+            llms = listOf(llm("gpt-6-luna", cheap)),
             embeddingServices = emptyList(),
             properties = ConfigurableModelProviderProperties(
                 roles = mapOf(
                     CHEAPEST_ROLE to mapOf(
-                        "openai" to LlmOptions.withModel("gpt-4.1-nano").withTemperature(0.2),
+                        "openai" to LlmOptions.withModel("gpt-6-luna").withTemperature(0.2),
                     ),
                 ),
-                defaultLlm = "gpt-4.1-nano",
+                defaultLlm = "gpt-6-luna",
             ),
         )
 
@@ -134,7 +134,7 @@ class RoleResolutionWiringTest {
         // streamer running on whatever the caller happened to pass, which is nothing.
         val streamed = slot<LlmOptions>()
         val roleModel = mockk<LlmService<*>>(relaxed = true)
-        every { roleModel.name } returns "gpt-4.1-nano"
+        every { roleModel.name } returns "gpt-6-luna"
         every { roleModel.provider } returns "openai"
         every { roleModel.createMessageStreamer(capture(streamed)) } returns mockk(relaxed = true)
 
@@ -148,7 +148,7 @@ class RoleResolutionWiringTest {
             properties = ConfigurableModelProviderProperties(
                 roles = mapOf(
                     CHEAPEST_ROLE to mapOf(
-                        "openai" to LlmOptions.withModel("gpt-4.1-nano")
+                        "openai" to LlmOptions.withModel("gpt-6-luna")
                             .withTemperature(0.2)
                             .withTimeout(Duration.ofSeconds(90)),
                     ),
@@ -169,7 +169,7 @@ class RoleResolutionWiringTest {
     @Test
     fun `capability queries answer about the model the role means, not the default`() {
         val roleModel = mockk<LlmService<*>>(relaxed = true)
-        every { roleModel.name } returns "gpt-4.1-nano"
+        every { roleModel.name } returns "gpt-6-luna"
         every { roleModel.provider } returns "openai"
         every { roleModel.supportsStreaming() } returns true
         every { roleModel.supportsThinking() } returns true
@@ -184,7 +184,7 @@ class RoleResolutionWiringTest {
             llms = listOf(roleModel, defaultModel),
             embeddingServices = emptyList(),
             properties = ConfigurableModelProviderProperties(
-                roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nano"))),
+                roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-6-luna"))),
                 defaultLlm = "gpt-4.1-mini",
             ),
         )
@@ -211,12 +211,12 @@ class RoleResolutionWiringTest {
         val expensive = FakeChatModel(jacksonObjectMapper().writeValueAsString(Dog("Rex")))
 
         val modelProvider = ConfigurableModelProvider(
-            llms = listOf(llm("gpt-4.1-nano", cheap), llm("gpt-4.1-mini", expensive)),
+            llms = listOf(llm("gpt-6-luna", cheap), llm("gpt-4.1-mini", expensive)),
             embeddingServices = emptyList(),
             properties = ConfigurableModelProviderProperties(
                 roles = mapOf(
                     CHEAPEST_ROLE to mapOf(
-                        "openai" to LlmOptions.withModel("gpt-4.1-nano").withTemperature(0.2),
+                        "openai" to LlmOptions.withModel("gpt-6-luna").withTemperature(0.2),
                     ),
                 ),
                 defaultLlm = "gpt-4.1-mini",

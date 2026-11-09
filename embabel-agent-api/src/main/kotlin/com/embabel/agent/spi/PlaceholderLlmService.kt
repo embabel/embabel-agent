@@ -43,7 +43,7 @@ interface PlaceholderLlmService {
      * misspelled are the same thing at startup - nothing is registered, so neither resolves - and
      * both end up here. The platform cannot tell them apart, but it does know which role asked and
      * which name that role carried, and saying so is what lets the operator tell them apart:
-     * `cheapest wanted 'gpt-4.1-nanoo'` points at the typo, where a bare "no LLM is configured"
+     * `cheapest wanted 'gpt-6-lunaa'` points at the typo, where a bare "no LLM is configured"
      * points at the key, the one thing that is not wrong.
      *
      * Returning a distinct instance rather than mutating: one placeholder bean serves every call on

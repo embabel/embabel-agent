@@ -51,11 +51,11 @@ class PureByokWithRolesTest {
     private companion object {
 
         /**
-         * A misspelling of `gpt-4.1-nano`. The point of #1899: in setup-required mode this is
+         * A misspelling of `gpt-6-luna`. The point of #1899: in setup-required mode this is
          * indistinguishable at startup from a correctly spelled name awaiting a key, so the tests
          * below assert it reaches the operator by name rather than being swallowed.
          */
-        const val TYPO_MODEL = "gpt-4.1-nanoo"
+        const val TYPO_MODEL = "gpt-6-lunaa"
 
         /** A correctly spelled name, to sit alongside [TYPO_MODEL] where two roles are in play. */
         const val VALID_MODEL = "gpt-4.1"
@@ -79,7 +79,7 @@ class PureByokWithRolesTest {
     @Test
     fun `starts with roles configured and no model to satisfy them`() {
         assertThatCode {
-            pureByok(mapOf(BEST_ROLE to "gpt-4.1", CHEAPEST_ROLE to "gpt-4.1-nano"))
+            pureByok(mapOf(BEST_ROLE to "gpt-4.1", CHEAPEST_ROLE to "gpt-6-luna"))
         }.doesNotThrowAnyException()
     }
 

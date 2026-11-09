@@ -43,14 +43,15 @@ models:
   # ========================================
   # GPT-6 FAMILY (Current Flagship)
   # Model pages and pricing verified: developers.openai.com 2026-10-05
-  # Astra is the flagship, 6.1 Sol balances intelligence and cost, Luna is
-  # the high-volume tier. GPT-6 Sol is the previous Sol, superseded by 6.1 Sol.
+  # Astra is the flagship, 6.1 Sol balances intelligence and cost, 6.1 Terra
+  # is the fast, efficient tier, Luna is the high-volume tier. GPT-6 Sol is
+  # the previous Sol, superseded by 6.1 Sol.
   # Prices are the short-context tier (<272K); long context is billed higher.
   #
-  # Same transport constraint as GPT-5.6: Astra and 6.1 Sol take tool calls
-  # only over Responses, and 6 Sol and Luna accept function tools on Chat
-  # Completions only at reasoning effort `none`. All four are pinned to
-  # Responses for the reason given under GPT-5.6 below.
+  # Same transport constraint as GPT-5.6: Astra, 6.1 Sol and 6.1 Terra take
+  # tool calls only over Responses, and 6 Sol and Luna accept function tools
+  # on Chat Completions only at reasoning effort `none`. All five are pinned
+  # to Responses for the reason given under GPT-5.6 below.
   # ========================================
 
   - name: "gpt6astra"
@@ -78,6 +79,24 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 2.00
       usd_per1m_output_tokens: 10.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # Pricing and transport: developers.openai.com/api/docs/models/gpt-6.1-terra
+  # (2026-11-09).
+  - name: "gpt61terra"
+    model_id: "gpt-6.1-terra"
+    api_format: "RESPONSES"
+    display_name: "GPT-6.1 Terra"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 1.00
+      usd_per1m_output_tokens: 5.00
     special_handling:
       supports_temperature: false
       supports_top_p: false
@@ -437,18 +456,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 0.40
       usd_per1m_output_tokens: 1.60
-
-  # Deprecated: removed from the API on 2026-10-23 (replacement gpt-5.6-luna).
-  - name: "gpt41nano"
-    model_id: "gpt-4.1-nano"
-    display_name: "GPT-4.1 Nano"
-    max_tokens: 8192
-    temperature: 1.0
-    pricing_model:
-      usd_per1m_input_tokens: 0.10
-      usd_per1m_output_tokens: 0.40
-    special_handling:
-      supports_temperature: false
 
   # ========================================
   # GPT-4o FAMILY (retained for audio support only)
