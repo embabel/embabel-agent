@@ -1452,8 +1452,8 @@ Cache reads and writes count as input tokens: `Usage.promptTokens` includes them
 Token totals, cost and early-termination budgets therefore include cached input.
 Bundled Anthropic models carry Anthropic's published cache-read and 5-minute cache-write rates.
 An Anthropic model whose `pricing_model` sets no cache rates prices cache reads at its input rate, so cost is never under-stated, and cache writes at 125% of it, the 5-minute rate.
-Other models, including Bedrock and factory-built ones, price both at the input rate unless their `pricing_model` sets them.
-Override either rate in the model's `pricing_model` with `usd_per1m_cache_read_input_tokens` or `usd_per1m_cache_write_input_tokens`, for example when using the 1-hour cache TTL.
+Other models price both at the input rate.
+Anthropic and Bedrock models can override either rate in their `pricing_model` with `usd_per1m_cache_read_input_tokens` or `usd_per1m_cache_write_input_tokens`, for example when using the 1-hour cache TTL.
 
 Streaming cache counts depend on the provider's Spring AI adapter.
 Spring AI's Anthropic streaming adapter takes cache counts only from the final `message_delta` event, whose usage Anthropic's API schema defines as cumulative.
