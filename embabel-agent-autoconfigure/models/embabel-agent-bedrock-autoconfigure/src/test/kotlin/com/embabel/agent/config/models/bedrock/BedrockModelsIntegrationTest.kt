@@ -155,17 +155,31 @@ class BedrockModelsIntegrationTest {
     }
 
     @Test
-    fun `configured cache rates reach the registered model`() {
+    fun `Claude cache writes default to Anthropic rate while configured and non-Claude rates are preserved`() {
         val beanFactory = DefaultListableBeanFactory()
-        val model = BedrockModelDefinition(
-            name = "cached",
-            modelId = EU_ANTHROPIC_CLAUDE_SONNET_4,
-            region = "eu",
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = 3.0,
-                usdPer1mOutputTokens = 15.0,
-                usdPer1mCacheReadInputTokens = 0.3,
-                usdPer1mCacheWriteInputTokens = 3.75,
+        val models = listOf(
+            BedrockModelDefinition(
+                name = "cached",
+                modelId = EU_ANTHROPIC_CLAUDE_SONNET_4,
+                region = "eu",
+                pricingModel = PerTokenPricingModel(
+                    usdPer1mInputTokens = 3.0,
+                    usdPer1mOutputTokens = 15.0,
+                    usdPer1mCacheReadInputTokens = 0.3,
+                    usdPer1mCacheWriteInputTokens = 4.25,
+                ),
+            ),
+            BedrockModelDefinition(
+                name = "claude-defaults",
+                modelId = "us.anthropic.claude-sonnet-4-20250514-v1:0",
+                region = "us",
+                pricingModel = PerTokenPricingModel(3.0, 15.0),
+            ),
+            BedrockModelDefinition(
+                name = "other-defaults",
+                modelId = "eu.amazon.nova-pro-v1:0",
+                region = "eu",
+                pricingModel = PerTokenPricingModel(3.0, 15.0),
             ),
         )
         BedrockModelsConfig(
@@ -181,13 +195,21 @@ class BedrockModelsIntegrationTest {
             bedrockTitanEmbeddingProperties = applicationContext.getBean(BedrockTitanEmbeddingProperties::class.java),
             configurableBeanFactory = beanFactory,
             modelLoader = object : LlmAutoConfigMetadataLoader<BedrockModelDefinitions> {
-                override fun loadAutoConfigMetadata() = BedrockModelDefinitions(models = listOf(model))
+                override fun loadAutoConfigMetadata() = BedrockModelDefinitions(models = models)
             },
         ).bedrockModelsInitializer()
 
-        val pricing = (beanFactory.getBean("bedrockModel-cached") as SpringAiLlmService).pricingModel!!
-        assertEquals(0.3, pricing.usdPerCacheReadInputToken() * ONE_MILLION, 1e-9)
-        assertEquals(3.75, pricing.usdPerCacheWriteInputToken() * ONE_MILLION, 1e-9)
+        val configured = (beanFactory.getBean("bedrockModel-cached") as SpringAiLlmService).pricingModel!!
+        assertEquals(0.3, configured.usdPerCacheReadInputToken() * ONE_MILLION, 1e-9)
+        assertEquals(4.25, configured.usdPerCacheWriteInputToken() * ONE_MILLION, 1e-9)
+
+        val claudeDefaults = (beanFactory.getBean("bedrockModel-claude-defaults") as SpringAiLlmService).pricingModel!!
+        assertEquals(3.0, claudeDefaults.usdPerCacheReadInputToken() * ONE_MILLION, 1e-9)
+        assertEquals(3.75, claudeDefaults.usdPerCacheWriteInputToken() * ONE_MILLION, 1e-9)
+
+        val otherDefaults = (beanFactory.getBean("bedrockModel-other-defaults") as SpringAiLlmService).pricingModel!!
+        assertEquals(3.0, otherDefaults.usdPerCacheReadInputToken() * ONE_MILLION, 1e-9)
+        assertEquals(3.0, otherDefaults.usdPerCacheWriteInputToken() * ONE_MILLION, 1e-9)
     }
 
     @Test

@@ -30,7 +30,7 @@ import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConf
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.withAnthropicCacheRateDefaults
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.anthropic.AnthropicChatModel
@@ -190,18 +190,8 @@ class AnthropicModelsConfig(
             optionsConverter = AnthropicOptionsConverter,
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            // Without a configured cache rate, reads are priced at the input rate, which never
-            // under-charges: Anthropic cache reads cost at most 0.1x input, varying by model.
-            // ponytail: unconfigured writes priced at the 5-minute TTL rate of 1.25x input; 1-hour TTL
-            // writes cost 2x input, configure usd_per1m_cache_write_input_tokens if a deployment uses them.
-            pricingModel = modelDef.pricingModel?.let {
-                PerTokenPricingModel(
-                    usdPer1mInputTokens = it.usdPer1mInputTokens,
-                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
-                    usdPer1mCacheReadInputTokens = it.usdPer1mCacheReadInputTokens,
-                    usdPer1mCacheWriteInputTokens = it.usdPer1mCacheWriteInputTokens ?: (it.usdPer1mInputTokens * 1.25),
-                )
-            },
+            // Unconfigured writes use the 5-minute TTL rate; configure a cache-write rate for 1-hour TTLs.
+            pricingModel = modelDef.pricingModel?.withAnthropicCacheRateDefaults(),
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             nativeSupport = modelDef.nativeSupport,

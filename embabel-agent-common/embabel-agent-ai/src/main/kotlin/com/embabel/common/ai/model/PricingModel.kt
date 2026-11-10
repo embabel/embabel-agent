@@ -106,3 +106,12 @@ class PerTokenPricingModel @JvmOverloads constructor(
     override fun usdPerCacheWriteInputToken(): Double =
         usdPer1mCacheWriteInputTokens?.let { it / ONE_MILLION } ?: usdPerInputToken()
 }
+
+/** Uses Anthropic's input-rate read fallback and 1.25x input-rate write fallback. */
+fun PerTokenPricingModel.withAnthropicCacheRateDefaults(): PerTokenPricingModel =
+    PerTokenPricingModel(
+        usdPer1mInputTokens = usdPer1mInputTokens,
+        usdPer1mOutputTokens = usdPer1mOutputTokens,
+        usdPer1mCacheReadInputTokens = usdPer1mCacheReadInputTokens,
+        usdPer1mCacheWriteInputTokens = usdPer1mCacheWriteInputTokens ?: (usdPer1mInputTokens * 1.25),
+    )

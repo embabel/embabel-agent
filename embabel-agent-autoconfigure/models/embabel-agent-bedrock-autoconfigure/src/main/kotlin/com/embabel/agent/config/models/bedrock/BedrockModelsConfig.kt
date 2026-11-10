@@ -187,7 +187,9 @@ class BedrockModelsConfig(
             provider = PROVIDER,
             optionsConverter = BedrockOptionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            pricingModel = modelDef.pricingModel,
+            pricingModel = modelDef.pricingModel?.let { pricing ->
+                if (modelDef.modelId.contains("anthropic.claude-")) pricing.withAnthropicCacheRateDefaults() else pricing
+            },
             // Converse reports inputTokens excluding cacheReadInputTokens and cacheWriteInputTokens
             promptTokensExcludeCache = true,
         )
