@@ -125,14 +125,14 @@ class AutonomyA2ARequestHandler(
                     )
                 )
                 .build()
-            taskStateManager.recordEvent(taskId, task)
+            streamingHandler.publishTaskEvent(taskId, task)
 
             val jSONRPCResponse = request.successResponseWith(result = task)
             logger.info("Handled message send request, response={}", jSONRPCResponse)
             return jSONRPCResponse
         } catch (e: Exception) {
             logger.error("Error handling message send request", e)
-            taskStateManager.recordEvent(
+            streamingHandler.publishTaskEvent(
                 taskId,
                 Task.Builder()
                     .id(taskId)

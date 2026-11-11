@@ -126,6 +126,34 @@ class AutonomyA2ARequestHandlerTest {
     }
 
     @Nested
+    inner class MessageSendResubscribe {
+
+        @Test
+        fun `resubscriber receives the result of a running message send task`() {
+            blockAgent()
+            Thread.startVirtualThread { handler.handleJsonRpc(sendMessage("task-1", "hello")) }
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf("completed"), resubscriber.awaitClosed().states())
+        }
+
+        @Test
+        fun `resubscriber receives the failure of a running message send task`() {
+            blockAgent { throw IllegalStateException("boom") }
+            Thread.startVirtualThread { handler.handleJsonRpc(sendMessage("task-1", "hello")) }
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf("failed"), resubscriber.awaitClosed().states())
+        }
+    }
+
+    @Nested
     inner class TasksGet {
 
         @Test
@@ -257,17 +285,6 @@ class AutonomyA2ARequestHandlerTest {
             assertEquals(completedAt, taskStateManager.getTaskInfo("task-1")!!.completedAt)
         }
 
-        private val agentStarted = CountDownLatch(1)
-        private val finishAgent = CountDownLatch(1)
-
-        private fun blockAgent() {
-            every { autonomy.chooseAndRunAgent(any(), any()) } answers {
-                agentStarted.countDown()
-                check(finishAgent.await(10, TimeUnit.SECONDS)) { "Agent was not released" }
-                execution("done")
-            }
-        }
-
         private fun startStream(handler: AutonomyA2ARequestHandler, taskId: String): SseCapture {
             val capture = SseCapture(
                 handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params(taskId, "hello")))
@@ -275,9 +292,6 @@ class AutonomyA2ARequestHandlerTest {
             assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
             return capture
         }
-
-        private fun resubscribe(handler: AutonomyA2ARequestHandler, taskId: String) =
-            SseCapture(handler.handleJsonRpcStream(TaskResubscriptionRequest("req-2", TaskIdParams(taskId))))
 
         private fun awaitFinalState(taskStateManager: TaskStateManager, taskId: String, timeout: Duration) {
             val deadline = Instant.now().plus(timeout)
@@ -298,6 +312,20 @@ class AutonomyA2ARequestHandlerTest {
             return statusUpdates(taskId)
         }
     }
+
+    private val agentStarted = CountDownLatch(1)
+    private val finishAgent = CountDownLatch(1)
+
+    private fun blockAgent(result: () -> AgentProcessExecution = { execution("done") }) {
+        every { autonomy.chooseAndRunAgent(any(), any()) } answers {
+            agentStarted.countDown()
+            check(finishAgent.await(10, TimeUnit.SECONDS)) { "Agent was not released" }
+            result()
+        }
+    }
+
+    private fun resubscribe(handler: AutonomyA2ARequestHandler, taskId: String) =
+        SseCapture(handler.handleJsonRpcStream(TaskResubscriptionRequest("req-2", TaskIdParams(taskId))))
 
     private fun execution(output: Any): AgentProcessExecution =
         mockk<AgentProcessExecution> { every { this@mockk.output } returns output }
