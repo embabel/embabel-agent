@@ -615,7 +615,7 @@ embabel:
         openai:
           model: gpt-4.1-nano       # <1>
         anthropic:
-          model: claude-haiku-4-5
+          model: claude-haiku-5-5
           temperature: 0.3          # <2>
       best:
         openai:
@@ -686,7 +686,7 @@ embabel:
         openai:
           model: gpt-4.1-nano
         anthropic:
-          model: claude-haiku-4-5
+          model: claude-haiku-5-5
 ----
 <1> A role from `roles` or from the flat `llms` map, not a model name
 

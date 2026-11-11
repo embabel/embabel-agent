@@ -250,7 +250,8 @@ Set it for a role in configuration, for example `embabel.models.roles.best.anthr
 A caller that chooses its own thinking, such as `withoutThinking()` or a token budget, does not inherit the role's effort; a caller's own effort always applies.
 Extraction-only thinking, such as `Thinking.withExtraction()` or `PromptRunner.thinking()`, chooses neither, so it inherits the role's effort.
 So does thinking configured or stored as `enabled: false` with `extract-thinking: true` and no token budget.
-To turn thinking off and still extract, add `opt-out: true`. Readers that reject unknown JSON properties need this version before they read such settings.
+Every `LlmOptions` JSON now includes `"reasoningEffort":null`, so readers that reject unknown JSON properties need this version before reading it.
+To turn thinking off and still extract, add `opt-out: true`.
 
 [cols="1,3"]
 |===
@@ -260,7 +261,7 @@ To turn thinking off and still extract, add `opt-out: true`. Readers that reject
 | `reasoning.effort` on the Responses API. On Chat Completions, `reasoning_effort` is sent only to OpenAI's own endpoint and to compatible providers that opt in. A model rejects a level it does not offer. `withOpenAiReasoningEffort` takes precedence when both are set.
 
 | Anthropic
-| `LOW` to `MAX` as `output_config.effort`, with thinking left at the model's default unless the caller set thinking. The effort takes precedence over the effort a `Thinking.withTokenBudget` budget maps to. A model rejects a level it does not offer; see https://platform.claude.com/docs/en/build-with-claude/effort[Anthropic's effort levels]. `NONE` disables thinking on models whose catalog entry declares `thinking.can_be_disabled: true` in `anthropic-models.yml`, and fails with `UnsupportedOperationException` on any other model.
+| `LOW` to `MAX` as `output_config.effort`, with thinking left at the model's default unless the caller set thinking. The effort takes precedence over the effort a `Thinking.withTokenBudget` budget maps to. Embabel omits effort for models that do not support the parameter; Anthropic rejects a level the model does not offer. See https://platform.claude.com/docs/en/build-with-claude/effort[Anthropic's effort levels]. `NONE` disables thinking on models whose catalog entry declares `thinking.can_be_disabled: true` in `anthropic-models.yml`, and fails with `UnsupportedOperationException` on any other model.
 
 | Others
 | Ignored.

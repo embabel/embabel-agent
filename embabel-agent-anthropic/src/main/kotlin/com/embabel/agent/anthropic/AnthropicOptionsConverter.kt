@@ -63,8 +63,12 @@ object AnthropicOptionsConverter : OptionsConverter {
             else -> caps.resolveThinking(budget)
         }
         // An explicit effort wins over the effort a budget maps to.
-        val outputEffort = effort?.takeIf { it != ReasoningEffort.NONE }?.let { OutputConfig.Effort.of(it.value) }
-            ?: (thinkingModeDecision as? ThinkingMode.Adaptive)?.effort
+        val outputEffort = if (ClaudeCapabilities.supportsEffort(model)) {
+            effort?.takeIf { it != ReasoningEffort.NONE }?.let { OutputConfig.Effort.of(it.value) }
+                ?: (thinkingModeDecision as? ThinkingMode.Adaptive)?.effort
+        } else {
+            null
+        }
         if (!caps.acceptsSampling) {
             ClaudeCapabilities.warnAboutIgnoredSampling(model, options.temperature, options.topP, options.topK)
         }

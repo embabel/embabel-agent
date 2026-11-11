@@ -634,6 +634,15 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
 
         @Test
+        fun `sonnet and haiku 4-5 omit unsupported output_config effort`() {
+            for (model in listOf(AnthropicModels.CLAUDE_SONNET_4_5, AnthropicModels.CLAUDE_HAIKU_4_5)) {
+                captured.clear()
+                val body = send(model, LlmOptions.withModel(model).withReasoningEffort(ReasoningEffort.LOW))
+                assertFalse(body.has("output_config"), "$model does not support effort")
+            }
+        }
+
+        @Test
         fun `claude-haiku-5-5 sends none as disabled thinking without an effort where the catalog declares it`() {
             val body = send(
                 AnthropicModels.CLAUDE_HAIKU_5_5,
