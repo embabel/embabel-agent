@@ -390,6 +390,29 @@ class AnthropicModelLoaderTest {
         assertNotNull(model.pricingModel)
         assertEquals(10.0, model.pricingModel?.usdPer1mInputTokens)
         assertEquals(20.0, model.pricingModel?.usdPer1mOutputTokens)
+        assertNull(model.pricingModel?.usdPer1mCacheReadInputTokens)
+    }
+
+    @Test
+    fun `should load prompt-cache pricing`() {
+        val tempYaml = createTempYamlFile("""
+            models:
+              - name: test-model
+                model_id: claude-test
+                pricing_model:
+                  usd_per1m_input_tokens: 10.0
+                  usd_per1m_output_tokens: 20.0
+                  usd_per1m_cache_read_input_tokens: 1.0
+                  usd_per1m_cache_write_input_tokens: 20.0
+        """.trimIndent())
+
+        val pricing = AnthropicModelLoader(
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
+        ).loadAutoConfigMetadata().models.single().pricingModel
+
+        assertEquals(1.0, pricing?.usdPer1mCacheReadInputTokens)
+        assertEquals(20.0, pricing?.usdPer1mCacheWriteInputTokens)
     }
 
     @Test

@@ -30,7 +30,7 @@ import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConf
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.withAnthropicCacheRateDefaults
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.anthropic.AnthropicChatModel
@@ -190,15 +190,12 @@ class AnthropicModelsConfig(
             optionsConverter = AnthropicOptionsConverter,
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            pricingModel = modelDef.pricingModel?.let {
-                PerTokenPricingModel(
-                    usdPer1mInputTokens = it.usdPer1mInputTokens,
-                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
-                )
-            },
+            // Unconfigured writes use the 5-minute TTL rate; configure a cache-write rate for 1-hour TTLs.
+            pricingModel = modelDef.pricingModel?.withAnthropicCacheRateDefaults(),
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             nativeSupport = modelDef.nativeSupport,
+            promptTokensExcludeCache = true,
         )
     }
 

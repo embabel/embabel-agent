@@ -55,11 +55,8 @@ interface LlmInvocationHistory {
      * Cost will correctly reflect this.
      * Look in the list for more details about what tokens were spent where.
      */
-    fun usage(): Usage {
-        val promptTokens = llmInvocations.sumOf { it.usage.promptTokens ?: 0 }
-        val completionTokens = llmInvocations.sumOf { it.usage.completionTokens ?: 0 }
-        return Usage(promptTokens, completionTokens, null)
-    }
+    fun usage(): Usage =
+        llmInvocations.fold(Usage(0, 0, null)) { total, invocation -> total + invocation.usage }
 
     /** Total LLM call count. Default = own; overridable for subtree aggregation. */
     fun llmInvocationCount(): Int = llmInvocations.size
@@ -95,6 +92,10 @@ data class LlmInvocation(
         DefaultUsage(
             usage.promptTokens ?: 0,
             usage.completionTokens ?: 0,
+            (usage.promptTokens ?: 0) + (usage.completionTokens ?: 0),
+            null,
+            usage.cacheReadInputTokens?.toLong(),
+            usage.cacheWriteInputTokens?.toLong(),
         )
     ) ?: 0.0
 }

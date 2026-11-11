@@ -76,6 +76,22 @@ class UsageTest {
     inner class PlusOperatorTest {
 
         @Test
+        fun `plus sums cache tokens`() {
+            val result = Usage(100, 50, null, 10, 5) + Usage(200, 75, null, 20, null)
+
+            assertEquals(30, result.cacheReadInputTokens)
+            assertEquals(5, result.cacheWriteInputTokens)
+        }
+
+        @Test
+        fun `plus keeps absent cache tokens null`() {
+            val result = Usage(100, 50, null) + Usage(200, 75, null)
+
+            assertNull(result.cacheReadInputTokens)
+            assertNull(result.cacheWriteInputTokens)
+        }
+
+        @Test
         fun `plus combines two Usage instances`() {
             val usage1 = Usage(100, 50, null)
             val usage2 = Usage(200, 75, null)
