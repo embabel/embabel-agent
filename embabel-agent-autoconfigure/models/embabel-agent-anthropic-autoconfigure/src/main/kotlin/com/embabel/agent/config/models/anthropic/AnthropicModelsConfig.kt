@@ -187,7 +187,8 @@ class AnthropicModelsConfig(
             name = modelDef.modelId,
             chatModel = chatModel,
             provider = AnthropicModels.PROVIDER,
-            optionsConverter = AnthropicOptionsConverter,
+            optionsConverter = modelDef.thinking?.canBeDisabled?.let { AnthropicOptionsConverter.declaring(it) }
+                ?: AnthropicOptionsConverter,
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             // Unconfigured writes use the 5-minute TTL rate; configure a cache-write rate for 1-hour TTLs.

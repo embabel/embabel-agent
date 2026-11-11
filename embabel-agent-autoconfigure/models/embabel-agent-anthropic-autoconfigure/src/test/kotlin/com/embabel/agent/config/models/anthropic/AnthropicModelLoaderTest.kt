@@ -516,6 +516,14 @@ class AnthropicModelLoaderTest {
         assertNull(model.pricingModel)
     }
 
+    @Test
+    fun `every catalog model declares whether thinking can be turned off`() {
+        val models = AnthropicModelLoader().loadAutoConfigMetadata().models
+        models.forEach { assertNotNull(it.thinking?.canBeDisabled, it.modelId) }
+        assertEquals(true, models.single { it.modelId == AnthropicModels.CLAUDE_HAIKU_5_5 }.thinking?.canBeDisabled)
+        assertEquals(false, models.single { it.modelId == AnthropicModels.CLAUDE_OPUS_5_5 }.thinking?.canBeDisabled)
+    }
+
     private data class TempYamlResource(
         val resourceLoader: ResourceLoader,
         val configPath: String,
