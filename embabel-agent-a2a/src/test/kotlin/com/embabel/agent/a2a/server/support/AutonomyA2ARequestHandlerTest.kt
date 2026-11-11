@@ -32,23 +32,30 @@ import io.a2a.spec.TaskIdParams
 import io.a2a.spec.TaskNotCancelableError
 import io.a2a.spec.TaskNotFoundError
 import io.a2a.spec.TaskQueryParams
+import io.a2a.spec.TaskResubscriptionRequest
 import io.a2a.spec.TaskState
 import io.a2a.spec.TaskStatusUpdateEvent
 import io.a2a.spec.TextPart
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.spyk
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AutonomyA2ARequestHandlerTest {
 
     private val autonomy = mockk<Autonomy>(relaxed = true)
     private val taskStateManager = TaskStateManager()
-    private val handler = AutonomyA2ARequestHandler(
+    private val handler = handlerWith(taskStateManager)
+
+    private fun handlerWith(taskStateManager: TaskStateManager) = AutonomyA2ARequestHandler(
         autonomy = autonomy,
         agenticEventListener = mockk<AgenticEventListener>(relaxed = true),
         streamingHandler = A2AStreamingHandler(EmbabelObjectMapperHolder.createDefault(), taskStateManager),
@@ -189,6 +196,94 @@ class AutonomyA2ARequestHandlerTest {
             awaitStatusUpdates("task-1")
 
             assertEquals("first\nsecond", intent.captured)
+        }
+
+        @Test
+        fun `resubscriber receives the final event when the agent finishes`() {
+            blockAgent()
+            val original = startStream(handler, "task-1")
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf("working", "working", "completed"), resubscriber.awaitClosed().states())
+            assertEquals(listOf("working", "working", "completed"), original.awaitClosed().states())
+        }
+
+        @Test
+        fun `resubscriber receives the final event when the agent finishes during the replay`() {
+            val spiedTaskStateManager = spyk(TaskStateManager())
+            val racingHandler = handlerWith(spiedTaskStateManager)
+            blockAgent()
+            startStream(racingHandler, "task-1")
+            val firstCheck = AtomicBoolean(true)
+            every { spiedTaskStateManager.isTaskActive("task-1") } answers {
+                if (firstCheck.getAndSet(false)) {
+                    finishAgent.countDown()
+                    awaitFinalState(spiedTaskStateManager, "task-1", Duration.ofMillis(200))
+                }
+                callOriginal()
+            }
+
+            val resubscriber = resubscribe(racingHandler, "task-1")
+
+            assertEquals(listOf("working", "working", "completed"), resubscriber.awaitClosed().states())
+        }
+
+        @Test
+        fun `task completes and can be replayed when the client disconnects before the agent finishes`() {
+            blockAgent()
+            startStream(handler, "task-1").disconnect()
+
+            finishAgent.countDown()
+
+            assertEquals(TaskState.COMPLETED, awaitStatusUpdates("task-1").last().status.state)
+            assertNotNull(taskStateManager.getTaskInfo("task-1")!!.completedAt)
+            assertEquals(listOf("working", "working", "completed"), resubscribe(handler, "task-1").awaitClosed().states())
+        }
+
+        @Test
+        fun `replaying a finished task repeatedly leaves its history and retention unchanged`() {
+            every { autonomy.chooseAndRunAgent(any(), any()) } returns execution("done")
+            handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params("task-1", "hello")))
+            val events = awaitStatusUpdates("task-1")
+            val completedAt = taskStateManager.getTaskInfo("task-1")!!.completedAt
+
+            repeat(2) {
+                assertEquals(listOf("working", "working", "completed"), resubscribe(handler, "task-1").awaitClosed().states())
+            }
+
+            assertEquals(events, statusUpdates("task-1"))
+            assertEquals(completedAt, taskStateManager.getTaskInfo("task-1")!!.completedAt)
+        }
+
+        private val agentStarted = CountDownLatch(1)
+        private val finishAgent = CountDownLatch(1)
+
+        private fun blockAgent() {
+            every { autonomy.chooseAndRunAgent(any(), any()) } answers {
+                agentStarted.countDown()
+                check(finishAgent.await(10, TimeUnit.SECONDS)) { "Agent was not released" }
+                execution("done")
+            }
+        }
+
+        private fun startStream(handler: AutonomyA2ARequestHandler, taskId: String): SseCapture {
+            val capture = SseCapture(
+                handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params(taskId, "hello")))
+            )
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            return capture
+        }
+
+        private fun resubscribe(handler: AutonomyA2ARequestHandler, taskId: String) =
+            SseCapture(handler.handleJsonRpcStream(TaskResubscriptionRequest("req-2", TaskIdParams(taskId))))
+
+        private fun awaitFinalState(taskStateManager: TaskStateManager, taskId: String, timeout: Duration) {
+            val deadline = Instant.now().plus(timeout)
+            while (taskStateManager.getTaskInfo(taskId)?.currentState?.isFinal != true && Instant.now().isBefore(deadline)) {
+                Thread.sleep(10)
+            }
         }
 
         private fun statusUpdates(taskId: String): List<TaskStatusUpdateEvent> =

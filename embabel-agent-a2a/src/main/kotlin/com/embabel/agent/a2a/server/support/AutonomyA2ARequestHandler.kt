@@ -156,26 +156,24 @@ class AutonomyA2ARequestHandler(
         Thread.startVirtualThread {
             try {
                 // Send initial status event
-                streamingHandler.sendStreamEvent(
-                    streamId,
+                streamingHandler.publishTaskEvent(
+                    taskId,
                     TaskStatusUpdateEvent.Builder()
                         .taskId(taskId)
                         .contextId(contextId)
                         .status(createWorkingTaskStatus(params, "Task started..."))
                         .build(),
-                    taskId
                 )
 
                 val intent = intentOf(params.message).ifEmpty { "Task $taskId" }
 
-                streamingHandler.sendStreamEvent(
-                    streamId,
+                streamingHandler.publishTaskEvent(
+                    taskId,
                     TaskStatusUpdateEvent.Builder()
                         .taskId(taskId)
                         .contextId(contextId)
                         .status(createWorkingTaskStatus(params, "Processing task..."))
                         .build(),
-                    taskId
                 )
 
                 // Execute the task using autonomy service
@@ -191,28 +189,26 @@ class AutonomyA2ARequestHandler(
                 // Send FINAL status update with content
                 // Per A2A spec: final status-update with final=true is sufficient for completion
                 // Task objects in streaming should only appear at the beginning, not at the end
-                streamingHandler.sendStreamEvent(
-                    streamId,
+                streamingHandler.publishTaskEvent(
+                    taskId,
                     TaskStatusUpdateEvent.Builder()
                         .taskId(taskId)
                         .contextId(contextId)
                         .status(createCompletedTaskStatus(params, statusMessage))
                         .isFinal(true)
                         .build(),
-                    taskId
                 )
             } catch (e: Exception) {
                 logger.error("Streaming error", e)
                 try {
-                    streamingHandler.sendStreamEvent(
-                        streamId,
+                    streamingHandler.publishTaskEvent(
+                        taskId,
                         TaskStatusUpdateEvent.Builder()
                             .taskId(taskId)
                             .contextId(contextId)
                             .status(createFailedTaskStatus(params, e))
                             .isFinal(true)
                             .build(),
-                        taskId
                     )
                 } catch (sendError: Exception) {
                     logger.error("Error sending error event", sendError)
