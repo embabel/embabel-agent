@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.support.Dog
+import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.JacksonOutputConverter
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -156,6 +157,7 @@ class SuppressThinkingConverterTest {
         fun `identical repeated blocks containing braces do not hide the object`() {
             val converter = SuppressThinkingConverter(JacksonOutputConverter(Dog::class.java, jacksonObjectMapper()))
             val result = converter.convert("""<think>x } y</think>{"name": "Rex"}<think>x } y</think>""")
+            // Expected: both copies of the block are removed, leaving {"name": "Rex"}
             assertNotNull(result!!)
             assertEquals("Rex", result.name)
         }
@@ -171,21 +173,41 @@ class SuppressThinkingConverterTest {
         }
     }
 
+    /**
+     * The text removed around the object also appears inside a JSON value.
+     * Removing it everywhere damaged the value; it must be removed only outside the object.
+     */
     @Nested
-    inner class ThinkingTextInValues {
+    inner class ValuesContainingTheRemovedText {
 
         private val converter = SuppressThinkingConverter(JacksonOutputConverter(Dog::class.java, jacksonObjectMapper()))
 
         @Test
         fun `a space after the think block is not removed from values`() {
             val result = converter.convert("""<think>I am thinking</think> {"name": "Sir Rex"}""")
+            // Expected: "Sir Rex". Before this change the space was removed everywhere, giving "SirRex"
             assertEquals("Sir Rex", result.name)
         }
 
         @Test
         fun `text after the object is not removed from values`() {
             val result = converter.convert("""{"name": "Rex Jr."}.""")
+            // Expected: "Rex Jr.". Before this change the "." was removed everywhere, giving "Rex Jr"
             assertEquals("Rex Jr.", result.name)
+        }
+
+        @Test
+        fun `a filtering converter keeps the space in values`() {
+            val filtering = SuppressThinkingConverter(
+                FilteringJacksonOutputConverter<Dog>(
+                    clazz = Dog::class.java,
+                    objectMapper = jacksonObjectMapper(),
+                    fieldFilter = { true },
+                ),
+            )
+            val result = filtering.convert("""<think>I am thinking</think> {"name": "Sir Rex"}""")
+            // Expected: "Sir Rex", the same as with JacksonOutputConverter
+            assertEquals("Sir Rex", result.name)
         }
     }
 
@@ -207,6 +229,7 @@ class SuppressThinkingConverterTest {
 
         @Test
         fun `identical repeated blocks are all removed`() {
+            // Expected: every copy of the block is removed, as before this change
             assertEquals("Hello  world ", stringWithoutThinkBlocks("Hello <think>a</think> world <think>a</think>"))
             assertEquals("Answer one", stringWithoutThinkBlocks("<think></think>Answer one<think></think>"))
         }
