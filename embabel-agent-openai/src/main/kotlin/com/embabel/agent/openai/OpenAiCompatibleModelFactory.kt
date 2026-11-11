@@ -186,10 +186,10 @@ open class OpenAiCompatibleModelFactory(
 
         /**
          * Returns a [ByokSpec] for Google Gemini (OpenAI-compatible endpoint).
-         * Validates against [GoogleGenAiModels.GEMINI_2_5_FLASH] by default.
+         * Validates against [GoogleGenAiModels.GEMINI_3_5_FLASH_LITE] by default.
          */
         fun gemini(apiKey: String): ByokSpec =
-            ByokSpec(GEMINI.baseUrl, apiKey, GoogleGenAiModels.GEMINI_2_5_FLASH, GEMINI.provider)
+            ByokSpec(GEMINI.baseUrl, apiKey, GoogleGenAiModels.GEMINI_3_5_FLASH_LITE, GEMINI.provider)
 
         /**
          * Returns a [ByokSpec] for Atlas Cloud (OpenAI-compatible endpoint).

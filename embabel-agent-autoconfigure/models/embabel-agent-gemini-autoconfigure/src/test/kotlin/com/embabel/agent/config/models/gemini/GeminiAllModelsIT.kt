@@ -57,7 +57,7 @@ import java.util.stream.Stream
  */
 @SpringBootTest(
     properties = [
-        "embabel.models.default-llm=gemini-2.5-flash",
+        "embabel.models.default-llm=gemini-3.8-flash",
         "embabel.agent.platform.models.gemini.max-attempts=1",
         "spring.main.allow-bean-definition-overriding=true",
     ]
@@ -155,6 +155,8 @@ class GeminiAllModelsIT(
          * 2026-06-01) and the embedding model is not a chat LLM.
          */
         private val EXPECTED_CHAT_MODELS = listOf(
+            GeminiModels.GEMINI_3_8_FLASH,
+            GeminiModels.GEMINI_3_5_FLASH_LITE,
             GeminiModels.GEMINI_3_5_FLASH,
             GeminiModels.GEMINI_3_1_FLASH_LITE,
             GeminiModels.GEMINI_3_1_PRO_PREVIEW,

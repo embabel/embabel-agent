@@ -2,7 +2,7 @@
 # google-genai-models.yml
 # ============================================
 # Google GenAI (Gemini) models configuration
-# Updated with latest Gemini models as of October 2026
+# Updated with latest Gemini models as of November 2026
 # Using native Spring AI Google GenAI support
 
 models:

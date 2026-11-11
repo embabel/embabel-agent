@@ -59,6 +59,21 @@ class GeminiModelsTest {
     }
 
     @Test
+    @DisplayName("Should provide the models Google reroutes Gemini 2.5 Pro and Flash to")
+    void providesGemini2_5Replacements() {
+        assertEquals("gemini-3.8-flash", GeminiModels.GEMINI_3_8_FLASH);
+        assertEquals("gemini-3.5-flash-lite", GeminiModels.GEMINI_3_5_FLASH_LITE);
+    }
+
+    @Test
+    @DisplayName("Should deprecate Gemini 2.5 Pro and Flash but not Gemini 2.5 Flash Lite")
+    void deprecatesGemini2_5ProAndFlash() throws Exception {
+        assertTrue(GeminiModels.class.getField("GEMINI_2_5_PRO").isAnnotationPresent(Deprecated.class));
+        assertTrue(GeminiModels.class.getField("GEMINI_2_5_FLASH").isAnnotationPresent(Deprecated.class));
+        assertFalse(GeminiModels.class.getField("GEMINI_2_5_FLASH_LITE").isAnnotationPresent(Deprecated.class));
+    }
+
+    @Test
     @DisplayName("Should provide all Gemini 2.0 model constants")
     void providesGemini2_0Models() {
         // Assert
@@ -88,7 +103,7 @@ class GeminiModelsTest {
         // Assert
         assertTrue(GeminiModels.GEMINI_3_1_PRO_PREVIEW.startsWith("gemini-"), 
             "Model names should start with 'gemini-' prefix");
-        assertTrue(GeminiModels.GEMINI_2_5_FLASH.startsWith("gemini-"), 
+        assertTrue(GeminiModels.GEMINI_3_8_FLASH.startsWith("gemini-"), 
             "Model names should start with 'gemini-' prefix");
         assertTrue(GeminiModels.GEMINI_2_0_FLASH.startsWith("gemini-"), 
             "Model names should start with 'gemini-' prefix");

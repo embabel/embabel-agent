@@ -55,7 +55,7 @@ import java.util.stream.Stream
  */
 @SpringBootTest(
     properties = [
-        "embabel.models.default-llm=gemini-2.5-flash",
+        "embabel.models.default-llm=gemini-3.8-flash",
         "embabel.agent.platform.models.googlegenai.max-attempts=1",
         "embabel.agent.platform.models.googlegenai.api-key=\${GOOGLE_API_KEY:\${GEMINI_API_KEY:dummy-key-for-context-loading}}",
         "spring.main.allow-bean-definition-overriding=true",

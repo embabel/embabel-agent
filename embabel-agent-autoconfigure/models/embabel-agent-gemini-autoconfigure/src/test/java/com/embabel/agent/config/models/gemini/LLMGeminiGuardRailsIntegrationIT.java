@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.default-llm=gemini-2.5-flash",
+                "embabel.models.default-llm=gemini-3.8-flash",
                 "embabel.agent.platform.models.gemini.max-attempts=1",
                 "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
                 "spring.main.allow-bean-definition-overriding=true",
