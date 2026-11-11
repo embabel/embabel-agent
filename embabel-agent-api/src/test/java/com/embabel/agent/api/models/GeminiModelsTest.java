@@ -103,7 +103,7 @@ class GeminiModelsTest {
         // Assert
         assertTrue(GeminiModels.GEMINI_3_1_PRO_PREVIEW.startsWith("gemini-"), 
             "Model names should start with 'gemini-' prefix");
-        assertTrue(GeminiModels.GEMINI_3_8_FLASH.startsWith("gemini-"), 
+        assertTrue(GeminiModels.GEMINI_2_5_FLASH.startsWith("gemini-"), 
             "Model names should start with 'gemini-' prefix");
         assertTrue(GeminiModels.GEMINI_2_0_FLASH.startsWith("gemini-"), 
             "Model names should start with 'gemini-' prefix");
