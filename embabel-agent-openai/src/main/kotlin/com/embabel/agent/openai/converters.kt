@@ -183,11 +183,18 @@ class CapabilityAwareOpenAiOptionsConverter(
             }
         }
         if (ignored.isEmpty()) return
-        val dropped = ignored.joinToString(", ")
+        logIgnoredParameters(model, ignored)
+    }
+
+    private fun logIgnoredParameters(model: String, ignored: List<String>) {
         val message = "Model '{}' rejects some sampling parameters, so the following are ignored rather than sent: {}"
         // Keyed by parameter names, not values, so a caller varying a value cannot grow the set.
         val names = ignored.joinToString(",") { it.substringBefore('=') }
-        if (warned.add("$model|$names")) logger.warn(message, model, dropped) else logger.debug(message, model, dropped)
+        if (warned.add("$model|$names")) {
+            if (logger.isWarnEnabled) logger.warn(message, model, ignored.joinToString(", "))
+        } else if (logger.isDebugEnabled) {
+            logger.debug(message, model, ignored.joinToString(", "))
+        }
     }
 
     companion object {
