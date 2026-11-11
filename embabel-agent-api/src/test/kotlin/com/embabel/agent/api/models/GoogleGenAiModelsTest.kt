@@ -17,8 +17,10 @@ package com.embabel.agent.api.models
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberProperties
@@ -33,6 +35,26 @@ class GoogleGenAiModelsTest {
 
         assertNotNull(deprecated, "$constantName should be deprecated")
         assertEquals("GEMINI_EMBEDDING_001", deprecated!!.replaceWith.expression)
+    }
+
+    @ParameterizedTest
+    @CsvSource("GEMINI_2_5_PRO, GEMINI_3_8_FLASH", "GEMINI_2_5_FLASH, GEMINI_3_5_FLASH_LITE")
+    fun `deprecated Gemini 2_5 model should point to the model Google reroutes to`(
+        constantName: String,
+        replacement: String,
+    ) {
+        val property = GoogleGenAiModels.Companion::class.memberProperties.single { it.name == constantName }
+        val deprecated = property.findAnnotation<Deprecated>()
+
+        assertNotNull(deprecated, "$constantName should be deprecated")
+        assertEquals(replacement, deprecated!!.replaceWith.expression)
+    }
+
+    @Test
+    fun `gemini-2_5-flash-lite should not be deprecated`() {
+        val property = GoogleGenAiModels.Companion::class.memberProperties.single { it.name == "GEMINI_2_5_FLASH_LITE" }
+
+        assertNull(property.findAnnotation<Deprecated>())
     }
 
     @Test

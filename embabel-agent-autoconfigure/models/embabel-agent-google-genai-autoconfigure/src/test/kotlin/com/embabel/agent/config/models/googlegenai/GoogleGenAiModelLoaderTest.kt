@@ -18,6 +18,8 @@ package com.embabel.agent.config.models.googlegenai
 import com.embabel.agent.api.models.GoogleGenAiModels
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.core.io.DefaultResourceLoader
 import java.io.File
 import java.nio.file.Files
@@ -105,6 +107,7 @@ class GoogleGenAiModelLoaderTest {
 
         val modelIds = result.models.map { it.modelId }
         listOf(
+            GoogleGenAiModels.GEMINI_4_CARBON,
             GoogleGenAiModels.GEMINI_4_ARGON,
             GoogleGenAiModels.GEMINI_3_8_FLASH,
             GoogleGenAiModels.GEMINI_3_6_FLASH,
@@ -114,6 +117,16 @@ class GoogleGenAiModelLoaderTest {
             GoogleGenAiModels.GEMINI_EMBEDDING_2 in result.embeddingModels.map { it.modelId },
             "Missing embedding model ${GoogleGenAiModels.GEMINI_EMBEDDING_2}",
         )
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = [GoogleGenAiModels.GEMINI_4_CARBON, GoogleGenAiModels.GEMINI_4_ARGON])
+    fun `Gemini 4 model should have its introductory price`(modelId: String) {
+        val model = GoogleGenAiModelLoader().loadAutoConfigMetadata().models.single { it.modelId == modelId }
+
+        assertNotNull(model.pricingModel, "$modelId should have a price")
+        assertEquals(2.0, model.pricingModel?.usdPer1mInputTokens)
+        assertEquals(10.0, model.pricingModel?.usdPer1mOutputTokens)
     }
 
     @Test
@@ -407,7 +420,7 @@ class GoogleGenAiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 13 expected Google GenAI models`() {
+    fun `should load all 14 expected Google GenAI models`() {
 
         // Arrange
         val loader = GoogleGenAiModelLoader()
@@ -416,10 +429,10 @@ class GoogleGenAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(13, result.models.size, "Should load exactly 13 Google GenAI models")
+        assertEquals(14, result.models.size, "Should load exactly 14 Google GenAI models")
 
         val expectedModels = listOf(
-            "gemini_4_argon", "gemini_3_8_flash", "gemini_3_6_flash", "gemini_3_5_flash_lite",
+            "gemini_4_carbon", "gemini_4_argon", "gemini_3_8_flash", "gemini_3_6_flash", "gemini_3_5_flash_lite",
             "gemini_3_1_pro_preview", "gemini_3_1_pro_preview_customtools",
             "gemini_3_flash_preview", "gemini_3_1_flash_lite_preview", "gemini_25_pro", "gemini_25_flash",
             "gemini_25_flash_lite",

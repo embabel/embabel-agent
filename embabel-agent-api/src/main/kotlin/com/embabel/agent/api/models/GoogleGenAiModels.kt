@@ -26,6 +26,7 @@ class GoogleGenAiModels {
     companion object {
 
         // Gemini 4 Family (Latest Generation - Stable)
+        const val GEMINI_4_CARBON = "gemini-4-carbon"
         const val GEMINI_4_ARGON = "gemini-4-argon"
 
         // Gemini 3.8 / 3.6 Family (Stable)
@@ -58,7 +59,16 @@ class GoogleGenAiModels {
         const val GEMINI_3_1_FLASH_LITE_PREVIEW = "gemini-3.1-flash-lite-preview"
 
         // Gemini 2.5 Family (Stable - Current Generation)
+        @Deprecated(
+            message = "gemini-2.5-pro is deprecated by Google and shuts down on 2026-12-01. Requests are then rerouted to gemini-3.8-flash. Use GEMINI_3_8_FLASH.",
+            replaceWith = ReplaceWith("GEMINI_3_8_FLASH"),
+        )
         const val GEMINI_2_5_PRO = "gemini-2.5-pro"
+
+        @Deprecated(
+            message = "gemini-2.5-flash is deprecated by Google and shuts down on 2026-12-01. Requests are then rerouted to gemini-3.5-flash-lite. Use GEMINI_3_5_FLASH_LITE.",
+            replaceWith = ReplaceWith("GEMINI_3_5_FLASH_LITE"),
+        )
         const val GEMINI_2_5_FLASH = "gemini-2.5-flash"
         const val GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
 

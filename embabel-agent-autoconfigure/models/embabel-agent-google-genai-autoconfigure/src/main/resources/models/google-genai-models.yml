@@ -10,12 +10,27 @@ models:
   # GEMINI 4 FAMILY (Latest Generation - Stable)
   # ========================================
 
-  # Gemini 4 Argon - Pricing not yet published by Google
+  # Gemini 4 Carbon - Introductory price
+  # Price rises to $4.00 / $20.00 on 2026-12-01
+  - name: "gemini_4_carbon"
+    model_id: "gemini-4-carbon"
+    display_name: "Gemini 4 Carbon"
+    max_output_tokens: 32768
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 10.00
+
+  # Gemini 4 Argon - Introductory price
+  # Price rises to $4.00 / $20.00 on 2026-12-01
   - name: "gemini_4_argon"
     model_id: "gemini-4-argon"
     display_name: "Gemini 4 Argon"
     max_output_tokens: 32768
     temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 10.00
 
   # ========================================
   # GEMINI 3.8 / 3.6 FAMILY (Stable)
@@ -139,6 +154,7 @@ models:
   # ========================================
 
   # Gemini 2.5 Pro - High-performance model with thinking
+  # DEPRECATED by Google: shuts down on 2026-12-01, use gemini-3.8-flash
   - name: "gemini_25_pro"
     model_id: "gemini-2.5-pro"
     display_name: "Gemini 2.5 Pro"
@@ -150,6 +166,7 @@ models:
       usd_per1m_output_tokens: 10.00
 
   # Gemini 2.5 Flash - Best price-performance model
+  # DEPRECATED by Google: shuts down on 2026-12-01, use gemini-3.5-flash-lite
   - name: "gemini_25_flash"
     model_id: "gemini-2.5-flash"
     display_name: "Gemini 2.5 Flash"
