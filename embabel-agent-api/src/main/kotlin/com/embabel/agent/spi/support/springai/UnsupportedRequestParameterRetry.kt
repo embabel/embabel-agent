@@ -70,6 +70,7 @@ internal object UnsupportedRequestParameterRetry {
      * Like [extractUnsupportedParameter] but may return several fields when the provider
      * does not say which one it rejected. Gemini answers `400 Penalty is not enabled`
      * for either penalty, without naming it, so both are returned.
+     * These are portable [ChatOptions] field names, not Google-specific wire names.
      */
     internal fun extractUnsupportedParameters(throwable: Throwable): List<String> {
         var current: Throwable? = throwable

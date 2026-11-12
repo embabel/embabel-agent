@@ -101,10 +101,10 @@ internal class InstrumentedChatModel(
         val parameters = UnsupportedRequestParameterRetry.extractUnsupportedParameters(ex)
         if (parameters.isEmpty()) throw ex
         val parameter = parameters.joinToString(", ")
-        var strippedOptions: ChatOptions = prompt.options ?: throw ex
-        for (name in parameters) {
+        val options = prompt.options ?: throw ex
+        val strippedOptions = parameters.fold(options) { currentOptions, name ->
             // null = unknown field name only (known-but-already-null still yields a copy)
-            strippedOptions = UnsupportedRequestParameterRetry.stripParameter(strippedOptions, name)
+            UnsupportedRequestParameterRetry.stripParameter(currentOptions, name)
                 ?: throw ex
         }
         logger.warn(
