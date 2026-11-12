@@ -85,7 +85,7 @@ class A2AStreamingHandler(
         Thread.startVirtualThread {
             try {
                 taskInfo.events.forEach { event ->
-                    sendStreamEvent(newStreamId, event) // removed  taskId due to flakes
+                    sendStreamEvent(newStreamId, event)
                 }
 
                 // If task is completed, close the stream
