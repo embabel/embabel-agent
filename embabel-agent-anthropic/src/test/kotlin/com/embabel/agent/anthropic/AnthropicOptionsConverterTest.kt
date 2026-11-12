@@ -24,10 +24,25 @@ import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.OptionsConverter
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.Thinking
+import com.sun.net.httpserver.HttpServer
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import java.net.InetSocketAddress
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -457,4 +472,212 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
     }
 
+    @Nested
+    inner class ReasoningEffortTests {
+
+        private fun convert(options: LlmOptions, model: String) =
+            optionsConverter.convertOptions(options, model) as AnthropicChatOptions
+
+        private fun assertEffortWithDefaultThinking(opts: AnthropicChatOptions, effort: ReasoningEffort, label: String) {
+            assertNull(opts.thinking, "$label keeps the provider's thinking default")
+            assertEquals(effort.value, opts.outputConfig?.effort()?.orElseThrow()?.asString(), label)
+        }
+
+        @Test
+        fun `every level from low to max is sent as output_config effort with the provider's thinking default`() {
+            for (effort in ReasoningEffort.entries - ReasoningEffort.NONE) {
+                assertEffortWithDefaultThinking(convert(LlmOptions().withReasoningEffort(effort), AnthropicModels.CLAUDE_HAIKU_5_5), effort, "$effort")
+            }
+        }
+
+        @Test
+        fun `models before 4-7 that accept effort get it too`() {
+            for (model in listOf("claude-opus-4-5", AnthropicModels.CLAUDE_OPUS_4_6, AnthropicModels.CLAUDE_SONNET_4_6)) {
+                assertEffortWithDefaultThinking(convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), model), ReasoningEffort.LOW, model)
+            }
+        }
+
+        @Test
+        fun `a model whose default is thinking off keeps it off and still gets the effort`() {
+            assertEffortWithDefaultThinking(
+                convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), AnthropicModels.CLAUDE_OPUS_4_8),
+                ReasoningEffort.LOW, AnthropicModels.CLAUDE_OPUS_4_8,
+            )
+        }
+
+        @Test
+        fun `model names without a parsable version get the effort and never disabled thinking`() {
+            for (model in listOf("claude-fable-5", "claude-mythos-preview")) {
+                assertEffortWithDefaultThinking(convert(LlmOptions().withReasoningEffort(ReasoningEffort.LOW), model), ReasoningEffort.LOW, model)
+            }
+        }
+
+        @Test
+        fun `the effort composes with a token budget on a model that thinks by budget`() {
+            val opts = convert(
+                LlmOptions().withThinking(Thinking.withTokenBudget(2048)).withReasoningEffort(ReasoningEffort.LOW),
+                "claude-opus-4-5",
+            )
+            assertEquals(2048L, opts.thinking.asEnabled().budgetTokens())
+            assertEquals(OutputConfig.Effort.LOW, opts.outputConfig?.effort()?.orElse(null))
+        }
+
+        @Test
+        fun `the effort wins over the effort a token budget maps to`() {
+            val options = LlmOptions()
+                .withThinking(Thinking.withTokenBudget(32768)) // maps to MAX
+                .withReasoningEffort(ReasoningEffort.LOW)
+            val opts = convert(options, AnthropicModels.CLAUDE_SONNET_5_5)
+            assertTrue(opts.thinking.isAdaptive())
+            assertEquals(OutputConfig.Effort.LOW, opts.outputConfig?.effort()?.orElse(null))
+        }
+
+        @Test
+        fun `none is unsupported on a model that declares no thinking capability`() {
+            for (model in listOf("claude-fable-5", "claude-mythos-preview", AnthropicModels.CLAUDE_HAIKU_5_5)) {
+                val error = assertThrows(UnsupportedOperationException::class.java) {
+                    convert(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), model)
+                }
+                assertTrue(error.message!!.contains(model), error.message)
+            }
+        }
+
+        @Test
+        fun `none turns thinking off where the catalog declares it can`() {
+            val opts = AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = true)
+                .convertOptions(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_HAIKU_5_5) as AnthropicChatOptions
+            assertTrue(opts.thinking.isDisabled())
+            assertNull(opts.outputConfig)
+        }
+
+        @Test
+        fun `none fails where the catalog declares thinking cannot be turned off`() {
+            val error = assertThrows(UnsupportedOperationException::class.java) {
+                AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = false)
+                    .convertOptions(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), AnthropicModels.CLAUDE_OPUS_5_5)
+            }
+            assertTrue(error.message!!.contains(AnthropicModels.CLAUDE_OPUS_5_5), error.message)
+        }
+
+        @Test
+        fun `a caller who turned thinking off is not overridden by a role's effort`() {
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.HIGH)
+            val opts = convert(LlmOptions().withoutThinking().withDefaultsFrom(role), AnthropicModels.CLAUDE_HAIKU_5_5)
+            assertTrue(opts.thinking.isDisabled())
+            assertNull(opts.outputConfig)
+        }
+
+        @Test
+        fun `a caller who turned thinking off and then asked for extraction is not overridden by a role's none`() {
+            // thinking() on a prompt runner applies extraction to the caller's thinking, here NONE.
+            val optedOut = LlmOptions().withoutThinking()
+            val caller = optedOut.withThinking(optedOut.thinking!!.applyExtraction())
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_SONNET_5_5).withReasoningEffort(ReasoningEffort.NONE)
+            val opts = AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = false)
+                .convertOptions(caller.withDefaultsFrom(role), AnthropicModels.CLAUDE_SONNET_5_5) as AnthropicChatOptions
+            assertNull(opts.outputConfig)
+        }
+
+        @Test
+        fun `a caller's thinking budget is not overridden by a role's none`() {
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_SONNET_4_6).withReasoningEffort(ReasoningEffort.NONE)
+            val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(8192)).withDefaultsFrom(role), AnthropicModels.CLAUDE_SONNET_4_6)
+            assertEquals(8192L, opts.thinking.asEnabled().budgetTokens())
+        }
+    }
+
+    /** What the effort puts on the wire, captured by a local server standing in for Anthropic. */
+    @Nested
+    inner class ReasoningEffortWireTests {
+
+        private val mapper = jacksonObjectMapper()
+        private val captured = CopyOnWriteArrayList<JsonNode>()
+        private lateinit var server: HttpServer
+
+        @BeforeEach
+        fun startServer() {
+            server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/v1/messages") { exchange ->
+                captured.add(mapper.readTree(exchange.requestBody.readBytes()))
+                val reply = """{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],
+                    "model":"${AnthropicModels.CLAUDE_SONNET_5_5}","stop_reason":"end_turn","stop_sequence":null,
+                    "usage":{"input_tokens":1,"output_tokens":1}}""".toByteArray()
+                exchange.responseHeaders.set("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, reply.size.toLong())
+                exchange.responseBody.use { it.write(reply) }
+            }
+            server.start()
+        }
+
+        @AfterEach
+        fun stopServer() = server.stop(0)
+
+        private fun send(model: String, options: LlmOptions, converter: OptionsConverter = AnthropicOptionsConverter): JsonNode {
+            val llm = AnthropicModelFactory(apiKey = "test-key", baseUrl = "http://localhost:${server.address.port}")
+                .build(model) as SpringAiLlmService
+            llm.chatModel.call(Prompt(listOf(UserMessage("hi")), converter.convertOptions(options, model)))
+            return captured.single()
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 sends the effort as output_config effort and leaves thinking to the model`() {
+            val body = send(AnthropicModels.CLAUDE_SONNET_5_5, LlmOptions.withModel(AnthropicModels.CLAUDE_SONNET_5_5).withReasoningEffort(ReasoningEffort.LOW))
+            assertEquals("low", body["output_config"]["effort"].asString())
+            assertFalse(body.has("thinking"))
+        }
+
+        @Test
+        fun `claude-haiku-5-5 sends the effort as output_config effort and leaves thinking to the model`() {
+            val body = send(AnthropicModels.CLAUDE_HAIKU_5_5, LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.LOW))
+            assertEquals("low", body["output_config"]["effort"].asString())
+            assertFalse(body.has("thinking"))
+        }
+
+        @Test
+        fun `sonnet and haiku 4-5 omit unsupported output_config effort`() {
+            for (model in listOf(AnthropicModels.CLAUDE_SONNET_4_5, AnthropicModels.CLAUDE_HAIKU_4_5)) {
+                captured.clear()
+                val body = send(model, LlmOptions.withModel(model).withReasoningEffort(ReasoningEffort.LOW))
+                assertFalse(body.has("output_config"), "$model does not support effort")
+            }
+        }
+
+        @Test
+        fun `claude-haiku-5-5 sends none as disabled thinking without an effort where the catalog declares it`() {
+            val body = send(
+                AnthropicModels.CLAUDE_HAIKU_5_5,
+                LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.NONE),
+                AnthropicOptionsConverter.declaring(thinkingCanBeDisabled = true),
+            )
+            assertEquals("disabled", body["thinking"]["type"].asString())
+            assertFalse(body.has("output_config"))
+        }
+
+        @Test
+        fun `claude-haiku-5-5 keeps a thinking opt-out with an effort after extraction is added`() {
+            // thinking() on a prompt runner applies extraction to the caller's thinking, here NONE.
+            val optedOut = LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withoutThinking()
+                .withReasoningEffort(ReasoningEffort.LOW)
+            val body = send(AnthropicModels.CLAUDE_HAIKU_5_5, optedOut.withThinking(optedOut.thinking!!.applyExtraction()))
+            assertEquals("disabled", body["thinking"]["type"].asString())
+            assertEquals("low", body["output_config"]["effort"].asString())
+        }
+
+        @Test
+        fun `claude-haiku-5-5 reads extraction written as disabled before the opt-out marker as extraction-only`() {
+            val role = LlmOptions.withModel(AnthropicModels.CLAUDE_HAIKU_5_5).withReasoningEffort(ReasoningEffort.LOW)
+            val legacy = mapOf(
+                "JSON" to mapper.readValue("""{"thinking":{"enabled":false,"extractThinking":true}}""", LlmOptions::class.java),
+                "properties" to Binder(
+                    MapConfigurationPropertySource(mapOf("opts.thinking.enabled" to "false", "opts.thinking.extract-thinking" to "true")),
+                ).bind("opts", LlmOptions::class.java).get(),
+            )
+            for ((source, options) in legacy) {
+                captured.clear()
+                val body = send(AnthropicModels.CLAUDE_HAIKU_5_5, options.withDefaultsFrom(role))
+                assertFalse(body.has("thinking"), "$source sent thinking ${body["thinking"]}")
+                assertEquals("low", body["output_config"]?.get("effort")?.asString(), source)
+            }
+        }
+    }
 }

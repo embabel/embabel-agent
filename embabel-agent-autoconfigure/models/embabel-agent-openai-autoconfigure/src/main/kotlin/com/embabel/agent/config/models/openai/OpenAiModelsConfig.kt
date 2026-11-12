@@ -17,17 +17,10 @@ package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.config.models.openai.OpenAiProperties.Companion.PREFIX
-import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
-import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
-import com.embabel.agent.openai.Gpt5ChatOptionsConverter
-import com.embabel.agent.openai.ModelCapabilities
 import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
-import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.spi.LlmService
-import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.agent.spi.common.RetryProperties
-import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -202,49 +195,22 @@ class OpenAiModelsConfig(
     }
 
     /**
-     * Creates an individual OpenAI LLM from configuration.
-     * Uses custom SpringAiLlm constructor when pricing model is not available.
+     * Creates an individual OpenAI LLM from configuration, the same way a BYOK key builds a catalog
+     * model ([catalogLlm]), so a model behaves alike whichever path registered it.
      */
-    private fun createOpenAiLlm(modelDef: OpenAiModelDefinition): LlmService<*> {
-        // Capability-aware converter from YAML special_handling (warn-and-drop, never throw).
-        // Canonical DEFAULT / GPT5_FAMILY map back to the shared object aliases so identity
-        // checks in tests and equals-based wiring stay stable. Only OpenAI's own models forward
-        // reasoning effort, so the wrapper sits here rather than in the shared converters.
-        val optionsConverter = OpenAiReasoningEffortOptionsConverter(
-            optionsConverterFor(modelDef.specialHandling.toModelCapabilities()),
-        )
-
-        // Transport is declared per model, like the converter above: most models speak Chat
-        // Completions, the *-pro family is served only over the Responses API.
-        val chatModel = when (modelDef.apiFormat) {
-            OpenAiApiFormat.CHAT_COMPLETIONS -> chatModelOf(
-                model = modelDef.modelId, retryTemplate = properties.retryTemplate(modelDef.modelId)
-            )
-
-            OpenAiApiFormat.RESPONSES -> responsesChatModelOf(modelDef.modelId)
-        }
-
-        // Create pricing model if present
-        val pricingModel = modelDef.pricingModel?.let {
-            PerTokenPricingModel(
-                usdPer1mInputTokens = it.usdPer1mInputTokens,
-                usdPer1mOutputTokens = it.usdPer1mOutputTokens,
-            )
-        }
-
-        // Use SpringAiLlm constructor directly to handle nullable pricing model
-        return SpringAiLlmService(
-            name = modelDef.modelId,
-            chatModel = chatModel,
+    private fun createOpenAiLlm(modelDef: OpenAiModelDefinition): LlmService<*> =
+        catalogLlm(
+            definition = modelDef,
             provider = OpenAiModels.PROVIDER,
-            optionsConverter = timeouts.optionsConverter(optionsConverter),
+            pricingModel = modelDef.pricingModel?.let {
+                PerTokenPricingModel(
+                    usdPer1mInputTokens = it.usdPer1mInputTokens,
+                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
+                )
+            },
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            pricingModel = pricingModel,
-            thinkingSupported = true,
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
-            nativeSupport = modelDef.nativeSupport,
         )
-    }
 
     /**
      * Creates an embedding service from configuration.
@@ -259,24 +225,5 @@ class OpenAiModelsConfig(
             configuredDimensions = embeddingDef.dimensions,
             pricingModel = pricing,
         )
-    }
-
-    private fun SupportFeaturesConfiguration?.toModelCapabilities(): ModelCapabilities {
-        if (this == null) {
-            return ModelCapabilities.DEFAULT
-        }
-        return ModelCapabilities(
-            supportsTemperature = supportsTemperature,
-            supportsTopP = supportsTopP,
-            supportsFrequencyPenalty = supportsFrequencyPenalty,
-            supportsPresencePenalty = supportsPresencePenalty,
-            usesMaxCompletionTokens = usesMaxCompletionTokens,
-        )
-    }
-
-    private fun optionsConverterFor(capabilities: ModelCapabilities): OptionsConverter = when (capabilities) {
-        ModelCapabilities.DEFAULT -> StandardOpenAiOptionsConverter
-        ModelCapabilities.GPT5_FAMILY -> Gpt5ChatOptionsConverter
-        else -> CapabilityAwareOpenAiOptionsConverter(capabilities)
     }
 }

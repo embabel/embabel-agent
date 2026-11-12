@@ -36,6 +36,7 @@ import com.openai.core.http.HttpResponse
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseError
+import com.openai.models.responses.ResponseInputContent
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
 import com.openai.models.responses.ResponseOutputItem
@@ -77,6 +78,7 @@ import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
 import reactor.core.publisher.Flux
+import java.net.URL
 import java.util.Optional
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CyclicBarrier
@@ -528,31 +530,97 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
-        /** An image-bearing prompt sent as text alone yields a confident answer about nothing. */
-        @Test
-        fun `media is refused rather than silently dropped`() {
-            respondWith(textResponse("ok"))
+        private fun userContentOf(text: String?, vararg media: Media): List<ResponseInputContent> {
+            val message = UserMessage.builder().text(text ?: "").media(media.toList()).build()
+            val params = capture(Prompt(listOf(message), OpenAiChatOptions.builder().model("gpt-6-astra").build()))
+            return params.input().orElseThrow().asResponse().single()
+                .easyInputMessage().orElseThrow().content().asResponseInputMessageContentList()
+        }
 
-            assertThrows(UnsupportedOperationException::class.java) {
-                model.call(
-                    Prompt(
-                        listOf(
-                            UserMessage.builder()
-                                .text("What is in this image?")
-                                .media(
-                                    listOf(
-                                        Media.builder()
-                                            .mimeType(MimeTypeUtils.IMAGE_PNG)
-                                            .data(ByteArrayResource(byteArrayOf(1, 2, 3)))
-                                            .build()
-                                    )
-                                )
-                                .build()
-                        ),
-                        OpenAiChatOptions.builder().model("gpt-5-pro").build(),
-                    )
-                )
-            }
+        private fun imageUrlOf(part: ResponseInputContent): String =
+            part.inputImage().orElseThrow().imageUrl().orElseThrow()
+
+        /** Image analysis and chat attachments reach GPT-6 over this transport, so images must arrive. */
+        @Test
+        fun `image bytes are sent as a data url after the text`() {
+            val parts = userContentOf(
+                "What is in this image?",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(ByteArrayResource(byteArrayOf(1, 2, 3))).build(),
+            )
+
+            assertEquals(2, parts.size)
+            assertEquals("What is in this image?", parts[0].inputText().orElseThrow().text())
+            assertEquals("data:image/png;base64,AQID", imageUrlOf(parts[1]))
+        }
+
+        @Test
+        fun `an image url is passed through and several images keep their order`() {
+            val parts = userContentOf(
+                "Compare",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_JPEG).data("https://example.com/a.jpg").build(),
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(byteArrayOf(9)).build(),
+            )
+
+            assertEquals(listOf("https://example.com/a.jpg", "data:image/png;base64,CQ=="), parts.drop(1).map(::imageUrlOf))
+        }
+
+        @Test
+        fun `an image without text is sent as the image alone`() {
+            val parts = userContentOf(
+                null,
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(byteArrayOf(1)).build(),
+            )
+
+            assertEquals(1, parts.size)
+            assertTrue(parts.single().isInputImage())
+        }
+
+        /** Spring AI keeps a `java.net.URL` as given, unlike a `URI`, which it turns into a string. */
+        @Test
+        fun `an image given as a java URL is passed through as its string`() {
+            val parts = userContentOf(
+                "What is this?",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(URL("https://example.com/a.png")).build(),
+            )
+
+            assertEquals("https://example.com/a.png", imageUrlOf(parts[1]))
+        }
+
+        /** `withDocument` works over Chat Completions, so it must keep working when a model moves here. */
+        @Test
+        fun `a document is sent as an input file with its data url and name`() {
+            val parts = userContentOf(
+                "Summarise this",
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data(ByteArrayResource(byteArrayOf(1, 2, 3))).name("invoice.pdf").build(),
+            )
+
+            val file = parts[1].inputFile().orElseThrow()
+            assertEquals("data:application/pdf;base64,AQID", file.fileData().orElseThrow())
+            assertEquals("invoice.pdf", file.filename().orElseThrow())
+            assertTrue(file.fileUrl().isEmpty)
+        }
+
+        /** The Responses API fetches a file from a URL itself; a data URL is file data, not a URL to fetch. */
+        @Test
+        fun `a document given as a url is sent as a file url`() {
+            val parts = userContentOf(
+                "Summarise these",
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data(URL("https://example.com/a.pdf")).build(),
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data("https://example.com/b.pdf").build(),
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data("data:application/pdf;base64,AQID").name("c.pdf").build(),
+            )
+
+            val files = parts.drop(1).map { it.inputFile().orElseThrow() }
+            assertEquals(
+                listOf("https://example.com/a.pdf", "https://example.com/b.pdf"),
+                files.take(2).map { it.fileUrl().orElseThrow() },
+            )
+            assertEquals("data:application/pdf;base64,AQID", files[2].fileData().orElseThrow())
+            assertEquals("c.pdf", files[2].filename().orElseThrow())
         }
 
         /**

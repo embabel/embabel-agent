@@ -18,6 +18,10 @@ package com.embabel.agent.openai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.toSpringAiMessage
+import com.embabel.chat.DocumentPart
+import com.embabel.chat.ImagePart
+import com.embabel.chat.TextPart
 import com.embabel.common.ai.converters.JacksonOutputConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
@@ -30,6 +34,7 @@ import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -40,11 +45,14 @@ import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.observation.ChatModelObservationContext
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.content.Media
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
 import org.springframework.ai.tool.definition.ToolDefinition
+import org.springframework.util.MimeTypeUtils
 import java.net.InetSocketAddress
+import java.util.Base64
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -62,6 +70,7 @@ class OpenAiCompatibleModelFactoryResponsesTest {
     private val mapper = jacksonObjectMapper()
     private val captured = CopyOnWriteArrayList<Captured>()
     private val replies = ArrayDeque<String>()
+    private var status = 200
     private lateinit var server: HttpServer
 
     @BeforeEach
@@ -71,7 +80,7 @@ class OpenAiCompatibleModelFactoryResponsesTest {
             captured += Captured(exchange.requestURI.path, mapper.readTree(exchange.requestBody.readBytes()))
             val reply = (replies.removeFirstOrNull() ?: response(message("ok"))).toByteArray()
             exchange.responseHeaders.add("Content-Type", "application/json")
-            exchange.sendResponseHeaders(200, reply.size.toLong())
+            exchange.sendResponseHeaders(status, reply.size.toLong())
             exchange.responseBody.use { it.write(reply) }
         }
         server.start()
@@ -240,6 +249,66 @@ class OpenAiCompatibleModelFactoryResponsesTest {
         call(options, UserMessage("Label: quarterly invoice"))
 
         assertFalse(captured.single().body.has("text"), "no native support was given, so no schema is sent")
+    }
+
+    /**
+     * The path PromptRunner.withImages takes: Embabel's message converter wraps the bytes in a
+     * Resource, which Spring AI's Media builder reads back into a byte array.
+     */
+    @Test
+    fun `an image from an Embabel user message reaches the endpoint as a data URL`() {
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
+        val message = com.embabel.chat.UserMessage(parts = listOf(TextPart("Is this red?"), ImagePart("image/png", png)))
+
+        call(optionsFor(LlmOptions.withModel(LUNA)), message.toSpringAiMessage())
+
+        val content = captured.single().body["input"].single()["content"].toList()
+        assertEquals(listOf("input_text", "input_image"), content.map { it["type"].asString() })
+        assertEquals(
+            "data:image/png;base64," + Base64.getEncoder().encodeToString(png),
+            content[1]["image_url"].asString(),
+        )
+    }
+
+    /** The path PromptRunner.withDocument takes; Chat Completions sends the same PDF as a `file` part. */
+    @Test
+    fun `a document from an Embabel user message reaches the endpoint as an input file`() {
+        val pdf = "%PDF-1.7".toByteArray()
+        val message = com.embabel.chat.UserMessage(
+            parts = listOf(TextPart("Total?"), DocumentPart("application/pdf", pdf, "invoice.pdf")),
+        )
+
+        call(optionsFor(LlmOptions.withModel(LUNA)), message.toSpringAiMessage())
+
+        val file = captured.single().body["input"].single()["content"][1]
+        assertEquals("input_file", file["type"].asString())
+        assertEquals("invoice.pdf", file["filename"].asString())
+        assertEquals("data:application/pdf;base64," + Base64.getEncoder().encodeToString(pdf), file["file_data"].asString())
+    }
+
+    /**
+     * Which file types `input_file` reads is OpenAI's call and changes over time, so no list is kept
+     * here: a file it cannot read is refused by the API, and its reason reaches the caller.
+     */
+    @Test
+    fun `a file type the API refuses fails with the API's reason`() {
+        status = 400
+        replies += """{"error":{"message":"Invalid input: Expected file type to be a supported format: .pdf but got .wav.",
+            "type":"invalid_request_error","param":"input","code":null}}"""
+        val message = UserMessage.builder().text("Transcribe")
+            .media(Media.builder().mimeType(MimeTypeUtils.parseMimeType("audio/wav")).data(byteArrayOf(1)).build())
+            .build()
+
+        val failure = assertThrows(Exception::class.java) {
+            call(optionsFor(LlmOptions.withModel(LUNA)), message)
+        }
+
+        assertEquals("input_file", captured.single().body["input"].single()["content"][1]["type"].asString())
+
+        assertTrue(
+            failure.message.orEmpty().contains("Expected file type to be a supported format"),
+            "The API's reason must reach the caller, got: ${failure.message}",
+        )
     }
 
     companion object {
