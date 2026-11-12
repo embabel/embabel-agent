@@ -188,6 +188,7 @@ Each chunk:
 - Carries a typed `structure` (`ChunkStructure`) describing its origin (root document, container section, leaf section) and position (chunk index, sequence number)
 - Includes `metadata` for user-supplied data; during a deprecation window the structural fields also remain readable there under their legacy keys such as `sequence_number`. Numeric structural values are re-emitted as `Int` regardless of the type originally written, so stores that persisted them as `Long` should assert on `structure` rather than on the metadata view
 - Can compute its `pathFromRoot` through the document hierarchy
+- Has a `uri`: `metadata["url"]` if the application set it, otherwise the URL of the leaf section the chunk comes from, otherwise, for a chunk that combines several leaf sections, the URL of the section that contains them. Search results shown to the LLM include this URL, so the LLM can link to the section it quotes
 
 This hierarchical model enables advanced RAG capabilities like "zoom out" to parent sections or expansion to adjacent chunks.
 

@@ -21,6 +21,7 @@ import com.embabel.agent.rag.model.DefaultMaterializedContainerSection
 import com.embabel.agent.rag.model.LeafSection
 import com.embabel.agent.rag.model.MaterializedDocument
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class ContentChunkerTest {
@@ -49,6 +50,48 @@ class ContentChunkerTest {
         assertTrue(chunks.all { it.text.length <= maxChunkSize }, "Chunk lengths: ${chunks.map { it.text.length }}")
         // Splitting must retain every title and all content in the original order.
         assertEquals("A\nabc\n\nB\nabc\n\nC\nabc", chunks.joinToString("\n\n") { it.text })
+    }
+
+    /**
+     * How the chunker sets the URL a chunk's [Chunk.uri] falls back to.
+     */
+    @Nested
+    inner class ChunkUri {
+
+        @Test
+        fun `a chunk that combines a container's leaves has the container's URL as its uri`() {
+            val document = MaterializedDocument(
+                id = "document",
+                title = "Document",
+                children = listOf("A", "B").map { title ->
+                    LeafSection(id = title, title = title, text = "abc", uri = "https://example.com/page#$title")
+                },
+                uri = "https://example.com/page",
+            )
+
+            // Both leaves fit in the default maximum chunk size, so the chunker combines them into one chunk
+            val chunk = chunker.chunk(document).single()
+
+            assertEquals("https://example.com/page", chunk.uri)
+        }
+
+        @Test
+        fun `a chunk from one leaf has the leaf's URL as its uri`() {
+            // Each leaf is 5 characters with its title, so a maximum of 6 puts each in a chunk of its own
+            val chunker = InMemoryContentChunker(ContentChunker.Config(maxChunkSize = 6, overlapSize = 0))
+            val document = MaterializedDocument(
+                id = "document",
+                title = "Document",
+                children = listOf("A", "B").map { title ->
+                    LeafSection(id = title, title = title, text = "abc", uri = "https://example.com/page#$title")
+                },
+                uri = "https://example.com/page",
+            )
+
+            val chunks = chunker.chunk(document)
+
+            assertEquals(listOf("https://example.com/page#A", "https://example.com/page#B"), chunks.map { it.uri })
+        }
     }
 
     @Test
