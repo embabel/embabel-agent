@@ -414,6 +414,15 @@ class LlmAnthropicCachingIT {
         assertNotNull(secondUsage, "Second call should have usage");
         assertTrue(hasAnthropicCacheRead(secondUsage), "Second call should read from cache");
         logger.info("Second LLM call - {}", anthropicCacheSummary(secondUsage));
+        usageCapture.forEach(LlmAnthropicCachingIT::assertAccountedAsNative);
+    }
+
+    /**
+     * Embabel's cache counts, read through Spring AI's common usage fields, equal Anthropic's native ones.
+     */
+    private static void assertAccountedAsNative(Usage usage) {
+        assertEquals(anthropicCacheReadTokens(usage), usage.getCacheReadInputTokens(), "cache read");
+        assertEquals(anthropicCacheCreationTokens(usage), usage.getCacheWriteInputTokens(), "cache write");
     }
 
     @Test
@@ -715,6 +724,7 @@ class LlmAnthropicCachingIT {
         assertNotNull(secondUsage, "Second call should have usage");
         assertTrue(hasAnthropicCacheRead(secondUsage), "Second call should read from cache");
         logger.info("Second LLM call - {}", anthropicCacheSummary(secondUsage));
+        usageCapture.forEach(LlmAnthropicCachingIT::assertAccountedAsNative);
     }
 
     @Test

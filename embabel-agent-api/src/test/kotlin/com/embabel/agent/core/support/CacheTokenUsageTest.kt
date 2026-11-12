@@ -288,6 +288,10 @@ class CacheTokenUsageTest {
                 original.copy(promptTokens = 7),
                 copyDefault.invoke(null, original, 7, null, null, allButPrompt, null),
             )
+            assertEquals(
+                Usage(7, 8, "native", 18_000, 2_000),
+                copyDefault.invoke(null, original, 7, 8, "native", 0, null),
+            )
         }
 
         private val serviceFields = arrayOf(
@@ -315,6 +319,13 @@ class CacheTokenUsageTest {
         }
 
         @Test
+        fun `old SpringAiLlmService constructor with every argument given uses them`() {
+            val values = serviceValues()
+            val ctor = SpringAiLlmService::class.java.getConstructor(*serviceFields, Integer.TYPE, defaultsMarker)
+            assertEquals(serviceOf(values), ctor.newInstance(*values, 0, null))
+        }
+
+        @Test
         fun `old SpringAiLlmService copy signatures still link and keep cache semantics`() {
             val original = SpringAiLlmService(
                 name = "m", provider = "p", chatModel = mockk(), promptTokensExcludeCache = true,
@@ -329,7 +340,33 @@ class CacheTokenUsageTest {
                 original.copy(provider = "q"),
                 copyDefault.invoke(null, original, *args, allButProvider, null),
             )
+            val values = serviceValues()
+            val replaced = serviceOf(values).copy(promptTokensExcludeCache = true)
+            val copy = SpringAiLlmService::class.java.getMethod("copy", *serviceFields)
+            assertEquals(replaced, copy.invoke(original, *values))
+            assertEquals(replaced, copyDefault.invoke(null, original, *values, 0, null))
         }
+
+        /** A value for every old field, none of them a default. */
+        private fun serviceValues(): Array<Any?> = arrayOf(
+            "m2", "p2", mockk<ChatModel>(), mockk<com.embabel.common.ai.model.OptionsConverter>(),
+            java.time.LocalDate.of(2025, 1, 1), emptyList<Any>(), PricingModel.ALL_YOU_CAN_EAT, true,
+            mockk<com.embabel.agent.spi.support.springai.ToolResponseContentAdapter>(),
+            mockk<com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer>(),
+            mockk<com.embabel.agent.spi.support.springai.SpringAiNativeThinkingExtractor>(),
+            mockk<com.embabel.common.ai.autoconfig.NativeSupport>(),
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        private fun serviceOf(v: Array<Any?>) = SpringAiLlmService(
+            v[0] as String, v[1] as String, v[2] as ChatModel, v[3] as com.embabel.common.ai.model.OptionsConverter,
+            v[4] as java.time.LocalDate, v[5] as List<com.embabel.common.ai.prompt.PromptContributor>,
+            v[6] as PricingModel, v[7] as Boolean,
+            v[8] as com.embabel.agent.spi.support.springai.ToolResponseContentAdapter,
+            v[9] as com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer,
+            v[10] as com.embabel.agent.spi.support.springai.SpringAiNativeThinkingExtractor,
+            v[11] as com.embabel.common.ai.autoconfig.NativeSupport,
+        )
     }
 
     @Nested

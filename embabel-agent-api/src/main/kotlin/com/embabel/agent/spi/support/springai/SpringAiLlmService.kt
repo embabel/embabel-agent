@@ -120,6 +120,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     )
 
     /** Binary compatibility: the `copy` callers compiled before [promptTokensExcludeCache] link to. Keeps it. */
+    @Suppress("kotlin:S107") // binary-compat shim: the parameter list must match the old JVM signature
     @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
     fun copy(
         name: String, provider: String, chatModel: ChatModel, optionsConverter: OptionsConverter,
@@ -191,7 +192,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
          * [promptTokensExcludeCache] link to. Bit `i` of [mask] set means argument `i` was omitted,
          * so [self]'s value is kept.
          */
-        @Suppress("UNUSED_PARAMETER")
+        @Suppress("UNUSED_PARAMETER", "kotlin:S107") // binary-compat shim: the parameter list must match the old JVM signature
         @JvmStatic
         @JvmName("copy\$default")
         @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
