@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.byok
 
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
@@ -79,7 +80,7 @@ class PureByokWithRolesTest {
     @Test
     fun `starts with roles configured and no model to satisfy them`() {
         assertThatCode {
-            pureByok(mapOf(BEST_ROLE to "gpt-4.1", CHEAPEST_ROLE to "gpt-6-luna"))
+            pureByok(mapOf(BEST_ROLE to OpenAiModels.GPT_41, CHEAPEST_ROLE to OpenAiModels.GPT_6_LUNA))
         }.doesNotThrowAnyException()
     }
 

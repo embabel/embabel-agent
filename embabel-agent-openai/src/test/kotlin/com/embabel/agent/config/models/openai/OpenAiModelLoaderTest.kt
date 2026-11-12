@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.models.OpenAiModels
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -700,7 +701,7 @@ class OpenAiModelLoaderTest {
                 setOf(
                     "gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro",
                     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
-                    "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna",
+                    OpenAiModels.GPT_6_ASTRA, OpenAiModels.GPT_61_SOL, OpenAiModels.GPT_61_TERRA, OpenAiModels.GPT_6_SOL, OpenAiModels.GPT_6_LUNA,
                 ),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
                 "Only the *-pro models and the GPT-5.6 and GPT-6 tiers are served over /v1/responses",
@@ -763,7 +764,7 @@ class OpenAiModelLoaderTest {
                 mapOf(
                     "gpt-6-astra" to OpenAiApiFormat.RESPONSES,
                     "gpt-6.1-sol" to OpenAiApiFormat.RESPONSES,
-                    "gpt-6.1-terra" to OpenAiApiFormat.RESPONSES,
+                    OpenAiModels.GPT_61_TERRA to OpenAiApiFormat.RESPONSES,
                     "gpt-6-sol" to OpenAiApiFormat.RESPONSES,
                     "gpt-6-luna" to OpenAiApiFormat.RESPONSES,
                 ),
