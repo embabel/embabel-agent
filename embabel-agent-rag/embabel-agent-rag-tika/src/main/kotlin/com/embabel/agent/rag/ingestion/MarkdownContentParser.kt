@@ -28,6 +28,8 @@ import java.util.*
  * Parser for Markdown content that extracts sections based on heading hierarchy.
  *
  * A line that starts with `#` is a heading, unless it is inside a fenced code block.
+ * A fence may open on a list item's line (`- ```bash`) or inside a list item, indented to the
+ * item's content: there its closing fence is indented to the same column.
  * A heading may end with an id attribute, as pandoc and kramdown write it: `## Title {#title-id}`.
  * The id is removed from the section title, and the section URI is the document URI
  * with the id as its fragment. A section whose heading has no id has the URI of the nearest
@@ -52,24 +54,55 @@ internal class MarkdownContentParser(
         // The fence that opened the code block we are inside, or null when we are not in one
         var openFence: Fence? = null
         var openFenceLine = 0
+        // The content columns of the list items the current line may belong to, innermost last
+        val listColumns = ArrayDeque<Int>()
 
         for ((index, line) in lines.withIndex()) {
-            val fence = Fence.parse(line)
-            when {
-                openFence != null -> {
-                    if (fence != null && fence.closes(openFence)) {
+            if (openFence != null) {
+                if (line.isNotBlank() && indentOf(line) < openFence.column) {
+                    // A line left of the list item that holds the fence ends the item, and the code block
+                    // with it. The line itself is read below like any line outside a code block.
+                    openFence = null
+                } else {
+                    // Inside a code block every line is content. The block ends at a fence that closes the
+                    // one that opened it: see Fence.closes for what that requires.
+                    if (Fence.parse(line, openFence.column)?.closes(openFence) == true) {
                         openFence = null
                     }
                     currentSection.appendLine(line)
+                    continue
                 }
+            }
 
+            val item = ListItem.parse(line)
+            if (line.isNotBlank()) {
+                // A line belongs only to the list items whose content starts at or left of it
+                val column = item?.indent ?: indentOf(line)
+                while (listColumns.isNotEmpty() && listColumns.last() > column) {
+                    listColumns.removeLast()
+                }
+            }
+            // On a list item's own line the fence follows the marker, at the item's content column.
+            // Otherwise it is indented to the content of the list item the line is in, or to nothing.
+            val fence = if (item != null) {
+                Fence.parse(item.content)?.copy(column = item.contentColumn)
+            } else {
+                Fence.parse(line, listColumns.lastOrNull() ?: 0)
+            }
+            if (item != null) {
+                listColumns.addLast(item.contentColumn)
+            }
+
+            when {
                 fence != null -> {
+                    // A fence outside a code block opens one: the lines up to its closing fence are code
                     openFence = fence
                     openFenceLine = index + 1
                     currentSection.appendLine(line)
                 }
 
                 line.startsWith("#") -> {
+                    listColumns.clear()
                     // Save previous section if it exists
                     if (currentTitle.isNotBlank()) {
                         leafSections.add(
@@ -89,6 +122,9 @@ internal class MarkdownContentParser(
                     val level = line.takeWhile { it == '#' }.length
                     val heading = HeadingText.parse(line.substring(level))
                     currentTitle = heading.title
+                    // The section URI is the document URI with the heading's id as fragment. A heading without
+                    // an id takes the URI of the nearest heading above it, one level up or more, and the
+                    // document URI when there is none.
                     sectionUri = heading.id?.let { withFragment(uri, it) }
                         ?: (level - 1 downTo 1).firstNotNullOfOrNull { uriStack[it] }
                         ?: uri
@@ -182,11 +218,15 @@ internal class MarkdownContentParser(
 
     /**
      * The title from the metadata when it has one. Otherwise the title
-     * [ContentFormatParserUtils.extractTitle] finds in the markdown, without a trailing `{#id}`.
+     * [ContentFormatParserUtils.extractTitle] finds in the markdown: a heading without its trailing
+     * `{#id}`, or the first line of text as it is, since only a heading has an id attribute.
      */
-    private fun extractTitle(lines: List<String>, metadata: Metadata): String? =
-        metadata.get(TikaCoreProperties.TITLE)
-            ?: ContentFormatParserUtils.extractTitle(lines, metadata)?.let { HeadingText.parse(it).title }
+    private fun extractTitle(lines: List<String>, metadata: Metadata): String? {
+        metadata.get(TikaCoreProperties.TITLE)?.let { return it }
+        val title = ContentFormatParserUtils.extractTitle(lines, metadata) ?: return null
+        val fromHeading = lines.firstOrNull { it.isNotBlank() }?.startsWith("#") == true
+        return if (fromHeading) HeadingText.parse(title).title else title
+    }
 
     companion object {
 
@@ -196,6 +236,61 @@ internal class MarkdownContentParser(
         @JvmStatic
         fun withFragment(uri: String, fragment: String): String =
             uri.substringBefore('#') + "#" + fragment
+    }
+}
+
+/**
+ * The column [line]'s text starts at. A tab moves to the next multiple of four, as in CommonMark.
+ */
+internal fun indentOf(line: String): Int {
+    var column = 0
+    for (c in line) {
+        column = when (c) {
+            ' ' -> column + 1
+            '\t' -> column + 4 - column % 4
+            else -> return column
+        }
+    }
+    return column
+}
+
+/**
+ * A line that starts a list item: a bullet (`-`, `+` or `*`) or an ordered marker (`1.` or `1)`),
+ * then at least one space.
+ *
+ * @property indent the column the marker starts at
+ * @property contentColumn the column the item's content starts at. Lines indented to it belong to the item.
+ * @property content the line after the marker and the spaces that follow it
+ */
+internal data class ListItem(
+    val indent: Int,
+    val contentColumn: Int,
+    val content: String,
+) {
+
+    companion object {
+
+        /**
+         * Group 1 is the indentation, group 2 the marker, group 3 the spaces after it, group 4 the content.
+         */
+        private val MARKER = Regex("""^( *)([-+*]|\d{1,9}[.)])( +)(.*)$""")
+
+        /**
+         * Returns the list item [line] starts, or null when it starts none. As in CommonMark, when
+         * five or more spaces follow the marker the content starts one space after it, and the rest
+         * of the spaces belong to the content.
+         */
+        @JvmStatic
+        fun parse(line: String): ListItem? {
+            val match = MARKER.matchEntire(line) ?: return null
+            val (indent, marker, spaces, rest) = match.destructured
+            val afterMarker = indent.length + marker.length
+            return if (spaces.length > 4) {
+                ListItem(indent.length, afterMarker + 1, spaces.substring(1) + rest)
+            } else {
+                ListItem(indent.length, afterMarker + spaces.length, rest)
+            }
+        }
     }
 }
 
@@ -243,22 +338,26 @@ internal data class HeadingText(
 }
 
 /**
- * A line that opens or closes a fenced code block: up to three spaces of indentation,
- * then three or more backticks or three or more tildes.
+ * A line that opens or closes a fenced code block: up to three spaces of indentation past
+ * [column], then three or more backticks or three or more tildes.
  *
  * @property marker the fence character, a backtick or a tilde
  * @property length how many times [marker] repeats
  * @property hasInfo whether text such as a language name follows the fence characters
+ * @property column the column the fence is indented from: 0, or the content column of the list item it is in
  */
 internal data class Fence(
     val marker: Char,
     val length: Int,
     val hasInfo: Boolean,
+    val column: Int = 0,
 ) {
 
     /**
-     * Whether this line closes the code block that [opening] started. A closing fence uses the
-     * same character, is at least as long as the opening fence, and has nothing after it.
+     * Whether this line closes the code block that [opening] started. The two need not be the same
+     * line: a closing fence uses the same character, is at least as long as the opening fence (so
+     * ```` ``` ```` inside a ```` ```` ```` block is content), and has nothing after it. An opening
+     * fence may carry an info string such as `bash`; a closing one may not.
      */
     fun closes(opening: Fence): Boolean =
         marker == opening.marker && length >= opening.length && !hasInfo
@@ -268,21 +367,27 @@ internal data class Fence(
         /**
          * Group 1 is the fence characters. Group 2 is the rest of the line.
          */
-        private val FENCE = Regex("""^ {0,3}(`{3,}|~{3,})(.*)$""")
+        private val FENCE = Regex("""^(`{3,}|~{3,})(.*)$""")
 
         /**
-         * Returns the fence on [line], or null when [line] is not a fence. A backtick fence
-         * cannot have a backtick after it, so a line such as ```` ```code``` ```` is not a fence.
+         * Returns the fence on [line] indented from [column], or null when [line] is not a fence there.
+         * A backtick fence cannot have a backtick after it, so a line such as ```` ```code``` ````
+         * is not a fence.
          */
         @JvmStatic
-        fun parse(line: String): Fence? {
-            val match = FENCE.matchEntire(line) ?: return null
+        @JvmOverloads
+        fun parse(line: String, column: Int = 0): Fence? {
+            val indent = indentOf(line)
+            if (indent < column || indent - column > 3) {
+                return null
+            }
+            val match = FENCE.matchEntire(line.trimStart()) ?: return null
             val chars = match.groupValues[1]
             val rest = match.groupValues[2]
             if (chars[0] == '`' && rest.contains('`')) {
                 return null
             }
-            return Fence(chars[0], chars.length, rest.isNotBlank())
+            return Fence(chars[0], chars.length, rest.isNotBlank(), column)
         }
     }
 }

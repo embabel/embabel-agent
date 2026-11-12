@@ -725,6 +725,105 @@ class TikaHierarchicalContentReaderTest {
             assertEquals("Install the CLI.", leaf.title)
             assertEquals(markdown, leaf.content)
         }
+
+        @Test
+        fun `a fence opened on a list item's line closes at the item's indentation`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - ```bash
+                  echo hello
+                  ```
+
+                ## Configuration
+                Configuration content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Install", "Configuration"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("echo hello"))
+            assertEquals("Configuration content.", leaves[1].content)
+        }
+
+        @Test
+        fun `a fence opened on an ordered list item's line holds a hash comment`() {
+            val result = parseMarkdown(
+                """
+                ## Steps
+
+                1. ```bash
+                   # not a heading
+                   ```
+                2. Then run it.
+
+                ## Next
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Steps", "Next"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("# not a heading"))
+        }
+
+        @Test
+        fun `a fence in a nested list item is indented to that item's content`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - Linux
+                  - Debian:
+
+                    ```bash
+                    # update first
+                    apt update
+                    ```
+
+                ## Configuration
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Install", "Configuration"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("# update first"))
+        }
+
+        @Test
+        fun `a fence in a list item ends when the item ends, even without a closing fence`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - ```bash
+                  echo hello
+
+                ## Configuration
+                Configuration content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Install", "Configuration"), leaves.map { it.title })
+            assertEquals("Configuration content.", leaves[1].content)
+        }
+
+        @Test
+        fun `backticks indented four spaces past a list item's content are not a fence`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - Item
+
+                      ```
+                # Next
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("Install", "Next"), result.leaves().map { it.title })
+        }
     }
 
     @Nested
@@ -907,6 +1006,13 @@ class TikaHierarchicalContentReaderTest {
             )
 
             assertEquals("Metadata title {#kept}", result.title)
+        }
+
+        @Test
+        fun `a first line of text that is not a heading keeps its braces as the title`() {
+            val result = parseMarkdown("Literal syntax {#example}\nMore text.")
+
+            assertEquals("Literal syntax {#example}", result.title)
         }
 
         @Test
