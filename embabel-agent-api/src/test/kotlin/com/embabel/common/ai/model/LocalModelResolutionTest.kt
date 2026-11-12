@@ -18,10 +18,15 @@ package com.embabel.common.ai.model
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -32,14 +37,6 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.core.Ordered
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
-import com.embabel.common.ai.model.local.LocalModel
-import com.embabel.common.ai.model.local.LocalModelBeans
-import com.embabel.common.ai.model.local.LocalModelCatalog
-import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
-import com.embabel.common.ai.model.local.LocalModelKind
-import com.embabel.common.ai.model.local.LocalModelRoleResolver
-import com.embabel.common.ai.model.local.LocalModelSource
 
 /**
  * A locally served model that appears AFTER startup being usable without a restart.
@@ -79,7 +76,7 @@ class LocalModelResolutionTest {
          * it can tell a chat model from an embedding model and the caller asked for the wrong half.
          */
         var buildsNothing: Boolean = false,
-    ) : LocalModelSource {
+    ) : ChatAndEmbeddingModelSource() {
 
         var listings = 0
             private set
@@ -94,13 +91,13 @@ class LocalModelResolutionTest {
             return if (reachable) serving else emptySet()
         }
 
-        override fun llmService(model: String): LlmService<*>? {
+        override fun chatModel(model: String): LlmService<*>? {
             llmBuilds++
             if (buildsNothing) return null
             return SpringAiLlmService(model, provider, mockk<ChatModel>(), DefaultOptionsConverter)
         }
 
-        override fun embeddingService(model: String): EmbeddingService? {
+        override fun embeddingModel(model: String): EmbeddingService? {
             embeddingBuilds++
             if (buildsNothing) return null
             return FakeEmbeddingService(model, provider)
@@ -130,6 +127,9 @@ class LocalModelResolutionTest {
         override fun infoString(verbose: Boolean?, indent: Int) = name
     }
 
+    /** A kind of model no shipped runner serves. */
+    private interface RerankingModel : ModelCapability
+
     /** A tick the test advances by hand, so an interval is asserted rather than waited out. */
     private class FakeTicker : () -> Long {
         private val nanos = AtomicLong(0)
@@ -137,9 +137,9 @@ class LocalModelResolutionTest {
         fun advance(duration: Duration) = nanos.addAndGet(duration.toNanos())
     }
 
-    private fun chat(vararg names: String) = names.map { LocalModel(it, LocalModelKind.CHAT) }.toSet()
+    private fun chat(vararg names: String) = names.map { LocalModel(it, LlmService.KIND) }.toSet()
 
-    private fun embedding(vararg names: String) = names.map { LocalModel(it, LocalModelKind.EMBEDDING) }.toSet()
+    private fun embedding(vararg names: String) = names.map { LocalModel(it, EmbeddingService.KIND) }.toSet()
 
     private val ticker = FakeTicker()
     private val discovery = LocalModelDiscoveryProperties()
@@ -164,7 +164,7 @@ class LocalModelResolutionTest {
             llms = listOf(defaultLlm),
             embeddingServices = listOf(placeholder),
             properties = properties,
-            embeddingRoleResolvers = listOf(LocalModelEmbeddingRoleResolver(catalog(runner), properties)),
+            roleResolvers = listOf(LocalModelRoleResolver(EmbeddingService.KIND, catalog(runner), properties.embeddingRoleBindings())),
         )
     }
 
@@ -180,7 +180,7 @@ class LocalModelResolutionTest {
             llms = listOf(defaultLlm),
             embeddingServices = listOf(placeholder),
             properties = properties,
-            roleResolvers = listOf(LocalModelRoleResolver(catalog(runner), properties)),
+            roleResolvers = listOf(LocalModelRoleResolver(LlmService.KIND, catalog(runner), properties.chatRoles())),
         )
     }
 
@@ -253,10 +253,27 @@ class LocalModelResolutionTest {
                 embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to "text-embedding-3-small")),
             )
             val runner = FakeRunner(serving = embedding(PULLED_EMBEDDING))
-            val resolver = LocalModelEmbeddingRoleResolver(catalog(runner), properties)
+            val resolver = LocalModelRoleResolver(EmbeddingService.KIND, catalog(runner), properties.embeddingRoleBindings())
 
             assertNull(resolver.resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY))
             assertEquals(0, runner.listings, "a role this provider says nothing about must not be an HTTP call")
+        }
+
+        /**
+         * A chat binding can carry tuning without a model name. The resolver has no model to ask
+         * the runner for, so it declines without asking the runner anything.
+         */
+        @Test
+        fun `a chat role with tuning but no model under this provider is left to the rest of the chain`() {
+            val properties = ConfigurableModelProviderProperties(
+                defaultLlm = DEFAULT_LLM,
+                roles = mapOf(CHEAPEST_ROLE to mapOf(DOCKER to LlmOptions().withTemperature(0.2))),
+            )
+            val runner = FakeRunner(serving = chat(PULLED_LLM))
+            val resolver = LocalModelRoleResolver(LlmService.KIND, catalog(runner), properties.chatRoles())
+
+            assertNull(resolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY))
+            assertEquals(0, runner.listings, "a binding that names no model must not be an HTTP call")
         }
 
         @Test
@@ -274,7 +291,7 @@ class LocalModelResolutionTest {
                 embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(DOCKER to PULLED_EMBEDDING)),
             )
             val runner = FakeRunner(serving = embedding(PULLED_EMBEDDING))
-            val resolver = LocalModelEmbeddingRoleResolver(catalog(runner), properties)
+            val resolver = LocalModelRoleResolver(EmbeddingService.KIND, catalog(runner), properties.embeddingRoleBindings())
 
             val underUserKey = ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-user"))
             assertNull(resolver.resolve(DOCUMENTS_ROLE, underUserKey))
@@ -342,6 +359,34 @@ class LocalModelResolutionTest {
         }
 
         @Test
+        fun `one name built as two kinds is held as two models`() {
+            val runner = FakeRunner(serving = chat(PULLED_LLM))
+            val catalog = catalog(runner)
+
+            val asChat = catalog.model(LlmService.KIND, PULLED_LLM)
+            val asEmbedding = catalog.model(EmbeddingService.KIND, PULLED_LLM)
+
+            // Asking again for each kind returns the model already built for that kind.
+            assertSame(asChat, catalog.model(LlmService.KIND, PULLED_LLM))
+            assertSame(asEmbedding, catalog.model(EmbeddingService.KIND, PULLED_LLM))
+            // Each kind was built once: the chat model did not satisfy the embedding request.
+            assertEquals(1, runner.llmBuilds)
+            assertEquals(1, runner.embeddingBuilds)
+        }
+
+        @Test
+        fun `a runner of chat and embedding models builds nothing for another kind`() {
+            val runner = FakeRunner(serving = chat(PULLED_LLM))
+            val reranking = ModelKind<RerankingModel, ModelName>("reranking", RerankingModel::class.java)
+
+            // The source declines a kind it has no builder for.
+            assertNull(catalog(runner).model(reranking, PULLED_LLM))
+            // Neither builder was called on the way to declining.
+            assertEquals(0, runner.llmBuilds)
+            assertEquals(0, runner.embeddingBuilds)
+        }
+
+        @Test
         fun `one catalog serves both chains, so the runner is asked once for chat and embeddings`() {
             val runner = FakeRunner(serving = chat(PULLED_LLM) + embedding(PULLED_EMBEDDING))
             val properties = ConfigurableModelProviderProperties(
@@ -355,8 +400,10 @@ class LocalModelResolutionTest {
                 llms = listOf(defaultLlm),
                 embeddingServices = listOf(placeholder),
                 properties = properties,
-                roleResolvers = listOf(LocalModelRoleResolver(shared, properties)),
-                embeddingRoleResolvers = listOf(LocalModelEmbeddingRoleResolver(shared, properties)),
+                roleResolvers = listOf(
+                    LocalModelRoleResolver(LlmService.KIND, shared, properties.chatRoles()),
+                    LocalModelRoleResolver(EmbeddingService.KIND, shared, properties.embeddingRoleBindings()),
+                ),
             )
 
             assertEquals(PULLED_LLM, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
@@ -595,11 +642,11 @@ class LocalModelResolutionTest {
 
             assertEquals(
                 Ordered.LOWEST_PRECEDENCE,
-                LocalModelRoleResolver(runnerCatalog, properties).order,
+                LocalModelRoleResolver(LlmService.KIND, runnerCatalog, properties.chatRoles()).order,
             )
             assertEquals(
                 Ordered.LOWEST_PRECEDENCE,
-                LocalModelEmbeddingRoleResolver(runnerCatalog, properties).order,
+                LocalModelRoleResolver(EmbeddingService.KIND, runnerCatalog, properties.embeddingRoleBindings()).order,
             )
         }
 
@@ -613,7 +660,7 @@ class LocalModelResolutionTest {
         fun `a chat role under a user key for another provider is declined`() {
             val properties = properties()
             val runner = FakeRunner(serving = chat(PULLED_LLM))
-            val resolver = LocalModelRoleResolver(catalog(runner), properties)
+            val resolver = LocalModelRoleResolver(LlmService.KIND, catalog(runner), properties.chatRoles())
 
             val underUserKey = ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-user"))
 
@@ -631,7 +678,7 @@ class LocalModelResolutionTest {
             val properties = properties()
             val runner = FakeRunner(serving = chat(PULLED_LLM), buildsNothing = true)
 
-            val resolved = LocalModelRoleResolver(catalog(runner), properties)
+            val resolved = LocalModelRoleResolver(LlmService.KIND, catalog(runner), properties.chatRoles())
                 .resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY)
 
             assertNull(resolved)
@@ -643,7 +690,7 @@ class LocalModelResolutionTest {
             val properties = properties()
             val runner = FakeRunner(serving = embedding(PULLED_EMBEDDING), buildsNothing = true)
 
-            val resolved = LocalModelEmbeddingRoleResolver(catalog(runner), properties)
+            val resolved = LocalModelRoleResolver(EmbeddingService.KIND, catalog(runner), properties.embeddingRoleBindings())
                 .resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY)
 
             assertNull(resolved)
@@ -659,8 +706,11 @@ class LocalModelResolutionTest {
             val runner = FakeRunner(serving = chat(PULLED_LLM) + embedding(PULLED_EMBEDDING))
             val beans = LocalModelBeans(runner, properties(), discovery)
 
-            assertNotNull(beans.roleResolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY))
-            assertNotNull(beans.embeddingRoleResolver.resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY))
+            // Both resolvers answer with the model the runner serves, so each one has read the listing.
+            val chat = beans.chatRoleResolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY)
+            assertEquals(PULLED_LLM, (chat as? RoleResolution.Service)?.service?.name)
+            val embedding = beans.embeddingRoleResolver.resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY)
+            assertEquals(PULLED_EMBEDDING, (embedding as? RoleResolution.Service)?.service?.name)
 
             assertEquals(1, runner.listings, "two resolvers over two catalogs would be two listings")
             assertEquals(DOCKER, beans.catalog.provider)
@@ -683,8 +733,8 @@ class LocalModelResolutionTest {
             )
 
             assertEquals(
-                LocalModelKind.EMBEDDING,
-                LocalModelKind.fromConfiguration(PULLED_EMBEDDING, properties),
+                EmbeddingService.KIND,
+                LocalModel.kindFromConfiguration(PULLED_EMBEDDING, properties),
             )
         }
 
@@ -692,7 +742,7 @@ class LocalModelResolutionTest {
         fun `anything configuration does not name as an embedding model is a chat model`() {
             val properties = ConfigurableModelProviderProperties(defaultLlm = DEFAULT_LLM)
 
-            assertEquals(LocalModelKind.CHAT, LocalModelKind.fromConfiguration(PULLED_LLM, properties))
+            assertEquals(LlmService.KIND, LocalModel.kindFromConfiguration(PULLED_LLM, properties))
         }
     }
 
@@ -720,7 +770,7 @@ class LocalModelResolutionTest {
                 llms = listOf(bootLlm),
                 embeddingServices = listOf(placeholder),
                 properties = properties,
-                roleResolvers = listOf(LocalModelRoleResolver(runnerCatalog, properties)),
+                roleResolvers = listOf(LocalModelRoleResolver(LlmService.KIND, runnerCatalog, properties.chatRoles())),
                 localModelCatalogs = listOf(runnerCatalog),
             )
             assertEquals("ai/qwen3-boot", mp.getLlm(DefaultModelSelectionCriteria).name)
@@ -743,7 +793,7 @@ class LocalModelResolutionTest {
                     llms = listOf(bootLlm),
                     embeddingServices = listOf(placeholder),
                     properties = properties,
-                    roleResolvers = listOf(LocalModelRoleResolver(runnerCatalog, properties)),
+                    roleResolvers = listOf(LocalModelRoleResolver(LlmService.KIND, runnerCatalog, properties.chatRoles())),
                     localModelCatalogs = listOf(runnerCatalog),
                 )
             }

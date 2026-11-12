@@ -77,14 +77,14 @@ class RoleResolutionTest {
             roles = nestedRoles,
             defaultLlm = "gpt-4.1-mini",
         ),
-        roleResolvers: List<RoleResolver> = emptyList(),
-        factories: List<CredentialLlmServiceFactory> = emptyList(),
+        roleResolvers: List<RoleResolver<*, *>> = emptyList(),
+        platforms: List<ModelPlatform> = emptyList(),
     ) = ConfigurableModelProvider(
         llms = models,
         embeddingServices = emptyList(),
         properties = properties,
         roleResolvers = roleResolvers,
-        credentialLlmServiceFactories = factories,
+        modelPlatforms = platforms,
     )
 
     @Nested
@@ -100,8 +100,8 @@ class RoleResolutionTest {
         fun `resolves against the provider active for this call`() {
             val built = mutableListOf<String>()
             val mp = provider(
-                factories = listOf(
-                    CredentialLlmServiceFactory { _, model ->
+                platforms = listOf(
+                    platformBuilding(LlmService.KIND) { _, model ->
                         built += model
                         anthropicModel
                     },
@@ -388,7 +388,7 @@ class RoleResolutionTest {
         fun `an application resolver wins over configuration`() {
             val mp = provider(
                 roleResolvers = listOf(
-                    RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) },
+                    RoleResolver.of(LlmService.KIND) { _, _ -> RoleResolution.Service(anthropicModel) },
                 ),
             )
             assertSame(anthropicModel, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
@@ -398,8 +398,8 @@ class RoleResolutionTest {
         fun `a resolver returning null delegates to the next one`() {
             val mp = provider(
                 roleResolvers = listOf(
-                    RoleResolver { _, _ -> null },
-                    RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) },
+                    RoleResolver.of(LlmService.KIND) { _, _ -> null },
+                    RoleResolver.of(LlmService.KIND) { _, _ -> RoleResolution.Service(anthropicModel) },
                 ),
             )
             assertSame(anthropicModel, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
@@ -410,7 +410,7 @@ class RoleResolutionTest {
             var seen: ModelSelectionContext? = null
             val mp = provider(
                 roleResolvers = listOf(
-                    RoleResolver { _, context ->
+                    RoleResolver.of(LlmService.KIND) { _, context ->
                         seen = context
                         RoleResolution.Service(anthropicModel)
                     },
@@ -424,13 +424,96 @@ class RoleResolutionTest {
         }
     }
 
+    /**
+     * Resolvers and model platforms of every kind arrive in one list, and each selection asks
+     * only those of its own kind.
+     */
+    @Nested
+    inner class OnlyTheKindBeingSelectedIsAsked {
+
+        @Test
+        fun `an embedding resolver is not asked about a chat role of the same name`() {
+            var embeddingResolverAsked = false
+            val mp = provider(
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                        embeddingResolverAsked = true
+                        null
+                    },
+                ),
+            )
+            assertSame(openAiModel, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
+            assertFalse(embeddingResolverAsked, "a chat role must not reach the embedding chain")
+        }
+
+        @Test
+        fun `a platform that builds only embedding models is not asked to build a chat model`() {
+            var embeddingPlatformAsked = false
+            val mp = provider(
+                platforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { _, _ ->
+                        embeddingPlatformAsked = true
+                        null
+                    },
+                    platformBuilding(LlmService.KIND) { _, _ -> anthropicModel },
+                ),
+            )
+            val resolved = ModelSelectionContextHolder.with(
+                ModelSelectionContext("ben", ProviderCredential("anthropic", "sk-test")),
+            ) {
+                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            }
+            assertSame(anthropicModel, resolved)
+            assertFalse(embeddingPlatformAsked, "a chat key must not reach a platform that builds only embedding models")
+        }
+
+        @Test
+        fun `a resolver and a platform of a kind nothing selects are reported at startup`() {
+            // Built with the chat kind's name and capability, but not the chat kind's constant, so
+            // the model provider never asks it. The warning is all that tells the author.
+            val lookalike = ModelKind<LlmService<*>, LlmOptions>("chat", LlmService::class.java)
+            val resolver = RoleResolver.of(lookalike) { _, _ -> null }
+            val platform = platformBuilding(lookalike) { _, _ -> null }
+            val warnings = captureWarnings {
+                provider(roleResolvers = listOf(resolver), platforms = listOf(platform))
+            }
+            // One warning names the resolver, and one names the platform.
+            assertEquals(1, warnings.count { it.contains(resolver.toString()) }, warnings.toString())
+            assertEquals(1, warnings.count { it.contains(platform.toString()) }, warnings.toString())
+        }
+
+        @Test
+        fun `a platform that builds a selected kind is not reported, even if it also builds an unselected one`() {
+            // The platform is still asked for chat, so warning about it would be wrong.
+            val unselected = ModelKind<EmbeddingService, ModelName>("reranking", EmbeddingService::class.java)
+            val platform = ModelPlatform.builder()
+                .builds(LlmService.KIND) { _, _ -> null }
+                .builds(unselected) { _, _ -> null }
+                .build()
+            val warnings = captureWarnings { provider(platforms = listOf(platform)) }
+            // No warning names the platform: one of its kinds is selected.
+            assertTrue(warnings.none { it.contains(platform.toString()) }, warnings.toString())
+        }
+
+        @Test
+        fun `resolvers and platforms of the selected kinds are not reported`() {
+            val resolver = RoleResolver.of(LlmService.KIND) { _, _ -> null }
+            val platform = platformBuilding(EmbeddingService.KIND) { _, _ -> null }
+            val warnings = captureWarnings {
+                provider(roleResolvers = listOf(resolver), platforms = listOf(platform))
+            }
+            // No warning names either one: the resolver is asked for chat and the platform for embedding.
+            assertTrue(warnings.none { it.contains(resolver.toString()) || it.contains(platform.toString()) }, warnings.toString())
+        }
+    }
+
     @Nested
     inner class BringYourOwnKey {
 
         private val userService = llm("claude-haiku-4-5", "anthropic")
         private var buildCount = 0
 
-        private val factory = CredentialLlmServiceFactory { credential, model ->
+        private val platform = platformBuilding(LlmService.KIND) { credential, model ->
             if (credential.provider == "anthropic" && model == "claude-haiku-4-5") {
                 buildCount++
                 userService
@@ -441,7 +524,7 @@ class RoleResolutionTest {
 
         @Test
         fun `a key in context resolves the role through that provider`() {
-            val mp = provider(factories = listOf(factory))
+            val mp = provider(platforms = listOf(platform))
             val resolved = ModelSelectionContextHolder.with(
                 ModelSelectionContext("ben", ProviderCredential("anthropic", "sk-test")),
             ) {
@@ -452,7 +535,7 @@ class RoleResolutionTest {
 
         @Test
         fun `the role's tuning for that provider travels with the user's key`() {
-            val mp = provider(factories = listOf(factory))
+            val mp = provider(platforms = listOf(platform))
             val resolved = ModelSelectionContextHolder.with(
                 ModelSelectionContext("ben", ProviderCredential("anthropic", "sk-test")),
             ) {
@@ -463,7 +546,7 @@ class RoleResolutionTest {
 
         @Test
         fun `a service built from a key is reused rather than rebuilt per call`() {
-            val mp = provider(factories = listOf(factory))
+            val mp = provider(platforms = listOf(platform))
             buildCount = 0
             repeat(3) {
                 ModelSelectionContextHolder.with(
@@ -478,11 +561,11 @@ class RoleResolutionTest {
         @Test
         fun `two users with different keys do not share a service`() {
             val built = mutableListOf<ProviderCredential>()
-            val perKeyFactory = CredentialLlmServiceFactory { credential, _ ->
+            val perKeyPlatform = platformBuilding(LlmService.KIND) { credential, _ ->
                 built += credential
                 llm("claude-haiku-4-5", "anthropic")
             }
-            val mp = provider(factories = listOf(perKeyFactory))
+            val mp = provider(platforms = listOf(perKeyPlatform))
             listOf("sk-ben", "sk-rod").forEach { key ->
                 ModelSelectionContextHolder.with(
                     ModelSelectionContext(credential = ProviderCredential("anthropic", key)),
@@ -497,7 +580,7 @@ class RoleResolutionTest {
         fun `a user key is never served from deployment credentials`() {
             // The role has no mistral column, and the deployment's own models are keyed by the
             // deployment. Serving them here would bill the deployment for this user's call.
-            val mp = provider(factories = listOf(factory))
+            val mp = provider(platforms = listOf(platform))
             assertThrows<NoSuitableModelException> {
                 ModelSelectionContextHolder.with(
                     ModelSelectionContext(credential = ProviderCredential("mistral", "sk-test")),
@@ -514,7 +597,7 @@ class RoleResolutionTest {
                     llms = mapOf(CHEAPEST_ROLE to OpenAiModels.GPT_6_LUNA),
                     defaultLlm = "gpt-4.1-mini",
                 ),
-                factories = listOf(factory),
+                platforms = listOf(platform),
             )
             assertThrows<NoSuitableModelException> {
                 ModelSelectionContextHolder.with(
@@ -530,11 +613,11 @@ class RoleResolutionTest {
             // The cache is keyed by a digest of the key rather than the key itself. That must not
             // change what the cache MEANS: same key reuses, different key rebuilds.
             val built = mutableListOf<String>()
-            val perKeyFactory = CredentialLlmServiceFactory { credential, _ ->
+            val perKeyPlatform = platformBuilding(LlmService.KIND) { credential, _ ->
                 built += credential.apiKey
                 llm("claude-haiku-4-5", "anthropic")
             }
-            val mp = provider(factories = listOf(perKeyFactory))
+            val mp = provider(platforms = listOf(perKeyPlatform))
             listOf("sk-ben", "sk-ben", "sk-rod", "sk-ben").forEach { key ->
                 ModelSelectionContextHolder.with(
                     ModelSelectionContext(credential = ProviderCredential("anthropic", key)),
@@ -554,8 +637,8 @@ class RoleResolutionTest {
                     defaultLlm = "gpt-4.1-mini",
                     credentialServiceCacheSize = 2,
                 ),
-                factories = listOf(
-                    CredentialLlmServiceFactory { credential, _ ->
+                platforms = listOf(
+                    platformBuilding(LlmService.KIND) { credential, _ ->
                         built += credential.apiKey
                         llm("claude-haiku-4-5", "anthropic")
                     },
@@ -588,7 +671,7 @@ class RoleResolutionTest {
                             defaultLlm = "gpt-4.1-mini",
                             credentialServiceCacheSize = size,
                         ),
-                        factories = listOf(factory),
+                        platforms = listOf(platform),
                     )
                 }
                 assertTrue(
@@ -599,10 +682,10 @@ class RoleResolutionTest {
         }
 
         @Test
-        fun `a provider no factory handles fails rather than falling back`() {
-            // The role names a model for openai, but the only factory speaks anthropic. Serving
+        fun `a provider no platform handles fails rather than falling back`() {
+            // The role names a model for openai, but the only platform builds for anthropic. Serving
             // the deployment's own openai model here would bill the deployment for the user's call.
-            val mp = provider(factories = listOf(factory))
+            val mp = provider(platforms = listOf(platform))
             assertThrows<NoSuitableModelException> {
                 ModelSelectionContextHolder.with(
                     ModelSelectionContext(credential = ProviderCredential("openai", "sk-test")),
@@ -619,7 +702,7 @@ class RoleResolutionTest {
                     roles = mapOf(CHEAPEST_ROLE to mapOf("anthropic" to LlmOptions().withTemperature(0.3))),
                     defaultLlm = "gpt-4.1-mini",
                 ),
-                factories = listOf(factory),
+                platforms = listOf(platform),
             )
             assertThrows<NoSuitableModelException> {
                 ModelSelectionContextHolder.with(
@@ -634,9 +717,10 @@ class RoleResolutionTest {
     @Nested
     inner class PlatformResolver {
 
-        private val resolver = ConfigurableRoleResolver(
-            ConfigurableModelProviderProperties(roles = nestedRoles, defaultLlm = "gpt-4.1-mini"),
-        ) { "openai" }
+        private val roles =
+            ConfigurableModelProviderProperties(roles = nestedRoles, defaultLlm = "gpt-4.1-mini").chatRoles()
+
+        private val resolver = ConfigurableRoleResolver(LlmService.KIND, roles) { "openai" }
 
         @Test
         fun `runs last, so an application resolver can always take precedence`() {
@@ -645,7 +729,7 @@ class RoleResolutionTest {
 
         @Test
         fun `says nothing when there is no provider to resolve against`() {
-            assertNull(resolver.optionsFor(CHEAPEST_ROLE, provider = null))
+            assertNull(roles.boundFor(CHEAPEST_ROLE, provider = null))
         }
 
         @Test
@@ -684,7 +768,7 @@ class RoleResolutionTest {
         @Test
         fun `the configured view ignores application resolvers, which are per-call`() {
             val mp = provider(
-                roleResolvers = listOf(RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) }),
+                roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { _, _ -> RoleResolution.Service(anthropicModel) }),
             )
             // The resolver decides what RUNS; configuration is what the deployment DECLARES.
             assertEquals(OpenAiModels.GPT_6_LUNA, mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
@@ -697,7 +781,7 @@ class RoleResolutionTest {
 
         @Test
         fun `says nothing about a role it has never heard of`() {
-            assertNull(resolver.optionsFor("no-such-role", provider = "openai"))
+            assertNull(roles.boundFor("no-such-role", provider = "openai"))
             assertNull(resolver.resolve("no-such-role", ModelSelectionContext.EMPTY))
         }
     }
@@ -804,8 +888,8 @@ class RoleResolutionTest {
                     roles = nestedRoles,
                     defaultLlm = CHEAPEST_ROLE,
                 ),
-                factories = listOf(
-                    CredentialLlmServiceFactory { _, model ->
+                platforms = listOf(
+                    platformBuilding(LlmService.KIND) { _, model ->
                         built = model
                         anthropicModel
                     },
@@ -825,8 +909,8 @@ class RoleResolutionTest {
             val mp = provider(
                 models = listOf(placeholderModel),
                 properties = ConfigurableModelProviderProperties(defaultLlm = "workhorse"),
-                roleResolvers = listOf(RoleResolver { role, _ ->
-                    RoleResolution.Service(anthropicModel).takeIf { role == "workhorse" }
+                roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { role, _ ->
+                    RoleResolution.Service<LlmService<*>, LlmOptions>(anthropicModel).takeIf { role == "workhorse" }
                 }),
             )
             assertSame(anthropicModel, mp.getLlm(DefaultModelSelectionCriteria))
@@ -840,7 +924,7 @@ class RoleResolutionTest {
                     roles = nestedRoles,
                     defaultLlm = "gpt-4.1-mini",
                 ),
-                roleResolvers = listOf(RoleResolver { _, _ -> asked = true; null }),
+                roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { _, _ -> asked = true; null }),
             )
             assertSame(defaultModel, mp.getLlm(DefaultModelSelectionCriteria))
             assertFalse(asked)

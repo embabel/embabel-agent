@@ -231,7 +231,7 @@ data class LlmOptions @JvmOverloads constructor(
      * Last, so that the overloads without it keep the JVM signatures callers compiled before it link to.
      */
     var reasoningEffort: ReasoningEffort? = null,
-) : LlmHyperparameters, HasInfoString {
+) : LlmHyperparameters, RoleBinding, HasInfoString {
 
     /**
      * Binary compatibility: the synthetic constructor that Kotlin callers compiled before [reasoningEffort]
@@ -347,7 +347,7 @@ data class LlmOptions @JvmOverloads constructor(
      * binding sets the [model] field, so neither one alone answers the question.
      */
     @get:JsonIgnore
-    val modelName: String?
+    override val modelName: String?
         get() = model ?: (criteria as? ByNameModelSelectionCriteria)?.name
 
     /**
