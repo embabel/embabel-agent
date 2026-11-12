@@ -1,0 +1,13 @@
+models:
+  - name: clef
+    model_id: "@cf/cloudflare/clef"
+    display_name: CLEF
+  - name: clef-flash
+    model_id: "@cf/cloudflare/clef-flash"
+    display_name: CLEF Flash
+  - name: clef-omni
+    model_id: "@cf/cloudflare/clef-omni"
+    display_name: CLEF Omni
+  - name: cloudflare-jev
+    model_id: typesafe/jev
+    display_name: Jev

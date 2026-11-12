@@ -314,6 +314,38 @@ class ShellEnvironmentPostProcessorTest {
     }
 
     @Test
+    void shouldCloseContextAfterShellExitsByDefault() {
+        // Given
+        processor = new ShellEnvironmentPostProcessor();
+        when(environment.getPropertySources()).thenReturn(propertySources);
+        when(environment.containsProperty("spring.shell.context.close")).thenReturn(false);
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then - Spring Shell 4 only ends its input loop on quit/exit; closing the context lets the JVM exit
+        ArgumentCaptor<MapPropertySource> captor = ArgumentCaptor.forClass(MapPropertySource.class);
+        verify(propertySources).addFirst(captor.capture());
+        assertEquals(true, captor.getValue().getProperty("spring.shell.context.close"));
+    }
+
+    @Test
+    void shouldNotOverrideExplicitContextClose() {
+        // Given
+        processor = new ShellEnvironmentPostProcessor();
+        when(environment.getPropertySources()).thenReturn(propertySources);
+        when(environment.containsProperty("spring.shell.context.close")).thenReturn(true);
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then
+        ArgumentCaptor<MapPropertySource> captor = ArgumentCaptor.forClass(MapPropertySource.class);
+        verify(propertySources).addFirst(captor.capture());
+        assertFalse(captor.getValue().containsProperty("spring.shell.context.close"));
+    }
+
+    @Test
     void shouldHandleNullWebApplicationType() {
         // Given
         processor = new ShellEnvironmentPostProcessor();

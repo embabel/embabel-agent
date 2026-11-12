@@ -22,6 +22,7 @@ import com.embabel.agent.spi.support.decision.LlmClassificationService
 import com.embabel.agent.spi.support.decision.LlmDecisionService
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.model.DecisionModelProvider
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -39,6 +40,10 @@ import org.jetbrains.annotations.ApiStatus
  * call. A model named here is looked up once, when the service is built. To use a model the caller
  * already holds, such as one built for a user's own API key, pass the [LlmService] instead.
  *
+ * As a [DecisionModelProvider], it serves every chat model the [ModelProvider] lists, so a decision
+ * default or role can name a chat model directly and the registry builds the prompted service on
+ * first use.
+ *
  * Applications inject the `LlmDecisionServiceFactory` bean from the Spring context.
  */
 @ApiStatus.Experimental
@@ -47,7 +52,33 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
     private val modelProvider: ModelProvider,
     private val retry: RetryProperties,
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-) {
+) : DecisionModelProvider {
+
+    override val provider: String
+        get() = PROVIDER
+
+    /**
+     * Returns the names of the chat models the model provider lists.
+     *
+     * @return the chat model names
+     */
+    override fun modelNames(): List<String> =
+        modelProvider.listModelNames(LlmService::class.java).distinct()
+
+    /**
+     * Builds a prompted decision service for a chat model.
+     *
+     * @param name the chat model name
+     * @return the decision service, or null when no chat model has that name
+     */
+    override fun decisionServiceNamed(name: String): DecisionService? {
+        if (name.isBlank()) return null
+        return try {
+            decisionService(name)
+        } catch (_: NoSuitableModelException) {
+            null
+        }
+    }
 
     /**
      * Builds a decision service for the model with this name.
@@ -117,4 +148,10 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
      */
     private fun llmDecisionService(llm: LlmService<*>, retry: RetryProperties, retryName: String) =
         LlmDecisionService(llmOperations, llm, LlmOptions(PreResolvedModelSelectionCriteria(llm)), retry, retryName)
+
+    companion object {
+
+        /** Name this factory reports as a decision model provider. */
+        const val PROVIDER = "llm"
+    }
 }

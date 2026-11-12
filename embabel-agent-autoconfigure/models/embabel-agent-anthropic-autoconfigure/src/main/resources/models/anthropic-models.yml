@@ -1,11 +1,14 @@
 # ============================================
 # anthropic-models.yml
 # ============================================
-# Updated with latest Anthropic models as of October 5, 2026
+# Updated with latest Anthropic models as of October 20, 2026
 # Using official Anthropic API aliases
-# IDs, prices and lifecycle verified 2026-10-05 against
+# IDs, prices and lifecycle verified 2026-10-05 (Haiku 5.5: 2026-10-20) against
 # platform.claude.com/docs/en/about-claude/models/overview, /pricing and
 # /model-deprecations.
+# Cache rates verified 2026-10-29 against /pricing: cache_read is "cache hits and
+# refreshes", cache_write is the 5-minute TTL write. 1-hour TTL writes cost 2x input;
+# override usd_per1m_cache_write_input_tokens when a deployment uses them.
 
 native_support_defaults:
   structured_output:
@@ -33,6 +36,10 @@ models:
   # CLAUDE 5 GENERATION
   # 1M context, 128K max output. Thinking is adaptive and cannot be turned
   # off on Opus 5.5 and Fable 5.1; Sonnet 5.5 also rejects "disabled".
+  # Haiku 5.5 accepts "disabled" only at effort high or below.
+  # thinking.can_be_disabled declares whether a model accepts thinking
+  # "disabled", which ReasoningEffort.NONE needs: platform.claude.com/docs/en/
+  # build-with-claude/thinking#configuring-thinking.
   # ========================================
 
   # Claude Fable 5.1 - Demanding reasoning and long-horizon agentic work
@@ -42,9 +49,13 @@ models:
     display_name: "Claude Fable 5.1"
     knowledge_cutoff_date: "2026-06-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 10.0
       usd_per1m_output_tokens: 50.0
+      usd_per1m_cache_read_input_tokens: 0.25
+      usd_per1m_cache_write_input_tokens: 12.5
 
   # Claude Opus 5.5 - Long-running agentic coding and knowledge work
   - name: "claude_opus_55"
@@ -52,9 +63,13 @@ models:
     display_name: "Claude Opus 5.5"
     knowledge_cutoff_date: "2026-06-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 4.0
       usd_per1m_output_tokens: 20.0
+      usd_per1m_cache_read_input_tokens: 0.20
+      usd_per1m_cache_write_input_tokens: 5.0
 
   # Claude Sonnet 5.5 - Best combination of speed and intelligence
   - name: "claude_sonnet_55"
@@ -62,9 +77,30 @@ models:
     display_name: "Claude Sonnet 5.5"
     knowledge_cutoff_date: "2026-06-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 2.0
       usd_per1m_output_tokens: 10.0
+      usd_per1m_cache_read_input_tokens: 0.10
+      usd_per1m_cache_write_input_tokens: 2.5
+
+  # Claude Haiku 5.5 - High-volume, latency-sensitive tasks (classification,
+  # extraction, routing). Priced by prompt length: the rates below apply to
+  # prompts up to 100K tokens; prompts over 100K pay $0.50 / $2.50 per 1M
+  # ($0.05 cache read, $0.625 cache write).
+  - name: "claude_haiku_55"
+    model_id: "claude-haiku-5-5"
+    display_name: "Claude Haiku 5.5"
+    knowledge_cutoff_date: "2026-06-01"
+    max_tokens: 8192
+    thinking:
+      can_be_disabled: true
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.50
+      usd_per1m_cache_read_input_tokens: 0.01
+      usd_per1m_cache_write_input_tokens: 0.125
 
   # ========================================
   # CLAUDE 4.8 FAMILY
@@ -77,9 +113,13 @@ models:
     # Reliable knowledge cutoff per Anthropic models overview (Jan 2026)
     knowledge_cutoff_date: "2026-01-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 5.0
       usd_per1m_output_tokens: 25.0
+      usd_per1m_cache_read_input_tokens: 0.50
+      usd_per1m_cache_write_input_tokens: 6.25
 
   # ========================================
   # CLAUDE 4.6 FAMILY
@@ -91,9 +131,13 @@ models:
     display_name: "Claude Opus 4.6"
     knowledge_cutoff_date: "2025-10-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 5.0
       usd_per1m_output_tokens: 25.0
+      usd_per1m_cache_read_input_tokens: 0.50
+      usd_per1m_cache_write_input_tokens: 6.25
 
   # Claude Sonnet 4.6 - Best balance of cost/performance, 1M context
   - name: "claude_sonnet_46"
@@ -101,9 +145,13 @@ models:
     display_name: "Claude Sonnet 4.6"
     knowledge_cutoff_date: "2025-10-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
+      usd_per1m_cache_read_input_tokens: 0.30
+      usd_per1m_cache_write_input_tokens: 3.75
   # ========================================
   # CLAUDE 4.5 FAMILY (Previous Generation)
   # ========================================
@@ -115,59 +163,23 @@ models:
     display_name: "Claude Sonnet 4.5"
     knowledge_cutoff_date: "2025-01-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
+      usd_per1m_cache_read_input_tokens: 0.30
+      usd_per1m_cache_write_input_tokens: 3.75
   # Claude Haiku 4.5 - Fast, cost-efficient with near-frontier performance
   - name: "claude_haiku_45"
     model_id: "claude-haiku-4-5"
     display_name: "Claude Haiku 4.5"
     knowledge_cutoff_date: "2025-02-01"
     max_tokens: 8192
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 1.0
       usd_per1m_output_tokens: 5.0
-  # ========================================
-  # CLAUDE 4 FAMILY (Current Generation)
-  # ========================================
-
-  # Claude Opus 4.1 - Most powerful for complex reasoning tasks
-  - name: "claude_opus_41"
-    model_id: "claude-opus-4-1"
-    display_name: "Claude Opus 4.1"
-    knowledge_cutoff_date: "2025-01-01"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 15.0
-      usd_per1m_output_tokens: 75.0
-  # Claude Sonnet 4 - General purpose, large context window
-  - name: "claude_sonnet_4"
-    model_id: "claude-sonnet-4-0"
-    display_name: "Claude Sonnet 4"
-    knowledge_cutoff_date: "2025-01-01"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 3.0
-      usd_per1m_output_tokens: 15.0
-  # ========================================
-  # LEGACY MODELS (For Backward Compatibility)
-  # ========================================
-
-  # Claude Opus 4.0 - Legacy flagship model
-  - name: "claude_opus_40"
-    model_id: "claude-opus-4-0"
-    display_name: "Claude Opus 4.0"
-    knowledge_cutoff_date: "2025-03-31"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 15.0
-      usd_per1m_output_tokens: 75.0
-  # Claude 3.5 Haiku - Legacy fast model (replaced by Haiku 4.5)
-  - name: "claude_haiku_35"
-    model_id: "claude-3-5-haiku-latest"
-    display_name: "Claude 3.5 Haiku"
-    knowledge_cutoff_date: "2024-10-22"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 0.80
-      usd_per1m_output_tokens: 4.0
+      usd_per1m_cache_read_input_tokens: 0.10
+      usd_per1m_cache_write_input_tokens: 1.25

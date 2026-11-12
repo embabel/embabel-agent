@@ -1,0 +1,498 @@
+# ============================================
+# openai-models.yml
+# ============================================
+# OpenAI and compatible models configuration
+# Model IDs verified against GET /v1/models on 2026-03-29; the GPT-5.5 and
+# GPT-5.6 families against developers.openai.com/api/docs/models on 2026-08-04,
+# the GPT-6 family on 2026-10-05.
+# Pricing verified against official OpenAI model pages and openai.com/api/pricing
+# on 2026-04-02, for GPT-5.5/5.6 on 2026-08-04, and for GPT-6/5.6 on 2026-10-05.
+# Lifecycle per developers.openai.com/api/docs/deprecations on 2026-10-05.
+# Note: undated aliases (e.g. "gpt-5.4") resolve to OpenAI's current recommended
+#       pinned version and may change over time. Use dated model IDs in the
+#       OpenAiModels constants if reproducibility is required.
+# Note: cached_input pricing is intentionally omitted — PerTokenPricingModel
+#       only supports usd_per1m_input_tokens and usd_per1m_output_tokens.
+
+native_support_defaults:
+  structured_output:
+    # Default native structured-output metadata for OpenAI models.
+    # The tag names under options are documentation-only for now; the current
+    # configurer still uses Spring AI option objects for payload mutation.
+    supported: true
+    strategy: "response_format"
+    strict: false
+    prompt_instructions: "include"
+    options:
+      # Documentation only for now.
+      response_format_field: "response_format"
+      # Documentation only for now.
+      type_field: "type"
+      # Documentation only for now.
+      type_value: "json_schema"
+      # Documentation only for now.
+      json_schema_field: "json_schema"
+      # Documentation only for now.
+      name_field: "name"
+      # Documentation only for now.
+      schema_field: "schema"
+      # Documentation only for now.
+      strict_field: "strict"
+
+models:
+  # ========================================
+  # GPT-6 FAMILY (Current Flagship)
+  # Model pages and pricing verified: developers.openai.com 2026-10-05
+  # Astra is the flagship, 6.1 Sol balances intelligence and cost, Luna is
+  # the high-volume tier. GPT-6 Sol is the previous Sol, superseded by 6.1 Sol.
+  # Prices are the short-context tier (<272K); long context is billed higher.
+  #
+  # Same transport constraint as GPT-5.6: Astra and 6.1 Sol take tool calls
+  # only over Responses, and 6 Sol and Luna accept function tools on Chat
+  # Completions only at reasoning effort `none`. All four are pinned to
+  # Responses for the reason given under GPT-5.6 below.
+  # ========================================
+
+  - name: "gpt6astra"
+    model_id: "gpt-6-astra"
+    api_format: "RESPONSES"
+    display_name: "GPT-6 Astra"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 10.00
+      usd_per1m_output_tokens: 50.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt61sol"
+    model_id: "gpt-6.1-sol"
+    api_format: "RESPONSES"
+    display_name: "GPT-6.1 Sol"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 10.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt6sol"
+    model_id: "gpt-6-sol"
+    api_format: "RESPONSES"
+    display_name: "GPT-6 Sol"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 10.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt6luna"
+    model_id: "gpt-6-luna"
+    api_format: "RESPONSES"
+    display_name: "GPT-6 Luna"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.50
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-5.6 FAMILY (July 2026)
+  # Model pages and pricing verified: developers.openai.com 2026-08-04
+  # Tiers are Luna/Terra/Sol, not nano/mini/pro: "pro" became a Responses-only
+  # reasoning MODE (reasoning.mode) rather than a model.
+  # The "gpt-5.6" alias routes to Sol; the tiers are registered by their own ids.
+  # Prices are the short-context tier (<272K); long context is billed higher.
+  #
+  # All three answer a plain prompt over either endpoint, but Chat Completions
+  # refuses any request carrying function tools:
+  #   400: Function tools with reasoning_effort are not supported for
+  #        gpt-5.6-luna in /v1/chat/completions.
+  # These models default to `medium` reasoning effort server-side when the
+  # request omits it, which every Embabel request does, so the combination is
+  # unavoidable there. Chat Completions would take tools only at effort `none`
+  # — not something to impose on models bought for their reasoning. Responses
+  # accepts every effort level alongside tools, and is the endpoint OpenAI
+  # documents for tool-calling workflows, so all three are pinned to it.
+  # ========================================
+
+  - name: "gpt56sol"
+    model_id: "gpt-5.6-sol"
+    api_format: "RESPONSES"
+    display_name: "GPT-5.6 Sol"
+    max_tokens: 16384
+    temperature: 1.0
+    # Promotional price, "available at least through November 21, 2026"
+    # (developers.openai.com/api/docs/models/gpt-5.6-sol, 2026-10-05).
+    pricing_model:
+      usd_per1m_input_tokens: 4.00
+      usd_per1m_output_tokens: 20.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt56terra"
+    model_id: "gpt-5.6-terra"
+    api_format: "RESPONSES"
+    display_name: "GPT-5.6 Terra"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 12.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt56luna"
+    model_id: "gpt-5.6-luna"
+    api_format: "RESPONSES"
+    display_name: "GPT-5.6 Luna"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.20
+      usd_per1m_output_tokens: 1.20
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-5.5 FAMILY (June 2026)
+  # Model pages and pricing verified: developers.openai.com 2026-08-04
+  # ========================================
+
+  - name: "gpt55"
+    model_id: "gpt-5.5"
+    display_name: "GPT-5.5"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 5.00
+      usd_per1m_output_tokens: 30.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt55pro"
+    model_id: "gpt-5.5-pro"
+    api_format: "RESPONSES"
+    display_name: "GPT-5.5 Pro"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 30.0
+      usd_per1m_output_tokens: 180.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-5.4 FAMILY (March 2026)
+  # Pricing verified: openai.com/api/pricing 2026-03-29
+  # Cached input (not stored): gpt54=$0.25, gpt54mini=$0.075, gpt54nano=$0.02
+  # ========================================
+
+  - name: "gpt54"
+    model_id: "gpt-5.4"
+    display_name: "GPT-5.4"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.50
+      usd_per1m_output_tokens: 15.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt54mini"
+    model_id: "gpt-5.4-mini"
+    display_name: "GPT-5.4 Mini"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.750
+      usd_per1m_output_tokens: 4.500
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # Deprecated: removed from the API on 2027-04-01 (replacement gpt-6-luna).
+  - name: "gpt54nano"
+    model_id: "gpt-5.4-nano"
+    display_name: "GPT-5.4 Nano"
+    max_tokens: 8192
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.20
+      usd_per1m_output_tokens: 1.25
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt54pro"
+    model_id: "gpt-5.4-pro"
+    api_format: "RESPONSES"
+    display_name: "GPT-5.4 Pro"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 30.0
+      usd_per1m_output_tokens: 180.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-5.2 FAMILY (December 2025)
+  # ========================================
+
+  - name: "gpt52"
+    model_id: "gpt-5.2"
+    display_name: "GPT-5.2"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 1.75
+      usd_per1m_output_tokens: 14.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt52pro"
+    model_id: "gpt-5.2-pro"
+    api_format: "RESPONSES"
+    display_name: "GPT-5.2 Pro"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 21.0
+      usd_per1m_output_tokens: 168.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-5.1 FAMILY (November 2025)
+  # Deprecated: removed from the API on 2027-04-01 (replacement gpt-6-sol).
+  # ========================================
+
+  - name: "gpt51"
+    model_id: "gpt-5.1"
+    display_name: "GPT-5.1"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-5 FAMILY (August 2025)
+  # Deprecated: the 2025 snapshots behind these aliases are removed from the
+  # API on 2026-12-11 (replacements gpt-5.6-sol/-terra/-luna).
+  # ========================================
+
+  - name: "gpt5"
+    model_id: "gpt-5"
+    display_name: "GPT-5"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt5mini"
+    model_id: "gpt-5-mini"
+    display_name: "GPT-5 Mini"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.25
+      usd_per1m_output_tokens: 2.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt5nano"
+    model_id: "gpt-5-nano"
+    display_name: "GPT-5 Nano"
+    max_tokens: 8192
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.05
+      usd_per1m_output_tokens: 0.40
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt5pro"
+    model_id: "gpt-5-pro"
+    api_format: "RESPONSES"
+    display_name: "GPT-5 Pro"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 15.0
+      usd_per1m_output_tokens: 120.0
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-4.1 FAMILY (April 2025 - 1M token context window)
+  # Accepts any temperature again: 0.8 verified on gpt-4.1 and gpt-4.1-mini 2026-10-29
+  # (restricted ~June 2026, see #1724). If OpenAI tightens it again,
+  # InstrumentedChatModel strips a refused temperature and retries.
+  # ========================================
+
+  - name: "gpt41"
+    model_id: "gpt-4.1"
+    display_name: "GPT-4.1"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.0
+      usd_per1m_output_tokens: 8.0
+
+  - name: "gpt41mini"
+    model_id: "gpt-4.1-mini"
+    display_name: "GPT-4.1 Mini"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.40
+      usd_per1m_output_tokens: 1.60
+
+  # Deprecated: removed from the API on 2026-10-23 (replacement gpt-5.6-luna).
+  - name: "gpt41nano"
+    model_id: "gpt-4.1-nano"
+    display_name: "GPT-4.1 Nano"
+    max_tokens: 8192
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
+    special_handling:
+      supports_temperature: false
+
+  # ========================================
+  # GPT-4o FAMILY (retained for audio support only)
+  # ========================================
+
+  - name: "gpt4o"
+    model_id: "gpt-4o"
+    display_name: "GPT-4o"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.50
+      usd_per1m_output_tokens: 10.0
+
+  - name: "gpt4omini"
+    model_id: "gpt-4o-mini"
+    display_name: "GPT-4o Mini"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.60
+
+# ========================================
+# EMBEDDING MODELS
+# ========================================
+embedding_models:
+  - name: "text_embedding_3_large"
+    model_id: "text-embedding-3-large"
+    display_name: "Text Embedding 3 Large"
+    dimensions: 3072
+    pricing_model:
+      usd_per1m_tokens: 0.13
+
+  - name: "text_embedding_3_small"
+    model_id: "text-embedding-3-small"
+    display_name: "Text Embedding 3 Small"
+    dimensions: 1536
+    pricing_model:
+      usd_per1m_tokens: 0.02
+
+  - name: "text_embedding_ada_002"
+    model_id: "text-embedding-ada-002"
+    display_name: "Text Embedding Ada 002"
+    dimensions: 1536
+    pricing_model:
+      usd_per1m_tokens: 0.10

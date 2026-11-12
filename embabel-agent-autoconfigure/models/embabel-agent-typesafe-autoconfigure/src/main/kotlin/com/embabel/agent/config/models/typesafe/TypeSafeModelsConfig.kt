@@ -17,29 +17,31 @@ package com.embabel.agent.config.models.typesafe
 
 import com.embabel.agent.typesafe.TypeSafeClientOptions
 import com.embabel.agent.typesafe.TypeSafeModelFactory
-import com.embabel.common.ai.decision.DecisionService
-import com.embabel.common.ai.model.DecisionServiceRegistry
+import com.embabel.common.ai.autoconfig.DecisionModelsRegistrar
+import com.embabel.common.ai.autoconfig.ProviderInitialization
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import java.net.URI
+import java.util.function.Function
 import java.util.function.Supplier
 
 /**
- * Spring configuration for TypeSafe models.
+ * Spring configuration for TypeSafe decision models.
  *
- * Extends [TypeSafeModelFactory] so native provider construction is shared with the BYOK path,
- * matching the Anthropic and OpenAI provider pattern. This class adds property resolution,
- * application transport selection, the default named decision-service bean, its default
- * candidate and the named services configured under `services`.
+ * Extends [TypeSafeModelFactory] so native provider construction is shared with the BYOK path, as the
+ * Anthropic and OpenAI configurations do. It defines one decision service bean per catalog model,
+ * named after the model, and offers [TypeSafeModelFactory.DEFAULT_MODEL] as the decision and
+ * classification default candidate when it defines that model. `TYPESAFE_API_KEY` takes precedence
+ * over the configured key.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TypeSafeProperties::class)
@@ -52,56 +54,66 @@ class TypeSafeModelsConfig(
     registries: ObjectProvider<ObservationRegistry>,
 ) : TypeSafeModelFactory(
     options(properties),
-    Supplier { requireApiKey(properties, environment) },
+    Supplier { requireApiKey(environment) },
     selectedBuilder(platformBuilders, builders, registries),
     registries.getIfUnique { ObservationRegistry.NOOP },
-    properties.model(),
 ) {
 
     init {
-        requireApiKey(properties, environment)
+        requireApiKey(environment)
         logger.info("TypeSafe models are available: {}", properties)
     }
 
     /**
-     * Defines the default TypeSafe decision service and offers it as the decision and
-     * classification family default. An application bean named `typeSafeDecisionService` replaces
-     * both. The named services under `services` still register.
+     * Reports the catalog models [typeSafeModelsRegistrar] defined, the way the chat model starters
+     * report theirs. Models the application replaced are left out.
+     *
+     * @param beanFactory the factory holding the catalog model definitions
+     * @return the models registered
      */
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnMissingBean(name = [DEFAULT_SERVICE])
-    class DefaultServiceConfiguration {
-
-        /** Builds the default service from the configured model. */
-        @Bean(DEFAULT_SERVICE)
-        fun typeSafeDecisionService(factory: TypeSafeModelsConfig): DecisionService = factory.build()
-
-        /** Offers `typeSafeDecisionService` as the decision and classification family default. */
-        @Bean
-        fun typeSafeDefaultCandidate(): DecisionServiceRegistry.DefaultCandidate =
-            DecisionServiceRegistry.DefaultCandidate(DEFAULT_SERVICE)
-    }
+    @Bean
+    fun typeSafeModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization =
+        DecisionModelsRegistrar.initialization(PROVIDER, beanFactory)
 
     companion object {
 
         /**
-         * Registers the services configured under `embabel.agent.platform.models.typesafe.services`.
-         * Static, so Spring creates it before ordinary beans and the service definitions exist before
-         * anything that injects them by name.
+         * Defines the catalog model beans. Static, so the definitions exist before anything that
+         * injects a model by type or name.
          */
         @JvmStatic
         @Bean
-        fun typeSafeServicesRegistrar(
-            environment: Environment,
-            beanFactory: BeanFactory,
-        ): BeanDefinitionRegistryPostProcessor =
-            TypeSafeServicesRegistrar(TypeSafeServicesRegistrar.bind(environment), beanFactory)
+        fun typeSafeModelsRegistrar(beanFactory: BeanFactory): BeanDefinitionRegistryPostProcessor =
+            registrar(catalog(), beanFactory)
 
-        /** Bean name of the default TypeSafe decision service. */
-        const val DEFAULT_SERVICE = "typeSafeDecisionService"
+        /**
+         * Builds the registrar for a catalog. Each model's service is built by the `TypeSafeModelFactory`
+         * bean when the model bean is created.
+         *
+         * @param models the catalog to define beans for
+         * @param beanFactory the factory the `TypeSafeModelFactory` bean is read from
+         * @return the registrar
+         */
+        private fun registrar(models: List<TypeSafeModelDefinition>, beanFactory: BeanFactory): DecisionModelsRegistrar =
+            DecisionModelsRegistrar(
+                provider = PROVIDER,
+                models = models,
+                defaultModel = TypeSafeModelFactory.DEFAULT_MODEL,
+                defaultCandidate = DEFAULT_CANDIDATE,
+                serviceFactory = Function { modelId -> beanFactory.getBean(TypeSafeModelFactory::class.java).build(modelId) },
+            )
+
+        /**
+         * Loads the starter's model catalog.
+         *
+         * @return the catalog models, in file order
+         */
+        private fun catalog(): List<TypeSafeModelDefinition> = TypeSafeModelLoader().loadAutoConfigMetadata().models
 
         private const val API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY"
+        private const val API_KEY_PROPERTY = TypeSafeProperties.PREFIX + ".api-key"
         private const val AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder"
+        private const val DEFAULT_CANDIDATE = "typeSafeDefaultCandidate"
 
         private val logger = org.slf4j.LoggerFactory.getLogger(TypeSafeModelsConfig::class.java)
 
@@ -154,19 +166,17 @@ class TypeSafeModelsConfig(
         }
 
         /**
-         * Reads the API key, preferring the environment variable over the configured property. The
-         * error never includes the key.
+         * Reads the API key, preferring the environment variable over the configured property. Both
+         * are read through the environment on every call, so a rotated key takes effect. The error
+         * never includes the key.
          *
-         * @param properties the TypeSafe configuration properties
          * @param environment the Spring environment
          * @return the API key
          * @throws IllegalStateException if neither source has a key
          */
-        private fun requireApiKey(properties: TypeSafeProperties, environment: Environment): String {
-            val environmentKey = environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE)
-            return environmentKey.takeUnless { it.isNullOrBlank() }
-                ?: properties.apiKey().takeUnless { it.isNullOrBlank() }
+        private fun requireApiKey(environment: Environment): String =
+            environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE).takeUnless { it.isNullOrBlank() }
+                ?: environment.getProperty(API_KEY_PROPERTY).takeUnless { it.isNullOrBlank() }
                 ?: error("TypeSafe API key is required")
-        }
     }
 }

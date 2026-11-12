@@ -52,7 +52,9 @@ import static org.mockito.Mockito.when;
         "embabel.models.default-llm=test-model",
         "embabel.agent.verbosity.debug=true",
         "spring.shell.interactive.enabled=false",
-        "spring.shell.noninteractive.enabled=false"
+        "spring.shell.noninteractive.enabled=false",
+        // The shell starter defaults this to true, which would close the test context on startup
+        "spring.shell.context.close=false"
 })
 public class EmbabelMockitoIntegrationTest {
 

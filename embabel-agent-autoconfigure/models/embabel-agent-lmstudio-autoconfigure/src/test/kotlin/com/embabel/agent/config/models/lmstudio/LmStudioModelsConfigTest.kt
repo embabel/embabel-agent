@@ -17,6 +17,10 @@ package com.embabel.agent.config.models.lmstudio
 
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.openai.withOpenAiReasoningEffort
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.LlmOptions
+import org.springframework.ai.openai.OpenAiChatOptions
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import com.embabel.common.ai.model.local.LocalModelKind
@@ -158,6 +162,14 @@ class LmStudioModelsConfigTest {
 
             assertEquals(setOf("qwen3"), catalog.servedNames(LocalModelKind.CHAT))
             assertEquals(setOf("nomic-embed-text"), catalog.servedNames(LocalModelKind.EMBEDDING))
+        }
+
+        @Test
+        fun `an LM Studio chat model forwards a configured reasoning effort`() {
+            val llm = servingBoth().lmStudioLocalModelCatalog().llmNamed("qwen3") as SpringAiLlmService
+            val options = LlmOptions().withOpenAiReasoningEffort("none")
+
+            assertEquals("none", (llm.optionsConverter.convertOptions(options, "qwen3") as OpenAiChatOptions).reasoningEffort)
         }
 
         @Test

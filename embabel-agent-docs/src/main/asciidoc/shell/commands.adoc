@@ -124,7 +124,7 @@ The persistent context remains `{tenantId=acme, authToken=bearer-xyz123}` for fu
 ==== Implementing Custom Shell Commands
 
 During development you may want to add your own shell commands to invoke specific agents or flows directly, bypassing the natural-language routing of `execute`.
-Because the Embabel Shell is a standard Spring Shell application, any `@ShellComponent` bean is discovered and registered automatically by Spring.
+Because the Embabel Shell is a standard Spring Shell application, commands declared in any Spring `@Component` bean are discovered and registered automatically.
 
 Inject `AgentPlatform` and use `AgentInvocation` to call agents with strong typing:
 
@@ -134,15 +134,15 @@ Java::
 +
 [source,java]
 ----
-@ShellComponent
+@Component
 public record SupportAgentShellCommands(
         AgentPlatform agentPlatform
 ) {
 
-    @ShellMethod("Get bank support for a customer query")
+    @Command("Get bank support for a customer query")
     public String bankSupport(
-            @ShellOption(value = "id", help = "customer id", defaultValue = "123") Long id,
-            @ShellOption(value = "query", help = "customer query", defaultValue = "What's my balance, including pending amounts?") String query
+            @Option(longName = "id", description = "customer id", defaultValue = "123") Long id,
+            @Option(longName = "query", description = "customer query", defaultValue = "What's my balance, including pending amounts?") String query
     ) {
         var supportInput = new SupportInput(id, query);
         System.out.println("Support input: " + supportInput);
@@ -159,15 +159,15 @@ Kotlin::
 +
 [source,kotlin]
 ----
-@ShellComponent
+@Component
 class SupportAgentShellCommands(
     private val agentPlatform: AgentPlatform
 ) {
 
-    @ShellMethod("Get bank support for a customer query")
+    @Command("Get bank support for a customer query")
     fun bankSupport(
-        @ShellOption(value = ["id"], help = "customer id", defaultValue = "123") id: Long,
-        @ShellOption(value = ["query"], help = "customer query", defaultValue = "What's my balance, including pending amounts?") query: String
+        @Option(longName = "id", description = "customer id", defaultValue = "123") id: Long,
+        @Option(longName = "query", description = "customer query", defaultValue = "What's my balance, including pending amounts?") query: String
     ): String {
         val supportInput = SupportInput(id, query)
         println("Support input: $supportInput")

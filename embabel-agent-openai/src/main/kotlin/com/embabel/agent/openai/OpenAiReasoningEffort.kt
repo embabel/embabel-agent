@@ -26,7 +26,10 @@ import org.springframework.ai.openai.OpenAiChatOptions
 
 private const val OPENAI_REASONING_EFFORT_EXTENSION = "openai.reasoningEffort"
 
-/** Set the OpenAI reasoning effort without changing other LLM options. */
+/**
+ * Set the OpenAI reasoning effort without changing other LLM options. Takes precedence over
+ * [LlmOptions.reasoningEffort]; use this for a level that [com.embabel.common.ai.model.ReasoningEffort] lacks.
+ */
 @OptIn(InternalExtensionApi::class)
 fun LlmOptions.withOpenAiReasoningEffort(effort: String): LlmOptions =
     withExtension(OPENAI_REASONING_EFFORT_EXTENSION, effort)
@@ -38,14 +41,16 @@ fun LlmOptions.getOpenAiReasoningEffort(): String? =
 
 /**
  * Adds the configured reasoning effort to what [delegate] converts. Wraps only converters for
- * OpenAI's own endpoint: OpenAI-compatible providers share the delegates and may reject the field.
+ * servers known to accept the field - OpenAI's own endpoint, and the OpenAI-compatible providers
+ * that opt in (see `OpenAiCompatibleModelFactory.openAiCompatibleLlm`): other compatible servers
+ * share the delegates and may reject it. The OpenAI-specific effort wins over [LlmOptions.reasoningEffort].
  */
 @ApiStatus.Internal
 data class OpenAiReasoningEffortOptionsConverter(private val delegate: OptionsConverter) : OptionsConverter {
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val converted = delegate.convertOptions(options, model)
-        val effort = options.getOpenAiReasoningEffort() ?: return converted
+        val effort = options.getOpenAiReasoningEffort() ?: options.reasoningEffort?.value ?: return converted
         return (converted as? OpenAiChatOptions)?.mutate()?.reasoningEffort(effort)?.build() ?: converted
     }
 }

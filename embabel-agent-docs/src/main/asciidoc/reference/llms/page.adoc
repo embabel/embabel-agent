@@ -615,7 +615,7 @@ embabel:
         openai:
           model: gpt-4.1-nano       # <1>
         anthropic:
-          model: claude-haiku-4-5
+          model: claude-haiku-5-5
           temperature: 0.3          # <2>
       best:
         openai:
@@ -686,7 +686,7 @@ embabel:
         openai:
           model: gpt-4.1-nano
         anthropic:
-          model: claude-haiku-4-5
+          model: claude-haiku-5-5
 ----
 <1> A role from `roles` or from the flat `llms` map, not a model name
 
@@ -1448,6 +1448,17 @@ val options = LlmOptions.withDefaultLlm()
 
 ===== Accessing Cache Metrics
 
+Cache reads and writes count as input tokens: `Usage.promptTokens` includes them, and `Usage.cacheReadInputTokens` and `Usage.cacheWriteInputTokens` report them separately.
+Token totals, cost and early-termination budgets therefore include cached input.
+Bundled Anthropic models carry Anthropic's published cache-read and 5-minute cache-write rates.
+An Anthropic or Bedrock Claude model whose `pricing_model` sets no cache rates prices cache reads at its input rate, so cost is never under-stated, and cache writes at 125% of it, the 5-minute rate.
+Other models price both at the input rate.
+Anthropic and Bedrock models can override either rate in their `pricing_model` with `usd_per1m_cache_read_input_tokens` or `usd_per1m_cache_write_input_tokens`, for example when using the 1-hour cache TTL.
+
+Streaming cache counts depend on the provider's Spring AI adapter.
+Spring AI's Anthropic streaming adapter takes cache counts only from the final `message_delta` event, whose usage Anthropic's API schema defines as cumulative.
+A gateway or provider that reports cache counts only in `message_start` records cached input as zero when streaming.
+
 Embabel provides extension methods to access Anthropic-specific cache metrics from the `Usage` object:
 
 [tabs]
@@ -1647,4 +1658,74 @@ static class MonthItem {
 - **Arrays of objects**: Some providers, including OpenAI according to Spring AI documentation, do not support arrays of objects natively. Embabel falls back to normal object construction for unsupported shapes.
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
-- **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Anthropic native structured output is currently disabled by default until its semantics are verified.
+- **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Models built on the OpenAI Responses API send the same schema as `text.format`; see <<reference.customizing>> for their `nativeSupport` settings. Anthropic native structured output is currently disabled by default until its semantics are verified.
+- **`@EnumAsOneOf`**: Annotating an enum with `@EnumAsOneOf` causes Embabel to emit `oneOf/const/description` instead of a bare `enum` array for that type. The `oneOf` keyword is not supported on the native structured-output path (OpenAI strict mode rejects it), so Embabel automatically falls back to the prompt-based schema path for any call whose output type contains a `@EnumAsOneOf` field. The `@JsonPropertyDescription` text on each constant is still sent to the model as part of that prompt schema on all providers.
+
+[[reference.llms.enum-as-one-of]]
+===== Per-Constant Enum Descriptions with `@EnumAsOneOf`
+
+By default, an enum type is emitted in the JSON Schema as a bare list of values:
+
+[source,json]
+----
+{ "type": "string", "enum": ["URGENT", "NORMAL", "OTHER"] }
+----
+
+When the model needs to choose between constants, a bare list gives it no information about what each value means.
+Annotate the enum class with `@EnumAsOneOf` and each constant with `@JsonPropertyDescription` to emit per-constant descriptions instead:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@EnumAsOneOf
+enum class Priority {
+    @JsonPropertyDescription("Needs same-day response") URGENT,
+    @JsonPropertyDescription("Standard turnaround")    NORMAL,
+    OTHER,
+}
+
+data class TaskResult(val priority: Priority)
+----
+
+Java::
++
+[source,java]
+----
+@EnumAsOneOf
+public enum Priority {
+    @JsonPropertyDescription("Needs same-day response") URGENT,
+    @JsonPropertyDescription("Standard turnaround")    NORMAL,
+    OTHER
+}
+
+public record TaskResult(Priority priority) {}
+----
+====
+
+Embabel emits the schema as:
+
+[source,json]
+----
+{
+  "type": "string",
+  "oneOf": [
+    { "const": "URGENT", "description": "Needs same-day response" },
+    { "const": "NORMAL", "description": "Standard turnaround" },
+    { "const": "OTHER" }
+  ]
+}
+----
+
+The enum can appear anywhere in the output type — as a direct field, as a collection element (`List<Priority>`), or nested inside another record.
+
+Constants without `@JsonPropertyDescription` appear in the `oneOf` with only a `const` entry.
+If no constant carries a description, the annotation has no effect and the bare `enum` array is used.
+
+`@JsonValue`, `@JsonProperty`, and custom Jackson serialisers are honoured: the `const` value is whatever Jackson would write when serialising that constant.
+
+NOTE: `@EnumAsOneOf` trades the native structured-output path for per-constant descriptions.
+The `oneOf` keyword is rejected by OpenAI strict mode, so Embabel falls back to the prompt-based schema path for any call whose output type contains a `@EnumAsOneOf` field.
+The `@JsonPropertyDescription` text on each constant is still sent to the model through the prompt schema on all providers, including Google GenAI, Anthropic, and OpenAI-compatible endpoints.

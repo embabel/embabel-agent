@@ -16,6 +16,7 @@
 package com.embabel.agent.a2a.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
+import java.time.Duration
 
 @ConfigurationProperties(prefix = "embabel.agent.platform.a2a")
 data class A2AConfigurationProperties(
@@ -26,7 +27,17 @@ data class A2AConfigurationProperties(
         val timeoutSeconds: Long = 30,
     )
 
+    /**
+     * @param preferredTransport transport advertised in agent cards
+     * @param taskRetention how long a finished task stays available to tasks/get and resubscription
+     */
     data class Server(
         val preferredTransport: String = "JSONRPC",
+        val taskRetention: Duration = DEFAULT_TASK_RETENTION,
     )
+
+    companion object {
+        @JvmField
+        val DEFAULT_TASK_RETENTION: Duration = Duration.ofHours(1)
+    }
 }

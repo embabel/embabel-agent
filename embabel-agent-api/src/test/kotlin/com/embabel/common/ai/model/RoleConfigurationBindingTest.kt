@@ -65,6 +65,7 @@ class RoleConfigurationBindingTest {
                 "embabel.models.roles.best.anthropic.temperature=0.3",
                 "embabel.models.roles.best.anthropic.timeout=90s",
                 "embabel.models.roles.best.anthropic.max-tokens=4096",
+                "embabel.models.roles.best.anthropic.reasoning-effort=low",
             )
             .run { context ->
                 val options = context.getBean(ConfigurableModelProviderProperties::class.java)
@@ -73,6 +74,7 @@ class RoleConfigurationBindingTest {
                 assertEquals(0.3, options?.temperature)
                 assertEquals(Duration.ofSeconds(90), options?.timeout)
                 assertEquals(4096, options?.maxTokens)
+                assertEquals(ReasoningEffort.LOW, options?.reasoningEffort)
             }
     }
 

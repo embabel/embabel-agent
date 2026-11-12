@@ -30,7 +30,7 @@ import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConf
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.withAnthropicCacheRateDefaults
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.anthropic.AnthropicChatModel
@@ -173,7 +173,8 @@ class AnthropicModelsConfig(
         val chatModel = AnthropicChatModel
             .builder()
             .options(createDefaultOptions(modelDef))
-            .anthropicClient(createAnthropicClient())
+            .anthropicClient(syncClient())
+            .anthropicClientAsync(asyncClient())
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry)
@@ -186,18 +187,16 @@ class AnthropicModelsConfig(
             name = modelDef.modelId,
             chatModel = chatModel,
             provider = AnthropicModels.PROVIDER,
-            optionsConverter = AnthropicOptionsConverter,
+            optionsConverter = modelDef.thinking?.canBeDisabled?.let { AnthropicOptionsConverter.declaring(it) }
+                ?: AnthropicOptionsConverter,
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            pricingModel = modelDef.pricingModel?.let {
-                PerTokenPricingModel(
-                    usdPer1mInputTokens = it.usdPer1mInputTokens,
-                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
-                )
-            },
+            // Unconfigured writes use the 5-minute TTL rate; configure a cache-write rate for 1-hour TTLs.
+            pricingModel = modelDef.pricingModel?.withAnthropicCacheRateDefaults(),
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             nativeSupport = modelDef.nativeSupport,
+            promptTokensExcludeCache = true,
         )
     }
 
@@ -211,23 +210,25 @@ class AnthropicModelsConfig(
     private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions {
         val caps = ClaudeCapabilities.of(modelDef.modelId)
         val tokenBudget = modelDef.thinking?.tokenBudget?.takeIf { it > 0 }
-        val decision = caps.resolveThinking(tokenBudget)
+        val thinkingModeDecision = caps.resolveThinking(tokenBudget)
         return AnthropicChatOptions.builder()
             .model(modelDef.modelId)
             .maxTokens(modelDef.maxTokens)
             .apply {
-                modelDef.topK?.let { topK(it) }
-                when (decision) {
+                when (thinkingModeDecision) {
                     is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ rejects thinking.type="disabled" with HTTP 400
                     is ThinkingMode.Disabled    -> thinkingDisabled()
-                    is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(decision.effort) }
-                    is ThinkingMode.BudgetBased -> thinkingEnabled(decision.budgetTokens)
+                    is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(thinkingModeDecision.effort) }
+                    is ThinkingMode.BudgetBased -> thinkingEnabled(thinkingModeDecision.budgetTokens)
                 }
-                // temperature/topP conflict with active thinking (Adaptive, BudgetBased) on ≥4.7 models;
-                // safe to send when thinking is Disabled, Omit, or the model predates adaptive thinking.
-                if (caps.acceptsSampling || decision in setOf(ThinkingMode.Disabled, ThinkingMode.Omit)) {
+                // Claude ≥4.7 rejects non-default temperature, topP and topK whatever the thinking mode.
+                if (caps.acceptsSampling) { // Claude <4.7
+                    modelDef.topK?.let { topK(it) }
                     modelDef.topP?.let { topP(it) }
                     temperature(modelDef.temperature)
+                } else { // Claude ≥4.7
+                    // Warns only for non-default values; runs once per model at startup.
+                    ClaudeCapabilities.warnAboutIgnoredSampling(modelDef.modelId, modelDef.temperature, modelDef.topP, modelDef.topK)
                 }
             }
             .build()

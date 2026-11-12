@@ -31,6 +31,7 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.ProcessOptions
 import io.a2a.spec.*
+import io.a2a.spec.InternalError
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import io.opentelemetry.context.Context
@@ -39,6 +40,7 @@ import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.OffsetDateTime
 import java.util.*
+import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Handle A2A messages according to the A2A protocol.
@@ -46,10 +48,12 @@ import java.util.*
  * in front of this class must handle that.
  */
 @Service
+@ThreadSafe
 class AutonomyA2ARequestHandler(
     private val autonomy: Autonomy,
     private val agenticEventListener: AgenticEventListener,
     private val streamingHandler: A2AStreamingHandler,
+    private val taskStateManager: TaskStateManager,
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : A2ARequestHandler {
 
@@ -119,11 +123,11 @@ class AutonomyA2ARequestHandler(
         request: SendMessageRequest,
         params: MessageSendParams,
     ): JSONRPCResponse<*> {
+        val intent = intentOf(params.message)
+        logger.info("Handling message send request with intent: '{}'", intent)
         val taskId = ensureTaskId(params.message.taskId)
         val contextId = ensureContextId(params.message.contextId)
-        // TODO handle other message parts and handle errors
-        val intent = params.message.parts.filterIsInstance<TextPart>().single().text
-        logger.info("Handling message send request with intent: '{}'", intent)
+        taskStateManager.registerTask(taskId, contextId)
 
         // Two separate correlation mechanisms flow through every A2A call:
         //   traceparent (W3C)  — OTel injects this into every outbound HTTP call automatically,
@@ -166,6 +170,7 @@ class AutonomyA2ARequestHandler(
                 .history(listOfNotNull(params.message))
                 .artifacts(listOf(createResultArtifact(result, params.configuration?.acceptedOutputModes)))
                 .build()
+            taskStateManager.recordEvent(taskId, task)
 
             val jSONRPCResponse = request.successResponseWith(result = task)
             logger.info("Handled message send request, response={}", jSONRPCResponse)
@@ -173,11 +178,16 @@ class AutonomyA2ARequestHandler(
         } catch (e: Exception) {
             logger.error("Error handling message send request", e)
             observation.error(e)
-            // TODO other kinds of errors
-            return JSONRPCErrorResponse(
+            taskStateManager.recordEvent(
                 taskId,
-                TaskNotFoundError(null, "Internal error: ${e.message}", e.stackTraceToString())
+                Task.Builder()
+                    .id(taskId)
+                    .contextId(contextId)
+                    .status(createFailedTaskStatus(params, e))
+                    .history(listOfNotNull(params.message))
+                    .build()
             )
+            return JSONRPCErrorResponse(request.id, InternalError("Internal error: ${e.message}"))
         } finally {
             contextScope.close()
             observationScope.close()
@@ -224,17 +234,8 @@ class AutonomyA2ARequestHandler(
                     taskId
                 )
 
-                val intent = params.message?.parts?.filterIsInstance<TextPart>()?.firstOrNull()?.text
-                    ?: "Task $taskId"
+                val intent = intentOf(params.message).ifEmpty { "Task $taskId" }
 
-                // Execute the task using autonomy service
-                val result = autonomy.chooseAndRunAgent(
-                    intent = intent,
-                    processOptions = ProcessOptions()
-                )
-                logger.debug("Task execution result: {}", result)
-
-                // Send intermediate status updates
                 streamingHandler.sendStreamEvent(
                     streamId,
                     TaskStatusUpdateEvent.Builder()
@@ -244,6 +245,13 @@ class AutonomyA2ARequestHandler(
                         .build(),
                     taskId
                 )
+
+                // Execute the task using autonomy service
+                val result = autonomy.chooseAndRunAgent(
+                    intent = intent,
+                    processOptions = ProcessOptions()
+                )
+                logger.debug("Task execution result: {}", result)
 
                 // Extract content for status message if output is HasContent
                 val statusMessage = extractContentForDisplay(result)
@@ -271,6 +279,7 @@ class AutonomyA2ARequestHandler(
                             .taskId(taskId)
                             .contextId(contextId)
                             .status(createFailedTaskStatus(params, e))
+                            .isFinal(true)
                             .build(),
                         taskId
                     )
@@ -317,14 +326,18 @@ class AutonomyA2ARequestHandler(
         request: GetTaskRequest,
         params: TaskQueryParams,
     ): GetTaskResponse {
-        TODO()
+        val task = taskStateManager.getTask(params.id)
+            ?: return GetTaskResponse(request.id, TaskNotFoundError())
+        return GetTaskResponse(request.id, task)
     }
 
     private fun handleCancelTask(
         request: CancelTaskRequest,
         tip: TaskIdParams,
     ): CancelTaskResponse {
-        TODO()
+        // Agent processes run to completion, so no task can be canceled
+        val error = if (taskStateManager.taskExists(tip.id)) TaskNotCancelableError() else TaskNotFoundError()
+        return CancelTaskResponse(request.id, error)
     }
 
     private fun createFailedTaskStatus(
@@ -372,6 +385,12 @@ class AutonomyA2ARequestHandler(
         OffsetDateTime.now()
     )
 
+    /**
+     * Joins every text part of the message, so no part of a multi-part message is lost
+     */
+    private fun intentOf(message: Message): String =
+        message.parts.filterIsInstance<TextPart>().joinToString("\n") { it.text }
+
     private fun ensureContextId(providedContextId: String?): String {
         return providedContextId ?: ("ctx_" + UUID.randomUUID().toString())
     }
@@ -398,8 +417,6 @@ class AutonomyA2ARequestHandler(
         result: AgentProcessExecution,
         acceptedOutputModes: List<String>? = emptyList(),
     ): Artifact {
-        // TODO result should be based on the outputMode received in the "params.configuration.acceptedOutputModes"
-
         val parts = buildList {
             val output = result.output
 

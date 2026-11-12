@@ -41,6 +41,7 @@ import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.model.DefaultOptionsConverter
+import com.embabel.common.ai.model.DecisionModelProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.ai.model.ModelType
@@ -61,6 +62,7 @@ import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -152,6 +154,38 @@ class LlmDecisionServiceFactoryTest {
     private val factory = LlmDecisionServiceFactory(llmOperations, modelProvider, QuickRetry(), registry)
 
     private fun observationNames() = recorder.stopped.map { it.name }
+
+    @Nested
+    inner class AsDecisionModelProvider {
+
+        @Test
+        fun `model names are the chat model names the model provider lists`() {
+            every { modelProvider.listModelNames(LlmService::class.java) } returns listOf("gpt-test", "gpt-test")
+            val provider: DecisionModelProvider = factory
+            assertEquals("llm", provider.provider)
+            assertEquals(listOf("gpt-test"), provider.modelNames())
+            verify(exactly = 0) { modelProvider.listModels() }
+            verify(exactly = 0) { modelProvider.getLlm(any()) }
+        }
+
+        @Test
+        fun `a named chat model becomes a prompted decision service`() {
+            every { modelProvider.getLlm(byName("gpt-test")) } returns llm
+            val service = factory.decisionServiceNamed("gpt-test")!!
+            assertEquals(provenance.provider, service.provider)
+            assertEquals("gpt-test", service.name)
+            service.assess(proposition)
+            service.assess(proposition)
+            verify(exactly = 1) { modelProvider.getLlm(byName("gpt-test")) }
+        }
+
+        @Test
+        fun `an unknown or blank name is not served`() {
+            every { modelProvider.getLlm(byName("missing")) } throws NoSuitableModelException(byName("missing"), emptyList())
+            assertNull(factory.decisionServiceNamed("missing"))
+            assertNull(factory.decisionServiceNamed(" "))
+        }
+    }
 
     @Nested
     inner class Metadata {

@@ -32,6 +32,10 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class DecisionServiceRegistryTest {
 
@@ -163,6 +167,174 @@ class DecisionServiceRegistryTest {
     }
 
     @Nested
+    inner class ProviderModels {
+
+        private inner class ChatModels(
+            private val served: List<String>,
+            override val provider: String = "OpenAI",
+        ) : DecisionModelProvider {
+            val created = mutableListOf<String>()
+
+            override fun modelNames(): List<String> = served
+
+            override fun decisionServiceNamed(name: String): DecisionService? =
+                if (name in served) FakeDecision(name, provider).also { created += name } else null
+        }
+
+        @Test
+        fun `a name no service is registered under resolves through a provider once`() {
+            val provider = ChatModels(listOf("gpt-x"))
+            val registry = DecisionServiceRegistry.builder().register("jev", jev).provider(provider).build()
+            val first = registry.decisions().named("gpt-x")
+            assertEquals("gpt-x", first.name)
+            assertEquals("OpenAI", first.provider)
+            assertSame(first, registry.classifications().named("gpt-x"))
+            assertEquals(listOf("gpt-x"), provider.created)
+        }
+
+        @Test
+        fun `a registered service wins over a provider model with the same name`() {
+            val provider = ChatModels(listOf("jev"))
+            val registry = DecisionServiceRegistry.builder().register("jev", jev).provider(provider).build()
+            assertSame(jev, registry.decisions().named("jev"))
+            assertTrue(provider.created.isEmpty())
+        }
+
+        @Test
+        fun `defaults and roles can name a provider model`() {
+            // tag::provider-registry[]
+            val registry = DecisionServiceRegistry.builder()
+                .register("jev", jev)
+                .provider(ChatModels(listOf("gpt-x")))
+                .decisionDefault("gpt-x")
+                .classificationRole("routing", "gpt-x")
+                .build()
+            // end::provider-registry[]
+            assertEquals("gpt-x", registry.decisions().defaultService().name)
+            assertSame(registry.decisions().defaultService(), registry.classifications().byRole("routing"))
+        }
+
+        @Test
+        fun `a default naming a model no provider serves fails the build`() {
+            val e = buildError {
+                DecisionServiceRegistry.builder()
+                    .register("jev", jev)
+                    .provider(ChatModels(listOf("gpt-x")))
+                    .decisionDefault("gpt-y")
+                    .build()
+            }
+            assertTrue(e.message!!.contains("'gpt-y'"), e.message)
+            assertTrue(e.message!!.contains("Provider models: OpenAI [gpt-x]."), e.message)
+        }
+
+        @Test
+        fun `an unknown name lists the provider models by provider`() {
+            val registry = DecisionServiceRegistry.builder()
+                .register("jev", jev)
+                .provider(ChatModels(listOf("gpt-x", "gpt-z")))
+                .provider(ChatModels(listOf("gpt-x", "qwen3"), provider = "Ollama"))
+                .build()
+            val e = selectionError { registry.decisions().named("gpt-y") }
+            assertEquals(Reason.UNKNOWN_NAME, e.reason)
+            assertTrue(e.message!!.contains("Provider models: OpenAI [gpt-x, gpt-z]; Ollama [qwen3]."), e.message)
+        }
+
+        @Test
+        fun `a role naming a listed model no provider returns fails at lookup`() {
+            val listedOnly = object : DecisionModelProvider {
+                override val provider = "OpenAI"
+                override fun modelNames() = listOf("gpt-x")
+                override fun decisionServiceNamed(name: String): DecisionService? = null
+            }
+            val registry = DecisionServiceRegistry.builder()
+                .register("jev", jev)
+                .provider(listedOnly)
+                .decisionRole("review", "gpt-x")
+                .build()
+            val e = selectionError { registry.decisions().byRole("review") }
+            assertEquals(Reason.UNKNOWN_NAME, e.reason)
+            assertTrue(e.message!!.startsWith("No provider returned a service for the model 'gpt-x'."), e.message)
+        }
+
+        @Test
+        fun `concurrent first lookups build a provider model once`() {
+            val started = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            val built = AtomicInteger()
+            val slow = object : DecisionModelProvider {
+                override val provider = "slow"
+                override fun modelNames() = listOf("gpt-x")
+                override fun decisionServiceNamed(name: String): DecisionService {
+                    built.incrementAndGet()
+                    started.countDown()
+                    release.await()
+                    return FakeDecision(name, provider)
+                }
+            }
+            val registry = DecisionServiceRegistry.builder().provider(slow).build()
+            val first = FutureTask { registry.decisions().named("gpt-x") }
+            val second = FutureTask { registry.decisions().named("gpt-x") }
+            try {
+                Thread(first, "first-lookup").start()
+                assertTrue(started.await(5, TimeUnit.SECONDS), "the first lookup never reached the provider")
+                val secondLookup = Thread(second, "second-lookup").apply { start() }
+                awaitStuck(secondLookup)
+                release.countDown()
+                assertSame(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS))
+                assertEquals(1, built.get())
+            } finally {
+                release.countDown()
+            }
+        }
+
+        /**
+         * Waits until a thread is blocked or waiting, which shows it is stuck behind the first
+         * lookup or inside the provider, and fails after five seconds.
+         *
+         * @param thread the thread to watch
+         */
+        private fun awaitStuck(thread: Thread) {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            val stuck = setOf(Thread.State.BLOCKED, Thread.State.WAITING, Thread.State.TIMED_WAITING)
+            while (thread.state !in stuck) {
+                assertTrue(System.nanoTime() < deadline, "${thread.name} never blocked; state ${thread.state}")
+                Thread.onSpinWait()
+            }
+        }
+
+        @Test
+        fun `a provider that cannot list its models leaves selection errors intact`() {
+            val broken = object : DecisionModelProvider {
+                override val provider = "broken"
+                override fun modelNames(): List<String> = error("discovery failed")
+                override fun decisionServiceNamed(name: String): DecisionService? = null
+            }
+            val registry = DecisionServiceRegistry.builder().register("clf", classifier).provider(broken).build()
+            assertEquals(Reason.NO_DEFAULT, selectionError { registry.decisions().defaultService() }.reason)
+            assertEquals(Reason.UNKNOWN_ROLE, selectionError { registry.decisions().byRole("missing") }.reason)
+            assertEquals(Reason.WRONG_CAPABILITY, selectionError { registry.decisions().named("clf") }.reason)
+        }
+
+        @Test
+        fun `a provider added to the builder after build does not reach the built registry`() {
+            val builder = DecisionServiceRegistry.builder().register("jev", jev)
+            val registry = builder.build()
+            builder.provider(ChatModels(listOf("gpt-late")))
+            val e = selectionError { registry.decisions().named("gpt-late") }
+            assertEquals(Reason.UNKNOWN_NAME, e.reason)
+            assertFalse(e.message!!.contains("gpt-late provider"), e.message)
+            assertFalse(e.message!!.contains("[gpt-late]"), e.message)
+        }
+
+        @Test
+        fun `provider models never become the default implicitly`() {
+            val registry = DecisionServiceRegistry.builder().provider(ChatModels(listOf("gpt-x"))).build()
+            assertEquals(Reason.NO_DEFAULT, selectionError { registry.decisions().defaultService() }.reason)
+            assertEquals(emptyList<String>(), registry.registrationNames())
+        }
+    }
+
+    @Nested
     inner class DefaultRule {
 
         @Test
@@ -177,8 +349,8 @@ class DecisionServiceRegistryTest {
         @Test
         fun `a single candidate is the default of both families`() {
             val registry = DecisionServiceRegistry.builder()
-                .register("gpt", prompted).register("typeSafeDecisionService", jev)
-                .defaultCandidate("typeSafeDecisionService")
+                .register("gpt", prompted).register("jev-latest", jev)
+                .defaultCandidate("jev-latest")
                 .build()
             assertSame(jev, registry.decisions().defaultService())
             assertSame(jev, registry.classifications().defaultService())
@@ -293,9 +465,9 @@ class DecisionServiceRegistryTest {
         @Test
         fun `unknown candidate`() {
             val m = buildError {
-                DecisionServiceRegistry.builder().register("jev", jev).defaultCandidate("typeSafeDecisionService").build()
+                DecisionServiceRegistry.builder().register("jev", jev).defaultCandidate("jev-latest").build()
             }.message!!
-            assertTrue(m.contains("default candidate 'typeSafeDecisionService' names unknown service"), m)
+            assertTrue(m.contains("default candidate 'jev-latest' names unknown service"), m)
         }
 
         @Test
@@ -339,11 +511,11 @@ class DecisionServiceRegistryTest {
 
         @Test
         fun `default candidate has value equality`() {
-            val candidate = DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService")
-            assertEquals(DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService"), candidate)
-            assertEquals(DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService").hashCode(), candidate.hashCode())
+            val candidate = DecisionServiceRegistry.DefaultCandidate("jev-latest")
+            assertEquals(DecisionServiceRegistry.DefaultCandidate("jev-latest"), candidate)
+            assertEquals(DecisionServiceRegistry.DefaultCandidate("jev-latest").hashCode(), candidate.hashCode())
             assertNotEquals(DecisionServiceRegistry.DefaultCandidate("other"), candidate)
-            assertTrue(candidate.toString().contains("typeSafeDecisionService"))
+            assertTrue(candidate.toString().contains("jev-latest"))
         }
     }
 
@@ -369,10 +541,10 @@ class DecisionServiceRegistryTest {
         fun `build logs one INFO summary with names defaults roles and candidates`() {
             val events = captured {
                 DecisionServiceRegistry.builder()
-                    .register("typeSafeDecisionService", jev)
+                    .register("jev-latest", jev)
                     .register("gpt", prompted)
                     .register("clf", classifier)
-                    .defaultCandidate("typeSafeDecisionService")
+                    .defaultCandidate("jev-latest")
                     .decisionRole("support-triage", "gpt")
                     .classificationRole("routing", "clf")
                     .build()
@@ -382,10 +554,10 @@ class DecisionServiceRegistryTest {
             assertEquals(Level.INFO, event.level)
             val m = event.formattedMessage
             listOf(
-                "typeSafeDecisionService", "jev-1", "TypeSafe", "gpt-x", "OpenAI", "clf-1", "acme",
+                "jev-latest", "jev-1", "TypeSafe", "gpt-x", "OpenAI", "clf-1", "acme",
                 "DECISION", "CLASSIFICATION", "support-triage=gpt", "routing=clf",
-                "candidates: [typeSafeDecisionService]",
-                "decision default: 'typeSafeDecisionService' (default candidate)",
+                "candidates: [jev-latest]",
+                "decision default: 'jev-latest' (default candidate)",
             ).forEach { assertTrue(m.contains(it), "missing '$it' in: $m") }
         }
 

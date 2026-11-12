@@ -41,7 +41,11 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
     /** Family remains DECISION even when this service is used only for classification. */
     override val type: ModelType get() = ModelType.DECISION
 
-    /** Assess the proposition; a false answer is successful evidence, not an operational failure. */
+    /**
+     * Assess the proposition; a false answer is successful evidence, not an operational failure.
+     *
+     * @throws UnsupportedDecisionException if provider-specific limits reject the request before any provider call
+     */
     fun assess(request: PropositionRequest): PropositionResult
 
     /** Pure DECISION metadata snapshot; never serialize a live service in place of this value. */

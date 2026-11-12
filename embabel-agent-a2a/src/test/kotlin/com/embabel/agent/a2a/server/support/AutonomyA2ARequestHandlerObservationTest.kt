@@ -82,7 +82,9 @@ class AutonomyA2ARequestHandlerObservationTest {
         justRun { streamingHandler.sendStreamEvent(any(), any(), any()) }
         justRun { streamingHandler.closeStream(any()) }
         registry = TestObservationRegistry.create()
-        handler = AutonomyA2ARequestHandler(autonomy, agenticEventListener, streamingHandler, registry)
+        handler = AutonomyA2ARequestHandler(
+            autonomy, agenticEventListener, streamingHandler, mockk<TaskStateManager>(relaxed = true), registry
+        )
     }
 
     @Test

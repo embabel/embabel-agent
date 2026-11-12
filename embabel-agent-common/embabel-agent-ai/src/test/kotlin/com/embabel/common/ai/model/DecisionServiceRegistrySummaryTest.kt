@@ -87,20 +87,20 @@ class DecisionServiceRegistrySummaryTest {
         val classifier = FakeClassifier("clf-1", "acme")
         val events = captured {
             DecisionServiceRegistry.builder()
-                .register("typeSafeDecisionService", jev)
+                .register("jev-latest", jev)
                 .register("gpt", prompted)
                 .register("clf", classifier)
-                .decisionDefault("typeSafeDecisionService")
+                .decisionDefault("jev-latest")
                 .decisionRole("support-triage", "gpt")
                 .build()
         }
         val message = events.single().formattedMessage
         listOf(
-            "typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds " +
+            "jev-latest (name jev-1, provider TypeSafe, type DECISION, capabilities kinds " +
                 "[PROPOSITION, CHOICE, RATING])",
             "gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE])",
             "clf (name clf-1, provider acme, type CLASSIFICATION)",
-            "decision default: 'typeSafeDecisionService' (explicit)",
+            "decision default: 'jev-latest' (explicit)",
             "decision roles: {support-triage=gpt}",
         ).forEach { assertTrue(message.contains(it), "missing '$it' in: $message") }
         assertFalse(message.contains("PAYLOAD"), "service instance printed in: $message")
@@ -169,12 +169,12 @@ class DecisionServiceRegistrySummaryTest {
             error = assertThrows<IllegalStateException> {
                 DecisionServiceRegistry.builder()
                     .register("ok", FakeClassifier("clf-1", "acme"))
-                    .register("typeSafeDecisionService", broken)
+                    .register("jev-latest", broken)
                     .build()
             }
         }
         val message = error.message.orEmpty()
-        listOf("typeSafeDecisionService", "jev-1", "TypeSafe", "IllegalArgumentException", "capabilities()")
+        listOf("jev-latest", "jev-1", "TypeSafe", "IllegalArgumentException", "capabilities()")
             .forEach { assertTrue(message.contains(it), "missing '$it' in: $message") }
         assertFalse(message.contains("PAYLOAD"), message)
         assertSame(cause, error.cause)

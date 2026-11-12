@@ -318,6 +318,44 @@ class DecisionServiceRegistryAutoConfigurationTest {
     inner class SharedAndDeferredBeans {
 
         @Test
+        fun `a default candidate can name a Spring alias`() {
+            runner.withInitializer { it.beanFactory.registerAlias("triage-stub", "triageAlias") }
+                .withBean(
+                    DecisionServiceRegistry.DefaultCandidate::class.java,
+                    Supplier { DecisionServiceRegistry.DefaultCandidate("triageAlias") },
+                )
+                .run { context ->
+                    val registry = context.registry()
+                    assertEquals(setOf("triage-stub", "llm-review"), registry.registrationNames().toSet())
+                    assertSame(stub, registry.decisions().defaultService())
+                    assertSame(stub, registry.classifications().defaultService())
+                }
+        }
+
+        @Test
+        fun `aliases of a delegated bean resolve to its primary registration`() {
+            runner.withUserConfiguration(PrimaryDelegate::class.java)
+                .withInitializer { it.beanFactory.registerAlias("typeSafeDecisionService", "jevAlias") }
+                .withPropertyValues(
+                    "embabel.models.decision.default=jevAlias",
+                    "embabel.models.decision.roles.review=jevAlias",
+                    "embabel.models.classification.default=jevAlias",
+                    "embabel.models.classification.roles.routing=jevAlias",
+                )
+                .run { context ->
+                    val registry = context.registry()
+                    assertEquals(
+                        setOf("triage-stub", "llm-review", "decisionService"),
+                        registry.registrationNames().toSet(),
+                    )
+                    assertSame(PrimaryDelegate.JEV, registry.decisions().defaultService())
+                    assertSame(PrimaryDelegate.JEV, registry.decisions().byRole("review"))
+                    assertSame(PrimaryDelegate.JEV, registry.classifications().defaultService())
+                    assertSame(PrimaryDelegate.JEV, registry.classifications().byRole("routing"))
+                }
+        }
+
+        @Test
         fun `one instance under two bean names registers once under the first name`() {
             val shared = StubDecisionService.builder("shared-model").build()
             val lines = capturing(DecisionServiceRegistryAutoConfiguration::class.java, Level.DEBUG) {

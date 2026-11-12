@@ -142,6 +142,58 @@ class ClassificationTest {
         }
 
         @Test
+        fun `a selection keeps the provider's distribution as an unmodifiable copy`() {
+            val probabilities = mutableListOf(CategoryProbability("dog", 0.75), CategoryProbability("cat", 0.25))
+            val selected = ClassificationResult.Selected("dog", provenance, 0.4, probabilities)
+            probabilities.clear()
+            assertEquals(listOf(CategoryProbability("dog", 0.75), CategoryProbability("cat", 0.25)), selected.distribution)
+            assertThrows(UnsupportedOperationException::class.java) {
+                (selected.distribution as MutableList<CategoryProbability>).clear()
+            }
+            assertTrue(ClassificationResult.Selected("dog", provenance).distribution.isEmpty())
+        }
+
+        @Test
+        fun `equal selections have equal hash codes`() {
+            val positive = ClassificationResult.Selected("dog", provenance, 0.0)
+            val negative = ClassificationResult.Selected("dog", provenance, -0.0)
+            assertEquals(positive == negative, positive.hashCode() == negative.hashCode())
+            assertEquals(ClassificationResult.Selected("dog", provenance, 0.4), ClassificationResult.Selected("dog", provenance, 0.4))
+        }
+
+        @Test
+        fun `a distribution has unique ids, sums to one and includes the selection`() {
+            listOf(
+                listOf(CategoryProbability("dog", 0.5), CategoryProbability("dog", 0.5)),
+                listOf(CategoryProbability("dog", 0.5), CategoryProbability("cat", 0.4)),
+                listOf(CategoryProbability("dog", 0.5), CategoryProbability("cat", 0.6)),
+                listOf(CategoryProbability("cat", 1.0)),
+            ).forEach { distribution ->
+                assertThrows(IllegalArgumentException::class.java) {
+                    ClassificationResult.Selected("dog", provenance, null, distribution)
+                }
+            }
+            listOf(-0.1, 1.1, Double.NaN).forEach { p ->
+                assertThrows(IllegalArgumentException::class.java) { CategoryProbability("dog", p) }
+            }
+            assertThrows(IllegalArgumentException::class.java) { CategoryProbability(" ", 0.5) }
+        }
+
+        @Test
+        fun `validation requires the distribution to cover exactly the categories`() {
+            val spec = spec(listOf(Category("dog", "Canine"), Category("cat", "Feline")))
+            val full = listOf(CategoryProbability("cat", 0.2), CategoryProbability("dog", 0.8))
+            val selected = spec.selected("dog", provenance, 0.5, full)
+            assertEquals(full, selected.distribution)
+            assertThrows(IllegalArgumentException::class.java) {
+                spec.selected("dog", provenance, null, listOf(CategoryProbability("dog", 1.0)))
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                spec(listOf(Category("dog", "Canine"))).validate(selected)
+            }
+        }
+
+        @Test
         fun `mapping retains distinct nonselection evidence unchanged`() {
             val mapping = CategoryMapping(QUESTION, mapOf(Category("dog", "Canine") to Animal.DOG))
             val outcomes = listOf(
