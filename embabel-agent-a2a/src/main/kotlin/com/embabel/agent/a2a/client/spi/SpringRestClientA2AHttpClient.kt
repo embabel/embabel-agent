@@ -26,9 +26,13 @@ import java.util.function.Consumer
 
 /**
  * [A2AHttpClient] backed by Spring [RestClient].
- * The OTel Java agent instruments RestClient at runtime, propagating W3C traceparent
- * headers automatically. Construct via [RestClient.builder] to apply customizers
- * (e.g. [org.springframework.http.client.observation.ClientRequestObservationContext]).
+ *
+ * Trace propagation and timeouts come from the [RestClient] passed in, not from this class.
+ * The auto-configured `a2aRestClient` is built with the application's
+ * [io.micrometer.observation.ObservationRegistry], so with a tracing bridge on the classpath every
+ * call carries a W3C `traceparent` header, and it applies the A2A client connect and read timeouts.
+ * A [RestClient] built without an observation registry sends no `traceparent`, unless the OTel
+ * Java agent instruments it at runtime.
  */
 class SpringRestClientA2AHttpClient(
     private val restClient: RestClient,

@@ -849,8 +849,24 @@ embabel:
           preferred-transport: JSONRPC  # Transport advertised in agent cards (default: JSONRPC)
           task-retention: 30m           # How long a finished task stays available (default: 1h)
         client:
-          timeout-seconds: 30           # Timeout waiting for a response from a remote A2A agent
+          timeout-seconds: 300          # Read timeout for a remote A2A agent (default: 300)
+          connect-timeout-seconds: 10   # Connect timeout for a remote A2A agent (default: 10)
 ----
+
+`timeout-seconds` is the longest a caller waits for a remote agent's response.
+A non-streaming `message/send` returns only once the remote agent has finished its whole run, often several LLM calls, so set it to the longest run you expect from the agents you call.
+`connect-timeout-seconds` makes a call to an unreachable agent fail fast instead of waiting for the read timeout.
+
+[[reference.integrations__a2a_http_client]]
+===== HTTP client
+
+The A2A client makes its calls, including agent-card discovery, through a `RestClient` bean named `a2aRestClient`.
+
+* *Your own `RestClient` is unaffected.* `a2aRestClient` is not a default autowiring candidate, so a `RestClient` bean defined by your application is still the one injected by type.
+* *Trace propagation.* Each A2A call is observed, so with a tracing bridge such as `micrometer-tracing-bridge-otel` on the classpath, the W3C `traceparent` header is sent and the remote agent joins the caller's trace.
+This works whether or not the application includes `spring-boot-restclient`.
+* *Customising.* To change A2A calls, for example to add a proxy, TLS or a connection pool, define your own bean named `a2aRestClient`; it replaces the default one.
+If your application also injects its own `RestClient` by type, declare the replacement with `@Bean(name = "a2aRestClient", defaultCandidate = false)` so the two do not compete.
 
 ===== Session tracking (contextId propagation)
 
@@ -865,9 +881,14 @@ This means all agents in the chain share the same session identifier, which is r
 The propagation mechanism uses a JVM-local OTel `ContextKey` — the `contextId` is never placed in HTTP
 headers and cannot reach LLM providers or other external services.
 
-NOTE: `contextId` propagation is separate from distributed tracing. W3C `traceparent` (injected
-automatically by Spring Boot's instrumented `RestClient`) connects spans across agents in your tracing
-backend. `contextId` is an application-level session identifier carried in the A2A message body.
+Propagation also covers calls made on other threads, such as parallel actions and `parallelMap`:
+the `contextId` is registered with Micrometer context propagation, so it travels with the rest of the
+request context, such as the current trace, to the worker thread and is cleared from that thread when the work finishes.
+
+NOTE: `contextId` propagation is separate from distributed tracing. W3C `traceparent` (sent by the
+`a2aRestClient` when a tracing bridge is present, see <<reference.integrations__a2a_http_client>>) connects
+spans across agents in your tracing backend. `contextId` is an application-level session identifier
+carried in the A2A message body.
 
 [[reference.integrations__observability]]
 ==== Observability

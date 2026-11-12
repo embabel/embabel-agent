@@ -72,6 +72,13 @@
             <artifactId>opentelemetry-context</artifactId>
         </dependency>
 
+        <!-- Micrometer context propagation: A2AContextIdThreadLocalAccessor carries the A2A contextId
+             to worker threads (parallel actions, parallelMap) via ExecutorAsyncer's ContextSnapshot. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>com.embabel.agent</groupId>

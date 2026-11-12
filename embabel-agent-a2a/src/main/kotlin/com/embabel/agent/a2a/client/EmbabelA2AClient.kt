@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.a2a.client
 
+import com.embabel.agent.a2a.A2AContextIdThreadLocalAccessor
 import com.embabel.agent.a2a.A2A_CLIENT_SEND
 import com.embabel.agent.a2a.A2A_CONTEXT_ID_KEY
 import com.embabel.agent.a2a.A2A_CONTEXT_ID_SPAN_KEY
@@ -35,7 +36,6 @@ import io.a2a.spec.AgentCard
 import io.a2a.spec.Message
 import io.a2a.spec.Task
 import io.a2a.spec.TaskStatusUpdateEvent
-import io.opentelemetry.context.Context
 import org.slf4j.LoggerFactory
 import org.springframework.web.client.RestClient
 import java.util.concurrent.ConcurrentHashMap
@@ -94,13 +94,10 @@ class EmbabelA2AClient @JvmOverloads constructor(
                                 // only the final event carries the completed task — ignore intermediates.
                                 val update = event.updateEvent
                                 if (update is TaskStatusUpdateEvent && update.isFinal) {
-                                    // event.task is set by the SDK when it can assemble the full Task from
-                                    // the stream; fall back to building from the status event fields when it cannot.
-                                    result.set(event.task ?: Task.Builder()
-                                        .id(update.taskId)
-                                        .contextId(update.contextId)
-                                        .status(update.status)
-                                        .build())
+                                    // The SDK assembles the Task from the stream and applies each status update to it,
+                                    // so event.task already carries the final status. It is never null: the
+                                    // TaskUpdateEvent constructor rejects a null task.
+                                    result.set(event.task)
                                 }
                             }
                             is MessageEvent -> {
@@ -140,6 +137,10 @@ class EmbabelA2AClient @JvmOverloads constructor(
      * automatically carries the same session identifier as the inbound one — the chain
      * is preserved without agent business code having to pass contextId explicitly.
      *
+     * The same holds when the agent makes the call on another thread, in a parallel action
+     * or `parallelMap`: [A2AContextIdThreadLocalAccessor] carries the contextId to that thread,
+     * and [A2AContextIdThreadLocalAccessor.currentContextId] reads it there.
+     *
      * Falls back to the message's own contextId when no key is set (e.g. the call
      * originates outside an A2A server request).
      *
@@ -149,7 +150,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
      * HTTP header on every instrumented outbound call.
      */
     internal fun resolveContextId(messageContextId: String?): String? =
-        Context.current().get(A2A_CONTEXT_ID_KEY) ?: messageContextId
+        A2AContextIdThreadLocalAccessor.currentContextId() ?: messageContextId
 
     override fun agentCard(baseUrl: String): AgentCard =
         clientCache.getOrPut(baseUrl) { buildClient(baseUrl) }.getAgentCard(null)

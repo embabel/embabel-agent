@@ -24,6 +24,10 @@ import io.opentelemetry.context.ContextKey
  * across virtual-thread hops within the JVM (when the context is explicitly captured
  * and restored — see [io.opentelemetry.context.Context.makeCurrent]).
  *
+ * Hops through Micrometer context propagation, such as parallel actions and `parallelMap`
+ * via `ExecutorAsyncer`, are covered by [A2AContextIdThreadLocalAccessor]. Read the
+ * contextId with [A2AContextIdThreadLocalAccessor.currentContextId], which checks both places.
+ *
  * It is NEVER serialised into HTTP headers, so it cannot leak to LLM providers or
  * any other external service. Contrast with OTel baggage, which rides in a `baggage:`
  * HTTP header on every instrumented outbound call.
