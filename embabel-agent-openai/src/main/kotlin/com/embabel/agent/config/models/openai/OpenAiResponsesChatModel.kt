@@ -229,8 +229,9 @@ class OpenAiResponsesChatModel(
     }
 
     /**
-     * The Responses API takes images and files. Images go as `input_image`; any other media goes as
-     * `input_file`, and OpenAI decides which file types it reads: a type it cannot read fails with
+     * Image media maps to Responses `input_image` via [ResponseInputContent.ofInputImage]; all
+     * other media maps to `input_file` via [ResponseInputContent.ofInputFile]. OpenAI decides which
+     * file types it reads: a type it cannot read fails with
      * its own reason rather than being dropped, so no answer comes back about an unseen attachment.
      *
      * Media data is encoded as Spring AI's OpenAI chat model encodes it: bytes as a `data:` URL, a
