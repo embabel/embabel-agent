@@ -67,7 +67,7 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
     @Test
     fun `validating returns new ByokSpec with overridden model and provider`() {
         val original = OpenAiCompatibleModelFactory.openAi("key")
-        val overridden = original.validating(OpenAiModels.GPT_41_NANO, OpenAiModels.PROVIDER)
+        val overridden = original.validating(OpenAiModels.GPT_6_LUNA, OpenAiModels.PROVIDER)
         assertInstanceOf(ByokFactory::class.java, overridden)
         assert(original !== overridden) { "validating() should return a new instance" }
     }

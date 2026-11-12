@@ -29,11 +29,13 @@ class OpenAiModels {
 
         // =====================================================================
         // GPT-6 FAMILY (Current Flagship)
-        // Astra is the flagship, 6.1 Sol balances cost, Luna is the high-volume tier.
+        // Astra is the flagship, 6.1 Sol balances cost, 6.1 Terra is the fast,
+        // efficient tier, Luna is the high-volume tier.
         // =====================================================================
 
         const val GPT_6_ASTRA = "gpt-6-astra"
         const val GPT_61_SOL = "gpt-6.1-sol"
+        const val GPT_61_TERRA = "gpt-6.1-terra"
         const val GPT_6_SOL = "gpt-6-sol"
         const val GPT_6_LUNA = "gpt-6-luna"
 
@@ -117,7 +119,18 @@ class OpenAiModels {
         const val GPT_41_MINI = "gpt-4.1-mini"
         const val GPT_41_MINI_2025_04_14 = "gpt-4.1-mini-2025-04-14"
 
+        @Suppress("kotlin:S1133")
+        @Deprecated(
+            "Retired by OpenAI on 2026-10-23 and no longer in the model catalog",
+            ReplaceWith("GPT_6_LUNA"),
+        )
         const val GPT_41_NANO = "gpt-4.1-nano"
+
+        @Suppress("kotlin:S1133")
+        @Deprecated(
+            "Retired by OpenAI on 2026-10-23 and no longer in the model catalog",
+            ReplaceWith("GPT_6_LUNA"),
+        )
         const val GPT_41_NANO_2025_04_14 = "gpt-4.1-nano-2025-04-14"
 
         // =====================================================================

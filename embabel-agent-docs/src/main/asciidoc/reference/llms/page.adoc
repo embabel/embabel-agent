@@ -613,7 +613,7 @@ embabel:
     roles:
       cheapest:
         openai:
-          model: gpt-4.1-nano       # <1>
+          model: gpt-6-luna         # <1>
         anthropic:
           model: claude-haiku-5-5
           temperature: 0.3          # <2>
@@ -662,7 +662,7 @@ is expected and only worth reporting.
 
 |Deployment awaiting a key (BYOK, `default-llm` resolving to the placeholder)
 |Warns
-|Nothing is registered yet, so every role is unresolvable and none of it is a typo. Roles resolve to the placeholder, which fails with an actionable "no LLM configured" error until a key arrives. That error names the role and the model it wanted — `cheapest wanted 'gpt-4.1-nanoo'` — because in this mode a misspelled model name and a name merely awaiting a key are indistinguishable at startup, and naming both is what lets you tell them apart.
+|Nothing is registered yet, so every role is unresolvable and none of it is a typo. Roles resolve to the placeholder, which fails with an actionable "no LLM configured" error until a key arrives. That error names the role and the model it wanted — `cheapest wanted 'gpt-6-lunaa'` — because in this mode a misspelled model name and a name merely awaiting a key are indistinguishable at startup, and naming both is what lets you tell them apart.
 
 |A role reached through a user's own credential
 |n/a
@@ -684,7 +684,7 @@ embabel:
     roles:
       cheapest:
         openai:
-          model: gpt-4.1-nano
+          model: gpt-6-luna
         anthropic:
           model: claude-haiku-5-5
 ----

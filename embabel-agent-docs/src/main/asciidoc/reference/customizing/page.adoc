@@ -350,7 +350,7 @@ specific set of models:
 ----
 // OpenAI — use a different model tier for the probe
 OpenAiCompatibleModelFactory.openAi(userKey)
-    .validating(OpenAiModels.GPT_41_NANO, OpenAiModels.PROVIDER)
+    .validating(OpenAiModels.GPT_6_LUNA, OpenAiModels.PROVIDER)
 
 // Anthropic — set validation model at construction time
 AnthropicModelFactory(apiKey = userKey, validationModel = AnthropicModels.CLAUDE_SONNET_4_5)

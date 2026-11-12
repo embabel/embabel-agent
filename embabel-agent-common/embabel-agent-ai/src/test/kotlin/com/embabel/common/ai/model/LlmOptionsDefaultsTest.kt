@@ -42,12 +42,12 @@ class LlmOptionsDefaultsTest {
 
         @Test
         fun `reads the model field, which is what configuration binding sets`() {
-            assertEquals("gpt-4.1-nano", LlmOptions(model = "gpt-4.1-nano").modelName)
+            assertEquals("gpt-6-luna", LlmOptions(model = "gpt-6-luna").modelName)
         }
 
         @Test
         fun `reads by-name selection criteria, which is what withModel sets`() {
-            assertEquals("gpt-4.1-nano", LlmOptions.withModel("gpt-4.1-nano").modelName)
+            assertEquals("gpt-6-luna", LlmOptions.withModel("gpt-6-luna").modelName)
         }
 
         @Test
@@ -69,7 +69,7 @@ class LlmOptionsDefaultsTest {
     @Nested
     inner class WithDefaultsFrom {
 
-        private val defaults = LlmOptions.withModel("gpt-4.1-nano")
+        private val defaults = LlmOptions.withModel("gpt-6-luna")
             .withTemperature(0.2)
             .withMaxTokens(1000)
             .withTopK(10)
@@ -84,7 +84,7 @@ class LlmOptionsDefaultsTest {
         fun `fills in everything the caller left unset`() {
             val merged = LlmOptions().withDefaultsFrom(defaults)
 
-            assertEquals("gpt-4.1-nano", merged.modelName)
+            assertEquals("gpt-6-luna", merged.modelName)
             assertEquals("cheapest", merged.role)
             assertEquals(0.2, merged.temperature)
             assertEquals(1000, merged.maxTokens)
@@ -125,7 +125,7 @@ class LlmOptionsDefaultsTest {
             // Resolving a role decides which model it means, so the caller's own model choice
             // (there is none when a role was named) must not survive the merge.
             val merged = LlmOptions.withModel("caller-choice").withDefaultsFrom(defaults)
-            assertEquals("gpt-4.1-nano", merged.modelName)
+            assertEquals("gpt-6-luna", merged.modelName)
         }
 
         @Test

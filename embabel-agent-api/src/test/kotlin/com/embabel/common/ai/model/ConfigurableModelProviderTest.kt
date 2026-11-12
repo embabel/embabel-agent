@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.PlaceholderLlmService
@@ -42,7 +43,7 @@ class ConfigurableModelProviderTest {
          */
         const val DEFAULT_MODEL = "gpt-4.1-mini"
         const val BEST_MODEL = "gpt-4.1"
-        const val CHEAPEST_MODEL = "gpt-4.1-nano"
+        const val CHEAPEST_MODEL = OpenAiModels.GPT_6_LUNA
     }
 
     /**

@@ -332,7 +332,7 @@ open class OpenAiCompatibleModelFactory(
          *
          * ```kotlin
          * OpenAiCompatibleModelFactory.openAi(userKey)
-         *     .validating(OpenAiModels.GPT_41_NANO, OpenAiModels.PROVIDER)
+         *     .validating(OpenAiModels.GPT_6_LUNA, OpenAiModels.PROVIDER)
          * ```
          */
         fun validating(model: String, provider: String): ByokSpec =
