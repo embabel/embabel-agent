@@ -145,8 +145,13 @@ private class AgentCardHandlerWebFacade(
                 }
                 TaskResubscriptionRequest.METHOD -> {
                     logger.debug("Processing resubscribe request for method: {}", method)
-                    val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
-                    agentCardHandler.handleJsonRpcStream(request)
+                    // For resubscribe requests, handle separately
+                    // Cast to AutonomyA2ARequestHandler to access custom streaming method
+                    if (agentCardHandler is AutonomyA2ARequestHandler) {
+                        agentCardHandler.handleCustomStreamingRequest(method, requestMap, objectMapper)
+                    } else {
+                        throw UnsupportedOperationException("Method ${method} is not supported by this handler")
+                    }
                 }
                 else -> {
                     logger.debug("Processing non-streaming request for method: {}", method)
