@@ -26,6 +26,7 @@ import com.embabel.common.ai.model.PerTokenPricingModel
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.net.InetSocketAddress
@@ -38,6 +39,7 @@ import java.time.Instant
  */
 class OpenAiCacheUsageWireTest {
 
+    private var response = RESPONSE
     private lateinit var server: HttpServer
 
     @BeforeEach
@@ -46,7 +48,7 @@ class OpenAiCacheUsageWireTest {
         server.createContext("/") { exchange ->
             val streaming = exchange.requestBody.readBytes().decodeToString().contains("\"stream\":true")
             val reply = when {
-                exchange.requestURI.path.endsWith("/responses") -> RESPONSE
+                exchange.requestURI.path.endsWith("/responses") -> response
                 streaming -> CHAT_COMPLETION_STREAM
                 else -> CHAT_COMPLETION
             }.toByteArray()
@@ -106,6 +108,16 @@ class OpenAiCacheUsageWireTest {
     fun `a Responses call counts cached and cache-write tokens without inflating prompt tokens`() {
         val llm = responses()
         assertCachedReadCounted(llm, call(llm), cacheWrite = 30)
+    }
+
+    @Test
+    fun `a Responses call without input_tokens_details counts no cache tokens`() {
+        response = RESPONSE.replace(Regex(""""input_tokens_details":\{[^}]*},\s*"""), "")
+        val usage = call(responses())
+        assertNull(usage.cacheReadInputTokens)
+        assertNull(usage.cacheWriteInputTokens)
+        assertEquals(930, usage.promptTokens)
+        assertEquals(5, usage.completionTokens)
     }
 
     private companion object {

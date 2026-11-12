@@ -94,8 +94,10 @@ class AnthropicCacheUsageWireTest {
 
     @Test
     @Disabled(
-        "Upstream gap: Spring AI 2.0.1 AnthropicChatModel reads cache counts only from message_delta. " +
-            "Anthropic's API repeats them there (cumulative), so this only bites a proxy that drops them."
+        "Upstream Spring AI limitation: 2.0.1 AnthropicChatModel reads cache counts only from message_delta " +
+            "and emits no ChatResponse for message_start. Anthropic's schema makes the message_delta cache fields " +
+            "optional, so a valid stream sending them only in message_start loses them (prompt 100, cache null). " +
+            "Observed API streams repeat them in message_delta, but the schema does not guarantee it."
     )
     fun `a stream counts cache reads and writes sent only in message_start`() {
         reply = sse(startUsage = CACHE_USAGE, deltaUsage = """{"output_tokens":5}""")
