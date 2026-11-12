@@ -45,6 +45,7 @@ import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
@@ -227,6 +228,107 @@ class CacheTokenUsageTest {
             assertEquals(0.0186, process.totalCost(), 1e-12)
             assertNotNull(EarlyTerminationPolicy.maxTokens(20_000).shouldTerminate(process))
             assertNotNull(EarlyTerminationPolicy.hardBudgetLimit(0.005).shouldTerminate(process))
+        }
+
+        @Test
+        @OptIn(InternalObservabilityApi::class)
+        fun `records the time from subscription to completion as running time`() {
+            val chatModel = mockk<ChatModel>()
+            every { chatModel.stream(any<Prompt>()) } returns
+                Flux.just(response(AssistantMessage("done"))).delaySubscription(Duration.ofMillis(100))
+            val llm = SpringAiLlmService(
+                name = "claude",
+                provider = "provider",
+                chatModel = chatModel,
+                promptTokensExcludeCache = true,
+            )
+            val modelProvider = mockk<ModelProvider>()
+            every { modelProvider.getLlm(any()) } returns llm
+            val operations = ChatClientLlmOperations(
+                modelProvider = modelProvider,
+                toolDecorator = DefaultToolDecorator(),
+                validator = Validation.buildDefaultValidatorFactory().validator,
+                validationPromptGenerator = DefaultValidationPromptGenerator(),
+                templateRenderer = JinjavaTemplateRenderer(),
+                embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
+                asyncer = ExecutorAsyncer(Executor { it.run() }),
+            )
+            val process = process()
+
+            operations.createStreamingOperations(LlmOptions())
+                .generateStream(listOf(UserMessage("hi")), LlmInteraction(InteractionId("stream")), process, null)
+                .collectList()
+                .block()
+
+            val runningTime = process.llmInvocations.single().runningTime
+            assertTrue(runningTime >= Duration.ofMillis(100), "runningTime was $runningTime")
+        }
+    }
+
+    /**
+     * Callers compiled before the cache fields link to these JVM signatures; removing one fails them
+     * with `NoSuchMethodError`.
+     */
+    @Nested
+    inner class BinaryCompatibility {
+
+        private val defaultsMarker = Class.forName("kotlin.jvm.internal.DefaultConstructorMarker")
+
+        @Test
+        fun `old Usage copy signatures still link and keep cache counts`() {
+            val original = Usage(100, 50, null, 18_000, 2_000)
+            val fields = arrayOf(Integer::class.java, Integer::class.java, Any::class.java)
+            val copy = Usage::class.java.getMethod("copy", *fields)
+            assertEquals(Usage(1, 2, null, 18_000, 2_000), copy.invoke(original, 1, 2, null))
+            val copyDefault = Usage::class.java.getMethod(
+                "copy\$default", Usage::class.java, *fields, Integer.TYPE, Any::class.java,
+            )
+            val allButPrompt = 0b110
+            assertEquals(
+                original.copy(promptTokens = 7),
+                copyDefault.invoke(null, original, 7, null, null, allButPrompt, null),
+            )
+        }
+
+        private val serviceFields = arrayOf(
+            String::class.java, String::class.java, ChatModel::class.java,
+            com.embabel.common.ai.model.OptionsConverter::class.java,
+            java.time.LocalDate::class.java, List::class.java, PricingModel::class.java, java.lang.Boolean.TYPE,
+            com.embabel.agent.spi.support.springai.ToolResponseContentAdapter::class.java,
+            com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer::class.java,
+            com.embabel.agent.spi.support.springai.SpringAiNativeThinkingExtractor::class.java,
+            com.embabel.common.ai.autoconfig.NativeSupport::class.java,
+        )
+
+        @Test
+        fun `old SpringAiLlmService constructor with defaults still links and fills in defaults`() {
+            val chatModel = mockk<ChatModel>()
+            val ctor = SpringAiLlmService::class.java.getConstructor(*serviceFields, Integer.TYPE, defaultsMarker)
+            val args = arrayOfNulls<Any>(serviceFields.size).also {
+                it[0] = "m"; it[1] = "p"; it[2] = chatModel; it[7] = false
+            }
+            val allButRequired = ((1 shl serviceFields.size) - 1) and 0b111.inv()
+            assertEquals(
+                SpringAiLlmService(name = "m", provider = "p", chatModel = chatModel),
+                ctor.newInstance(*args, allButRequired, null),
+            )
+        }
+
+        @Test
+        fun `old SpringAiLlmService copy signatures still link and keep cache semantics`() {
+            val original = SpringAiLlmService(
+                name = "m", provider = "p", chatModel = mockk(), promptTokensExcludeCache = true,
+            )
+            assertNotNull(SpringAiLlmService::class.java.getMethod("copy", *serviceFields))
+            val copyDefault = SpringAiLlmService::class.java.getMethod(
+                "copy\$default", SpringAiLlmService::class.java, *serviceFields, Integer.TYPE, Any::class.java,
+            )
+            val args = arrayOfNulls<Any>(serviceFields.size).also { it[1] = "q"; it[7] = false }
+            val allButProvider = ((1 shl serviceFields.size) - 1) and 0b10.inv()
+            assertEquals(
+                original.copy(provider = "q"),
+                copyDefault.invoke(null, original, *args, allButProvider, null),
+            )
         }
     }
 
