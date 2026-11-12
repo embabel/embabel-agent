@@ -463,6 +463,610 @@ class TikaHierarchicalContentReaderTest {
     }
 
     @Nested
+    inner class MarkdownCodeFenceTests {
+
+        private fun parseMarkdown(markdown: String) =
+            reader.parseContent(
+                ByteArrayInputStream(markdown.toByteArray()),
+                metadata = Metadata().apply { set(TikaCoreProperties.RESOURCE_NAME_KEY, "fences.md") },
+                uri = "test://fences.md",
+            )
+
+        @Test
+        fun `a hash comment inside a backtick fence is content, not a heading`() {
+            val result = parseMarkdown(
+                """
+                ## Running the examples
+
+                ```bash
+                # Clone and run examples
+                git clone https://github.com/embabel/embabel-agent-examples
+                ```
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Running the examples"), leaves.map { it.title })
+            assertEquals(
+                """
+                ```bash
+                # Clone and run examples
+                git clone https://github.com/embabel/embabel-agent-examples
+                ```
+                """.trimIndent(),
+                leaves.single().content,
+            )
+        }
+
+        @Test
+        fun `a hash comment inside a tilde fence is content, not a heading`() {
+            val result = parseMarkdown(
+                """
+                ## Configuration
+
+                ~~~yaml
+                # The model to use
+                model: gpt
+                ~~~
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("Configuration", leaf.title)
+            assertTrue(leaf.content.contains("# The model to use"))
+            assertTrue(leaf.content.endsWith("~~~"))
+        }
+
+        @Test
+        fun `a heading after a closed fence starts a new section`() {
+            val result = parseMarkdown(
+                """
+                ## First
+
+                ```
+                # not a heading
+                ```
+
+                ## Second
+                Second content.
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("First", "Second"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a shorter fence inside a four-backtick fence does not close it`() {
+            val result = parseMarkdown(
+                """
+                ## Fences
+
+                ````markdown
+                ```bash
+                # inside the inner example
+                ```
+                # still inside the outer fence
+                ````
+
+                ## After
+                After content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Fences", "After"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("# inside the inner example"))
+            assertTrue(leaves[0].content.contains("# still inside the outer fence"))
+            assertTrue(leaves[0].content.endsWith("````"))
+        }
+
+        @Test
+        fun `a tilde line does not close a backtick fence`() {
+            val result = parseMarkdown(
+                """
+                ## Mixed
+
+                ```
+                ~~~
+                # still code
+                ```
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("Mixed", leaf.title)
+            assertTrue(leaf.content.contains("# still code"))
+        }
+
+        @Test
+        fun `a fence line with text after it does not close the fence`() {
+            val result = parseMarkdown(
+                """
+                ## Example
+
+                ```
+                ```bash
+                # still code
+                ```
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("Example", leaf.title)
+            assertTrue(leaf.content.contains("# still code"))
+        }
+
+        @Test
+        fun `three backticks with a backtick later on the line are not a fence`() {
+            val result = parseMarkdown(
+                """
+                ## Inline
+                ```inline code```
+
+                ## Next
+                Next content.
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("Inline", "Next"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a fence that is never closed makes the rest of the document code`() {
+            val result = parseMarkdown(
+                """
+                ## Unclosed
+
+                ```bash
+                # comment
+
+                ## also code
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("Unclosed", leaf.title)
+            assertTrue(leaf.content.contains("## also code"))
+        }
+
+        @Test
+        fun `a fence indented by up to three spaces opens and closes a code block`() {
+            val result = parseMarkdown(
+                """
+                ## Indented
+
+                   ```bash
+                # comment
+                   ```
+
+                ## Next
+                Next content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Indented", "Next"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("# comment"))
+        }
+
+        @Test
+        fun `backticks indented by four spaces are not a fence`() {
+            val result = parseMarkdown(
+                """
+                ## Indented code
+
+                    ```
+                ## Next
+                Next content.
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("Indented code", "Next"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a closing fence longer than the opening fence closes it`() {
+            val result = parseMarkdown(
+                """
+                ## Longer
+
+                ```
+                # comment
+                `````
+
+                ## Next
+                Next content.
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("Longer", "Next"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a closing fence followed by spaces closes the fence`() {
+            val result = parseMarkdown(
+                "## Trailing\n\n```\n# comment\n```   \n\n## Next\nNext content."
+            )
+
+            assertEquals(listOf("Trailing", "Next"), result.leaves().map { it.title })
+        }
+
+        @Test
+        fun `a tilde fence can have a backtick in its info text`() {
+            val result = parseMarkdown(
+                """
+                ## Tilde
+
+                ~~~ `info`
+                # comment
+                ~~~
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("Tilde", leaf.title)
+            assertTrue(leaf.content.contains("# comment"))
+        }
+
+        @Test
+        fun `a document whose only hash lines are inside a fence is one section with the whole content`() {
+            val markdown = """
+                Install the CLI.
+
+                ```bash
+                # Install
+                brew install embabel
+                ```
+                """.trimIndent()
+
+            val result = parseMarkdown(markdown)
+
+            val leaf = result.leaves().single()
+            assertEquals("Install the CLI.", leaf.title)
+            assertEquals(markdown, leaf.content)
+        }
+
+        @Test
+        fun `a fence opened on a list item's line closes at the item's indentation`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - ```bash
+                  echo hello
+                  ```
+
+                ## Configuration
+                Configuration content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Install", "Configuration"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("echo hello"))
+            assertEquals("Configuration content.", leaves[1].content)
+        }
+
+        @Test
+        fun `a fence opened on an ordered list item's line holds a hash comment`() {
+            val result = parseMarkdown(
+                """
+                ## Steps
+
+                1. ```bash
+                   # not a heading
+                   ```
+                2. Then run it.
+
+                ## Next
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Steps", "Next"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("# not a heading"))
+        }
+
+        @Test
+        fun `a fence in a nested list item is indented to that item's content`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - Linux
+                  - Debian:
+
+                    ```bash
+                    # update first
+                    apt update
+                    ```
+
+                ## Configuration
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Install", "Configuration"), leaves.map { it.title })
+            assertTrue(leaves[0].content.contains("# update first"))
+        }
+
+        @Test
+        fun `a fence in a list item ends when the item ends, even without a closing fence`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - ```bash
+                  echo hello
+
+                ## Configuration
+                Configuration content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Install", "Configuration"), leaves.map { it.title })
+            assertEquals("Configuration content.", leaves[1].content)
+        }
+
+        @Test
+        fun `backticks indented four spaces past a list item's content are not a fence`() {
+            val result = parseMarkdown(
+                """
+                ## Install
+
+                - Item
+
+                      ```
+                # Next
+                """.trimIndent()
+            )
+
+            assertEquals(listOf("Install", "Next"), result.leaves().map { it.title })
+        }
+    }
+
+    @Nested
+    inner class MarkdownHeadingIdTests {
+
+        private fun parseMarkdown(markdown: String, uri: String = "https://docs.example.com/guide") =
+            reader.parseContent(
+                ByteArrayInputStream(markdown.toByteArray()),
+                metadata = Metadata().apply { set(TikaCoreProperties.RESOURCE_NAME_KEY, "guide.md") },
+                uri = uri,
+            )
+
+        @Test
+        fun `a heading with an id gives the title without the id and the document URI with the id as fragment`() {
+            val result = parseMarkdown(
+                """
+                ## ToolishRag lifecycle {#toolishrag-lifecycle}
+                Lifecycle content.
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("ToolishRag lifecycle", leaf.title)
+            assertEquals("https://docs.example.com/guide#toolishrag-lifecycle", leaf.uri)
+            assertEquals("Lifecycle content.", leaf.content)
+        }
+
+        @Test
+        fun `a heading without an id keeps the document URI`() {
+            val result = parseMarkdown(
+                """
+                ## Anchored {#anchored}
+                Anchored content.
+
+                ## Plain
+                Plain content.
+                """.trimIndent()
+            )
+
+            val plain = result.leaves().single { it.title == "Plain" }
+            assertEquals("https://docs.example.com/guide", plain.uri)
+        }
+
+        @Test
+        fun `a heading without an id takes the URI of the nearest heading above it with one`() {
+            val result = parseMarkdown(
+                """
+                # Guide
+                Intro.
+
+                ## Usage {#usage}
+                Usage content.
+
+                ### Setup {#setup}
+                Setup content.
+
+                #### Deeper
+                Deeper content.
+
+                ### Plain step
+                Step content.
+
+                ## Other
+                Other content.
+
+                #### Skipped level
+                Skipped content.
+                """.trimIndent()
+            )
+
+            val uris = result.leaves().associate { it.title to it.uri }
+            assertEquals("https://docs.example.com/guide#setup", uris["Deeper"])
+            assertEquals("https://docs.example.com/guide#usage", uris["Plain step"])
+            assertEquals("https://docs.example.com/guide", uris["Other"])
+            assertEquals("https://docs.example.com/guide", uris["Skipped level"])
+            assertEquals("https://docs.example.com/guide", uris["Guide"])
+        }
+
+        @Test
+        fun `a fragment already on the document URI is replaced by the heading id`() {
+            val result = parseMarkdown(
+                "## Section {#section}\nContent.",
+                uri = "https://docs.example.com/guide#top",
+            )
+
+            assertEquals("https://docs.example.com/guide#section", result.leaves().single().uri)
+        }
+
+        @Test
+        fun `whitespace around and inside the id attribute is ignored`() {
+            val result = parseMarkdown(
+                """
+                ##   Spaced title   {#spaced}
+                Content.
+
+                ## Inner spaces { #inner }
+                Content.
+                """.trimIndent()
+            )
+
+            val leaves = result.leaves().toList()
+            assertEquals(listOf("Spaced title", "Inner spaces"), leaves.map { it.title })
+            assertEquals(
+                listOf("https://docs.example.com/guide#spaced", "https://docs.example.com/guide#inner"),
+                leaves.map { it.uri },
+            )
+        }
+
+        @Test
+        fun `braces in a title that are not an id attribute stay in the title`() {
+            val result = parseMarkdown(
+                """
+                ## Map<String, {x}>
+                Content.
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("Map<String, {x}>", leaf.title)
+            assertEquals("https://docs.example.com/guide", leaf.uri)
+        }
+
+        @Test
+        fun `an id attribute with no title before it stays in the title`() {
+            val result = parseMarkdown(
+                """
+                ## {#only-id}
+                Content.
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("{#only-id}", leaf.title)
+            assertEquals("https://docs.example.com/guide", leaf.uri)
+        }
+
+        @Test
+        fun `a container section and its preamble have the URI of their heading id`() {
+            val result = parseMarkdown(
+                """
+                ## Parent {#parent}
+                Parent content.
+
+                ### Child {#child}
+                Child content.
+                """.trimIndent()
+            )
+
+            val parent = result.children.single()
+            assertTrue(parent is NavigableContainerSection)
+            assertEquals("https://docs.example.com/guide#parent", parent.uri)
+            val leaves = result.leaves().toList()
+            assertEquals(
+                listOf("https://docs.example.com/guide#parent", "https://docs.example.com/guide#child"),
+                leaves.map { it.uri },
+            )
+        }
+
+        @Test
+        fun `the document title does not include the id of the first heading`() {
+            val result = parseMarkdown(
+                """
+                # Guide {#guide}
+                Content.
+                """.trimIndent()
+            )
+
+            assertEquals("Guide", result.title)
+        }
+
+        @Test
+        fun `a title from the metadata is kept as it is, even when it ends with an id attribute`() {
+            val result = reader.parseContent(
+                ByteArrayInputStream("# Heading {#heading}\nContent.".toByteArray()),
+                metadata = Metadata().apply {
+                    set(TikaCoreProperties.RESOURCE_NAME_KEY, "guide.md")
+                    set(TikaCoreProperties.TITLE, "Metadata title {#kept}")
+                },
+                uri = "https://docs.example.com/guide",
+            )
+
+            assertEquals("Metadata title {#kept}", result.title)
+        }
+
+        @Test
+        fun `a first line of text that is not a heading keeps its braces as the title`() {
+            val result = parseMarkdown("Literal syntax {#example}\nMore text.")
+
+            assertEquals("Literal syntax {#example}", result.title)
+        }
+
+        @Test
+        fun `an id inside a fenced code block is not read`() {
+            val result = parseMarkdown(
+                """
+                ## Example {#example}
+
+                ```markdown
+                ## Inner {#inner}
+                ```
+                """.trimIndent()
+            )
+
+            val leaf = result.leaves().single()
+            assertEquals("https://docs.example.com/guide#example", leaf.uri)
+            assertTrue(leaf.content.contains("## Inner {#inner}"))
+        }
+
+        @Test
+        fun `chunks carry the section URLs with the heading ids`() {
+            val result = parseMarkdown(
+                """
+                # Guide
+
+                ## Lifecycle {#lifecycle}
+
+                ### Start {#start}
+                Start content.
+
+                ### Stop {#stop}
+                Stop content.
+                """.trimIndent()
+            )
+            val lifecycle = result.children.single().children.single() as NavigableContainerSection
+
+            // The default maximum chunk size puts the whole container in one chunk
+            val containerChunk = InMemoryContentChunker().chunk(lifecycle).single()
+            assertEquals(
+                "https://docs.example.com/guide#lifecycle",
+                containerChunk.metadata[ContentChunker.CONTAINER_SECTION_URL],
+            )
+
+            // A small maximum chunk size puts each leaf in a chunk of its own
+            val leafChunks = InMemoryContentChunker(ContentChunker.Config(maxChunkSize = 30, overlapSize = 0))
+                .chunk(lifecycle)
+            assertEquals(
+                listOf("https://docs.example.com/guide#start", "https://docs.example.com/guide#stop"),
+                leafChunks.map { it.metadata[ContentChunker.LEAF_SECTION_URL] },
+            )
+        }
+    }
+
+    @Nested
     inner class HtmlParsingTests {
 
         @Test
