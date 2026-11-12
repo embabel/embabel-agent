@@ -28,7 +28,7 @@ import org.jetbrains.annotations.ApiStatus
  *   models:
  *     roles:                 # chat: a binding is LlmOptions
  *       cheapest:
- *         openai:    { model: gpt-4.1-nano }
+ *         openai:    { model: gpt-6-luna }
  *         anthropic: { model: claude-haiku-4-5, temperature: 0.3 }
  *     embedding-roles:       # embedding: a binding is a model name
  *       documents:
