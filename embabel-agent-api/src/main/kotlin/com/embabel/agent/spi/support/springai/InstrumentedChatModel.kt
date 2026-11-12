@@ -85,7 +85,8 @@ internal class InstrumentedChatModel(
      * from [Prompt.options], and retries once.
      *
      * Fail closed (rethrow [ex]) when:
-     * - no structured `error.param` in the exception chain
+     * - no structured `error.param` in the exception chain (exception: Gemini 400
+     *   `Penalty is not enabled` → both penalties)
      * - prompt has no options (nothing to strip → cannot recover)
      * - [UnsupportedRequestParameterRetry.stripParameter] returns null because the field
      *   name is **unknown** to our portable mutator map — we never invent options.
@@ -97,13 +98,14 @@ internal class InstrumentedChatModel(
      * extend YAML capabilities first.
      */
     private fun retryWithoutUnsupportedParameter(prompt: Prompt, ex: RuntimeException): ChatResponse {
-        val parameter = UnsupportedRequestParameterRetry.extractUnsupportedParameter(ex)
-            ?: throw ex
-        val options = prompt.options ?: throw ex
-        val strippedOptions = UnsupportedRequestParameterRetry.stripParameter(options, parameter)
-        // null = unknown field name only (known-but-already-null still yields a copy)
-        if (strippedOptions == null) {
-            throw ex
+        val parameters = UnsupportedRequestParameterRetry.extractUnsupportedParameters(ex)
+        if (parameters.isEmpty()) throw ex
+        val parameter = parameters.joinToString(", ")
+        var strippedOptions: ChatOptions = prompt.options ?: throw ex
+        for (name in parameters) {
+            // null = unknown field name only (known-but-already-null still yields a copy)
+            strippedOptions = UnsupportedRequestParameterRetry.stripParameter(strippedOptions, name)
+                ?: throw ex
         }
         logger.warn(
             "Model rejected unsupported request parameter '{}'; retrying once without it. Original error: {}",

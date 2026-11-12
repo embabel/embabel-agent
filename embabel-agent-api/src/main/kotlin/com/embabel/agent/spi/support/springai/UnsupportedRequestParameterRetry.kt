@@ -38,6 +38,8 @@ import tools.jackson.databind.ObjectMapper
  * `"400 - { \"error\": { \"param\": \"temperature\", \"code\": \"unsupported_value\", ... } }"`.
  * We parse structured JSON `error.param` (and `error.code` when present) only.
  * Prose-only bodies without `error.param` return null → caller rethrows (fail closed).
+ * Exception: Gemini 400 `Penalty is not enabled` is matched in prose and maps to both
+ * `presencePenalty` and `frequencyPenalty`.
  *
  * **Reliability:** not guaranteed for every provider. Non-OpenAI providers rarely share
  * this JSON shape. On mismatch we return null and the caller rethrows.
@@ -61,17 +63,31 @@ internal object UnsupportedRequestParameterRetry {
      * Module-internal: used by [InstrumentedChatModel] (same package, different file).
      * Not `private` — Kotlin `private` is file-scoped.
      */
-    internal fun extractUnsupportedParameter(throwable: Throwable): String? {
+    internal fun extractUnsupportedParameter(throwable: Throwable): String? =
+        extractUnsupportedParameters(throwable).firstOrNull()
+
+    /**
+     * Like [extractUnsupportedParameter] but may return several fields when the provider
+     * does not say which one it rejected. Gemini answers `400 Penalty is not enabled`
+     * for either penalty, without naming it, so both are returned.
+     */
+    internal fun extractUnsupportedParameters(throwable: Throwable): List<String> {
         var current: Throwable? = throwable
         while (current != null) {
             val message = current.message
             if (message != null) {
-                extractFromStructuredOpenAiBody(message)?.let { return it }
+                extractFromStructuredOpenAiBody(message)?.let { return listOf(it) }
+                if (GEMINI_PENALTY_REJECTED.containsMatchIn(message)) {
+                    return listOf("presencePenalty", "frequencyPenalty")
+                }
             }
             current = current.cause
         }
-        return null
+        return emptyList()
     }
+
+    /** Gemini API / Vertex AI 400 when `presence_penalty` or `frequency_penalty` is sent. */
+    private val GEMINI_PENALTY_REJECTED = Regex("penalty is not enabled", RegexOption.IGNORE_CASE)
 
     /**
      * Parse Spring AI style `"NNN - {json}"` OpenAI error bodies and return
