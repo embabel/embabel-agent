@@ -36,7 +36,7 @@ class ModelPlatformTest {
     private companion object {
         const val OPENAI = "openai"
         const val ANTHROPIC = "anthropic"
-        const val CHAT_MODEL = "gpt-4.1-nano"
+        const val CHAT_MODEL = "gpt-6-luna"
         const val EMBEDDING_MODEL = "text-embedding-3-small"
         const val DEFAULT_LLM = "gpt-4.1-mini"
         const val DOCUMENTS_ROLE = "documents"
