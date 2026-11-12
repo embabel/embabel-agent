@@ -66,7 +66,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
         // HTTP call registers as a child span of a2a.client.send in the trace hierarchy.
         val observationScope = observation.openScope()
         try {
-            val client = clientCache.computeIfAbsent(baseUrl) { buildClient(it) }
+            val client = cachedClient(baseUrl)
             // client.sendMessage with setStreaming(false) is synchronous: the SDK fires consumers
             // and returns before this call unwinds, so no latch is needed.
             val result = AtomicReference<Task>()
@@ -115,13 +115,17 @@ class EmbabelA2AClient @JvmOverloads constructor(
                     { t -> error.set(t) },
                     null,
                 )
-            error.get()?.let { throw A2AException("A2A sendMessage failed to $baseUrl", it) }
-            return result.get().also {
-                logger.debug("Received A2A response from {} taskId={} contextId={}", baseUrl, it.id, it.contextId)
-            }
+            // Our own A2AException (e.g. the Message reply) already says what went wrong: rethrow it as is.
+            error.get()?.let { throw it as? A2AException ?: A2AException("A2A sendMessage failed to $baseUrl", it) }
+            val task = result.get()
+                ?: throw A2AException("A2A remote agent at $baseUrl returned no Task")
+            logger.debug("Received A2A response from {} taskId={} contextId={}", baseUrl, task.id, task.contextId)
+            return task
         } catch (e: Exception) {
             observation.error(e)
-            throw e
+            // The SDK throws its own exceptions (e.g. A2AClientException on an invalid JSON-RPC
+            // response) straight out of client.sendMessage; callers get A2AException only.
+            throw e as? A2AException ?: A2AException("A2A sendMessage failed to $baseUrl", e)
         } finally {
             observationScope.close()
             observation.stop()
@@ -153,7 +157,17 @@ class EmbabelA2AClient @JvmOverloads constructor(
         A2AContextIdThreadLocalAccessor.currentContextId() ?: messageContextId
 
     override fun agentCard(baseUrl: String): AgentCard =
-        clientCache.getOrPut(baseUrl) { buildClient(baseUrl) }.getAgentCard(null)
+        cachedClient(baseUrl).getAgentCard(null)
+
+    /**
+     * The SDK client for [baseUrl], built on first use and then reused.
+     *
+     * [ConcurrentHashMap.computeIfAbsent] builds it at most once per agent: concurrent first calls
+     * wait for the one card fetch instead of each fetching the card. (Kotlin's `getOrPut` would let
+     * every concurrent caller run [buildClient].) A failed build caches nothing, so the next call retries.
+     */
+    private fun cachedClient(baseUrl: String): Client =
+        clientCache.computeIfAbsent(baseUrl) { buildClient(it) }
 
     private fun buildClient(baseUrl: String): Client {
         logger.debug("Building A2A client for {} (not cached)", baseUrl)
@@ -167,12 +181,20 @@ class EmbabelA2AClient @JvmOverloads constructor(
             .build()
     }
 
+    /**
+     * Fetches and parses the agent card. Any failure (unreachable agent, HTTP error status,
+     * empty body, invalid card JSON) surfaces as [A2AException] naming the card URL.
+     */
     private fun fetchCard(baseUrl: String): AgentCard {
         val url = "$baseUrl/.well-known/agent.json"
         logger.debug("Fetching agent card from {}", url)
-        val json = cardRestClient.get().uri(url).retrieve().body(String::class.java)
-            ?: error("Empty response fetching agent card from $url")
-        val card = objectMapperHolder.get().readValue(json, AgentCard::class.java)
+        val card = try {
+            val json = cardRestClient.get().uri(url).retrieve().body(String::class.java)
+                ?: throw A2AException("Empty response fetching agent card from $url")
+            objectMapperHolder.get().readValue(json, AgentCard::class.java)
+        } catch (e: Exception) {
+            throw e as? A2AException ?: A2AException("Failed to fetch agent card from $url", e)
+        }
         logger.debug(
             "Fetched agent card from {}: name='{}' version={} skills={}",
             url, card.name, card.version, card.skills?.map { it.id },
