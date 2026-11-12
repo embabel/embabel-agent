@@ -473,6 +473,52 @@ class EmbeddingRoleResolutionTest {
             // must not pay for that per call.
             assertSame(first, second)
         }
+
+        @Test
+        fun `an unregistered name throws when the default role names a model instead of a key`() {
+            // The default role is answered with a model of its own, not with a key. A model of its
+            // own is not the model the caller named, and there is no key to build the named model
+            // on, so asking for that name throws.
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                ),
+                listOf(small),
+                modelPlatforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
+                        FakeEmbeddingService(model, credential.provider)
+                    },
+                ),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            }
+        }
+
+        @Test
+        fun `an unregistered name throws when no model platform builds it on the default role's key`() {
+            // The default role is answered with a key, but the only model platform builds nothing,
+            // so nothing can serve the named model and asking for it throws.
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+                ),
+                listOf(placeholder),
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                        RoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
+                    },
+                ),
+                modelPlatforms = listOf(platformBuilding(EmbeddingService.KIND) { _, _ -> null }),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            }
+        }
     }
 
     /**
@@ -623,7 +669,7 @@ class EmbeddingRoleResolutionTest {
             }
             val message = events.single { it.level == Level.WARN }.formattedMessage
             assertTrue(message.contains("No embedding model is configured"), message)
-            assertTrue(message.contains("CHOICE not yet made"), message)
+            assertTrue(message.contains("No embedding model has been chosen yet"), message)
             assertFalse(message.contains("provider API key"), message)
         }
 
@@ -636,7 +682,7 @@ class EmbeddingRoleResolutionTest {
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
             assertTrue(
-                events.single { it.level == Level.WARN }.formattedMessage.contains("unset or empty"),
+                events.single { it.level == Level.WARN }.formattedMessage.contains("unset or blank"),
                 "an empty override is how a container passes 'no value', and must not read as a typo",
             )
         }
@@ -654,13 +700,13 @@ class EmbeddingRoleResolutionTest {
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
             assertTrue(
-                events.any { it.formattedMessage.contains("is a role, and will be resolved per call") },
+                events.any { it.formattedMessage.contains("is a role and is resolved on each call") },
                 events.joinToString { it.formattedMessage },
             )
             // Startup still reports that the role's model is not registered yet — that is accurate
             // and useful. What must NOT appear is the fallback blaming the default itself.
             assertTrue(
-                events.none { it.formattedMessage.contains("is not registered; falling back") },
+                events.none { it.formattedMessage.contains("placeholder is used instead") },
                 events.joinToString { it.formattedMessage },
             )
         }
@@ -706,7 +752,7 @@ class EmbeddingRoleResolutionTest {
             )
             assertEquals(
                 1,
-                events.count { it.formattedMessage.contains("is not registered; falling back") },
+                events.count { it.formattedMessage.contains("placeholder is used instead") },
                 "suppression must be per reason, not per process",
             )
         }
