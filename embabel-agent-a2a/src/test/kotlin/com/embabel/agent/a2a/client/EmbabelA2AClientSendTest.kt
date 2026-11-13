@@ -88,7 +88,7 @@ class EmbabelA2AClientSendTest {
 
         val e = assertThrows<A2AException> { client.sendMessage(remote.baseUrl, message()) }
 
-        assertTrue("Message reply" in e.message.orEmpty(), "must say the agent sent a Message: ${e.message}")
+        assertTrue(remote.baseUrl in e.message.orEmpty(), "must name the remote agent: ${e.message}")
         assertNull(e.cause, "must not be wrapped: cause was ${e.cause}")
     }
 }

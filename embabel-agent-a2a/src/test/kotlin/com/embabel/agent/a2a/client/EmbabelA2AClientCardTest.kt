@@ -66,16 +66,16 @@ class EmbabelA2AClientCardTest {
 
     /**
      * A card that cannot be fetched (here: nothing listening) must surface as Embabel's [A2AException]
-     * naming the card URL, not as a raw Spring [org.springframework.web.client.RestClientException].
+     * naming the agent, not as a raw Spring [org.springframework.web.client.RestClientException].
      */
     @Test
-    fun `unreachable agent surfaces as A2AException naming the card URL`() {
+    fun `unreachable agent surfaces as A2AException naming the agent`() {
         val unreachable = A2ATestAgent().use { it.baseUrl } // port is free once the agent stops
         val client = EmbabelA2AClient(mockk(relaxed = true), EmbabelObjectMapperHolder.createDefault())
 
         val e = assertThrows<A2AException> { client.agentCard(unreachable) }
 
-        assertTrue("$unreachable/.well-known/agent.json" in e.message.orEmpty(), "must name the card URL: ${e.message}")
+        assertTrue(unreachable in e.message.orEmpty(), "must name the remote agent: ${e.message}")
         assertNotNull(e.cause, "must keep the underlying failure")
     }
 

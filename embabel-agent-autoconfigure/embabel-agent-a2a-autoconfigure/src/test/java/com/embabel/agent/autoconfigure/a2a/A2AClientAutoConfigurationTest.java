@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
@@ -103,15 +104,15 @@ class A2AClientAutoConfigurationTest {
         @Test
         void registersA2ARestClient() {
             contextRunner.run(context ->
-                assertThat(context).hasBean("a2aRestClient")
+                assertThat(context).hasBean(A2AClientAutoConfiguration.A2A_REST_CLIENT)
             );
         }
 
         @Test
         void doesNotReplaceUserDefinedA2ARestClient() {
             contextRunner
-                    .withBean("a2aRestClient", RestClient.class, RestClient::create)
-                    .run(context -> assertThat(context).hasBean("a2aRestClient"));
+                    .withBean(A2AClientAutoConfiguration.A2A_REST_CLIENT, RestClient.class, RestClient::create)
+                    .run(context -> assertThat(context).hasBean(A2AClientAutoConfiguration.A2A_REST_CLIENT));
         }
     }
 
@@ -135,9 +136,11 @@ class A2AClientAutoConfigurationTest {
         @Test
         void callFailsWhenRemoteAgentDoesNotAnswerWithinReadTimeout() throws IOException {
             HttpServer slowServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            CountDownLatch release = new CountDownLatch(1);
             slowServer.createContext("/", exchange -> {
                 try {
-                    Thread.sleep(5_000);
+                    // Hold the response past the client's 1s read timeout; the test releases it when done
+                    release.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -151,12 +154,15 @@ class A2AClientAutoConfigurationTest {
                         .run(context -> {
                             RestClient a2aRestClient = context.getBean(A2AClientAutoConfiguration.A2A_REST_CLIENT, RestClient.class);
                             String url = "http://localhost:" + slowServer.getAddress().getPort() + "/";
+                            // retrieve() only prepares the request; it is sent by toBodilessEntity()
+                            RestClient.ResponseSpec response = a2aRestClient.get().uri(url).retrieve();
 
-                            assertThatThrownBy(() -> a2aRestClient.get().uri(url).retrieve().toBodilessEntity())
+                            assertThatThrownBy(response::toBodilessEntity)
                                     .isInstanceOf(ResourceAccessException.class)
                                     .hasRootCauseInstanceOf(SocketTimeoutException.class);
                         });
             } finally {
+                release.countDown();
                 slowServer.stop(0);
             }
         }
@@ -203,7 +209,7 @@ class A2AClientAutoConfigurationTest {
             appContextRunner.run(context -> {
                 assertThat(context).hasNotFailed();
                 Object cardRestClient = ReflectionTestUtils.getField(context.getBean(A2AClient.class), "cardRestClient");
-                assertThat(cardRestClient).isSameAs(context.getBean("a2aRestClient"));
+                assertThat(cardRestClient).isSameAs(context.getBean(A2AClientAutoConfiguration.A2A_REST_CLIENT));
             });
         }
 
@@ -213,7 +219,7 @@ class A2AClientAutoConfigurationTest {
                 assertThat(context).hasNotFailed();
                 Object transportRestClient = ReflectionTestUtils.getField(
                         context.getBean(A2AHttpClientFactory.class).create(), "restClient");
-                assertThat(transportRestClient).isSameAs(context.getBean("a2aRestClient"));
+                assertThat(transportRestClient).isSameAs(context.getBean(A2AClientAutoConfiguration.A2A_REST_CLIENT));
             });
         }
     }
@@ -266,7 +272,7 @@ class A2AClientAutoConfigurationTest {
             contextRunner
                     .withBean(ObservationRegistry.class, TraceparentPropagation::tracingObservationRegistry)
                     .run(context -> {
-                        RestClient a2aRestClient = context.getBean("a2aRestClient", RestClient.class);
+                        RestClient a2aRestClient = context.getBean(A2AClientAutoConfiguration.A2A_REST_CLIENT, RestClient.class);
 
                         a2aRestClient.get()
                                 .uri("http://localhost:" + server.getAddress().getPort() + "/")
