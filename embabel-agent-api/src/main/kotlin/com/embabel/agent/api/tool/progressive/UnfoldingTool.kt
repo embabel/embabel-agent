@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.jacksonObjectMapper
+import kotlin.reflect.KClass
 import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
@@ -28,7 +29,9 @@ import kotlin.reflect.full.hasAnnotation
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.BeanUtils
+import org.springframework.cglib.proxy.Enhancer
 import org.springframework.core.KotlinDetector
+import org.springframework.util.ClassUtils
 
 /**
  * A [ProgressiveTool] with a fixed set of inner tools that are revealed
@@ -426,11 +429,18 @@ interface UnfoldingTool : ProgressiveTool {
         open fun fromInstance(
             instance: Any,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
-        ): UnfoldingTool =
-            if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(instance.javaClass))
-                fromInstanceKotlin(instance, objectMapper)
+        ): UnfoldingTool {
+            val targetClass = if (Enhancer.isEnhanced(instance.javaClass)) {
+                ClassUtils.getUserClass(instance.javaClass)
+            } else {
+                instance.javaClass
+            }
+
+            return if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(targetClass))
+                fromInstanceKotlin(instance, targetClass.kotlin, objectMapper)
             else
-                fromInstanceJava(instance, objectMapper)
+                fromInstanceJava(instance, targetClass, objectMapper)
+        }
 
         /**
          * Safely create an UnfoldingTool from an instance.
@@ -466,9 +476,9 @@ interface UnfoldingTool : ProgressiveTool {
 
         private fun fromInstanceKotlin(
             instance: Any,
+            klass: KClass<*>,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): UnfoldingTool {
-            val klass = instance::class
             val annotation = klass.findAnnotation<UnfoldingTools>()
 
             // Extract annotation values - prefer UnfoldingTools if present
@@ -586,9 +596,9 @@ interface UnfoldingTool : ProgressiveTool {
 
         private fun fromInstanceJava(
             instance: Any,
+            clazz: Class<*>,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): UnfoldingTool {
-            val clazz = instance::class.java
             val annotation = clazz.getAnnotation(UnfoldingTools::class.java)
 
             // Extract annotation values - prefer UnfoldingTools if present
