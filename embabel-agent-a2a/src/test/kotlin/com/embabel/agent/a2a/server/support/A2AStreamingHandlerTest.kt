@@ -95,7 +95,7 @@ class A2AStreamingHandlerTest {
     }
 
     @Test
-    fun `should record events when sending with task ID`() {
+    fun `should record events when publishing for a task`() {
         // Given
         streamingHandler.createStream("stream-1", "task-1", "ctx-1")
         val statusUpdate = TaskStatusUpdateEvent.builder()
@@ -105,7 +105,7 @@ class A2AStreamingHandlerTest {
             .build()
 
         // When
-        streamingHandler.sendStreamEvent("stream-1", statusUpdate, "task-1")
+        streamingHandler.publishTaskEvent("task-1", statusUpdate)
 
         // Then
         val events = taskStateManager.getTaskEvents("task-1")
@@ -160,5 +160,27 @@ class A2AStreamingHandlerTest {
 
         // Then - emitter is created (stream will be closed asynchronously after replaying)
         assertNotNull(emitter)
+    }
+
+    @Test
+    fun `resubscribing keeps the state and history of a completed task`() {
+        taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
+        val completedTask = Task.builder()
+            .id("task-1")
+            .contextId("ctx-1")
+            .status(TaskStatus(TaskState.TASK_STATE_COMPLETED))
+            .build()
+        taskStateManager.recordEvent("task-1", completedTask)
+        val completedAt = taskStateManager.getTaskInfo("task-1")!!.completedAt
+
+        streamingHandler.resubscribeToTask("task-1", "stream-2")
+
+        val taskInfo = taskStateManager.getTaskInfo("task-1")!!
+        assertEquals(TaskState.TASK_STATE_COMPLETED, taskInfo.currentState)
+        assertEquals(completedAt, taskInfo.completedAt)
+        assertFalse(taskStateManager.isTaskActive("task-1"))
+        assertEquals(TaskState.TASK_STATE_COMPLETED, taskStateManager.getTask("task-1")!!.status.state)
+        assertTrue(taskInfo.events.contains(completedTask))
+        assertEquals("stream-2", taskInfo.streamId)
     }
 }

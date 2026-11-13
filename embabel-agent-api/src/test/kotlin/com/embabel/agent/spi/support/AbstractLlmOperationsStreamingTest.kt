@@ -28,18 +28,26 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
+import com.embabel.common.core.thinking.ThinkingBlock
+import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingOrigin
+import com.embabel.common.core.thinking.ThinkingTagType
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import jakarta.validation.Validation
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import java.util.concurrent.CompletableFuture
 import kotlin.test.assertIs
 
 /**
- * Tests for [AbstractLlmOperations.createStreamingOperations].
+ * Tests for [AbstractLlmOperations]: streaming operations and [AbstractLlmOperations.executeWithTimeout] behaviour.
  */
 class AbstractLlmOperationsStreamingTest {
 
@@ -126,7 +134,7 @@ class AbstractLlmOperationsStreamingTest {
             outputClass: Class<O>,
             llmRequestEvent: LlmRequestEvent<O>,
         ): Result<O> {
-            throw UnsupportedOperationException("Not needed for streaming tests")
+            throw UnsupportedOperationException("Not needed for these tests")
         }
 
         override fun <O> doTransform(
@@ -135,7 +143,7 @@ class AbstractLlmOperationsStreamingTest {
             outputClass: Class<O>,
             llmRequestEvent: LlmRequestEvent<O>?,
         ): O {
-            throw UnsupportedOperationException("Not needed for streaming tests")
+            throw UnsupportedOperationException("Not needed for these tests")
         }
 
         override fun <O> doTransformWithThinking(
@@ -144,7 +152,7 @@ class AbstractLlmOperationsStreamingTest {
             outputClass: Class<O>,
             llmRequestEvent: LlmRequestEvent<O>?,
         ): com.embabel.common.core.thinking.ThinkingResponse<O> {
-            throw UnsupportedOperationException("Not needed for streaming tests")
+            throw UnsupportedOperationException("Not needed for these tests")
         }
 
         override fun <O> doTransformWithThinkingIfPossible(
@@ -153,7 +161,45 @@ class AbstractLlmOperationsStreamingTest {
             outputClass: Class<O>,
             llmRequestEvent: LlmRequestEvent<O>?,
         ): Result<com.embabel.common.core.thinking.ThinkingResponse<O>> {
-            throw UnsupportedOperationException("Not needed for streaming tests")
+            throw UnsupportedOperationException("Not needed for these tests")
+        }
+
+        fun <T> executeWithTimeoutPublic(interactionId: String, llmOptions: LlmOptions, operation: () -> T): T =
+            executeWithTimeout(interactionId, llmOptions, operation = operation)
+    }
+
+    @Nested
+    inner class ExecuteWithTimeoutThinkingExceptionTest {
+
+        @Test
+        fun `ThinkingException propagates unwrapped from executeWithTimeout, blocks preserved`() {
+            val blocks = listOf(
+                ThinkingBlock(
+                    content = "native thought",
+                    tagType = ThinkingTagType.NO_PREFIX,
+                    tagValue = "",
+                    origin = ThinkingOrigin.NATIVE,
+                )
+            )
+            val original = ThinkingException("Conversion failed", blocks)
+            val failed = CompletableFuture.failedFuture<String>(original)
+            every { mockAsyncer.async<String>(any()) } returns failed
+
+            val thrown = assertThrows<ThinkingException> {
+                llmOperations.executeWithTimeoutPublic("id", LlmOptions()) { "unused" }
+            }
+            assertEquals(original, thrown)
+            assertEquals(blocks, thrown.thinkingBlocks)
+        }
+
+        @Test
+        fun `plain Exception is wrapped in RuntimeException by executeWithTimeout`() {
+            val failed = CompletableFuture.failedFuture<String>(Exception("plain failure"))
+            every { mockAsyncer.async<String>(any()) } returns failed
+
+            assertThrows<RuntimeException> {
+                llmOperations.executeWithTimeoutPublic("id", LlmOptions()) { "unused" }
+            }
         }
     }
 }

@@ -53,8 +53,13 @@ class A2A03JsonRpcHandlerTest {
         }
 
         @Test
-        fun `should return parse error when the body is not a JSON object`() {
-            assertEquals(JSONParseError_v0_3.DEFAULT_CODE, errorCodeOf(handler.handle("[]", null)))
+        fun `should return invalid request when the body is valid JSON but not an object`() {
+            assertEquals(InvalidRequestError_v0_3.DEFAULT_CODE, errorCodeOf(handler.handle("[]", null)))
+        }
+
+        @Test
+        fun `should return parse error when the body is not valid JSON`() {
+            assertEquals(JSONParseError_v0_3.DEFAULT_CODE, errorCodeOf(handler.handle("{", null)))
         }
 
         @Test

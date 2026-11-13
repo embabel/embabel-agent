@@ -20,6 +20,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.Size
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -68,6 +71,24 @@ class TypeBasedInputSchemaTest {
 
     data class SearchFilterClass(
         val filter: DescribedNestedObjectClass,
+    )
+
+    data class DescribedTopLevelClass(
+        @get:JsonPropertyDescription("Search keyword")
+        val searchTerm: String,
+        val limit: Int,
+    )
+
+    data class ValidatedNestedClass(
+        @field:Size(min = 1, max = 10)
+        val stringField: String,
+        @field:Min(1)
+        @field:Max(100)
+        val intField: Int,
+    )
+
+    data class ValidatedClass(
+        val nested: ValidatedNestedClass,
     )
 
     @JsonPropertyOrder("optionalValue", "requiredValue")
@@ -228,6 +249,28 @@ class TypeBasedInputSchemaTest {
             val nestedParam = params.find { it.name == "nested" }
             assertEquals(Tool.ParameterType.OBJECT, nestedParam!!.type)
         }
+
+        @Test
+        fun `parameters includes description from JsonPropertyDescription on top-level property`() {
+            val schema = TypeBasedInputSchema.of(DescribedTopLevelClass::class.java)
+
+            val searchTermParam = schema.parameters.first { it.name == "searchTerm" }
+            val limitParam = schema.parameters.first { it.name == "limit" }
+
+            assertEquals("Search keyword", searchTermParam.description)
+            assertEquals("limit", limitParam.description)
+        }
+
+        @Test
+        fun `parameters includes description from JsonPropertyDescription on Java record component`() {
+            val schema = TypeBasedInputSchema.of(JavaAnnotatedRecord::class.java)
+
+            val nameParam = schema.parameters.first { it.name == "name" }
+            val descParam = schema.parameters.first { it.name == "description" }
+
+            assertEquals("name", nameParam.description)
+            assertEquals("The record description", descParam.description)
+        }
     }
 
     @Nested
@@ -381,6 +424,43 @@ class TypeBasedInputSchemaTest {
             assertFalse(jsonSchema.contains("\"${'$'}ref\""))
             assertFalse(jsonSchema.contains("\"${'$'}defs\""))
             assertEquals("object", parsed.get("properties").get("expression").get("type").asString())
+        }
+
+        @Test
+        fun `toJsonSchema honors JsonPropertyDescription on top-level properties`() {
+            val schema = TypeBasedInputSchema.of(DescribedTopLevelClass::class.java)
+
+            val parsed = objectMapper.readTree(schema.toJsonSchema())
+            val properties = parsed.get("properties")
+
+            assertEquals("Search keyword", properties.get("searchTerm").get("description").asString())
+            assertEquals("limit", properties.get("limit").get("description").asString())
+        }
+
+        @Test
+        fun `toJsonSchema honors JsonPropertyDescription on Java record component`() {
+            val schema = TypeBasedInputSchema.of(JavaAnnotatedRecord::class.java)
+
+            val parsed = objectMapper.readTree(schema.toJsonSchema())
+            val properties = parsed.get("properties")
+
+            assertEquals("name", properties.get("name").get("description").asString())
+            assertEquals("The record description", properties.get("description").get("description").asString())
+        }
+
+        @Test
+        fun `toJsonSchema honors Jakarta validation constraints`() {
+            val schema = TypeBasedInputSchema.of(ValidatedClass::class.java)
+
+            val parsed = objectMapper.readTree(schema.toJsonSchema())
+            val nested = parsed.get("properties").get("nested").get("properties")
+            val stringField = nested.get("stringField")
+            val intField = nested.get("intField")
+
+            assertEquals(1, stringField.get("minLength").asInt())
+            assertEquals(10, stringField.get("maxLength").asInt())
+            assertEquals(1, intField.get("minimum").asInt())
+            assertEquals(100, intField.get("maximum").asInt())
         }
     }
 

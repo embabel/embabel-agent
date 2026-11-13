@@ -47,6 +47,7 @@ import com.embabel.agent.api.event.ToolCallRequestEvent;
 import com.embabel.agent.api.event.ToolCallResponseEvent;
 import com.embabel.agent.api.event.ToolLoopCompletedEvent;
 import com.embabel.agent.api.event.observation.ToolCallOutcomes;
+import com.embabel.agent.api.tool.ToolReturnedError;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.EmbeddingInvocation;
 import com.embabel.agent.core.LlmInvocation;
@@ -488,7 +489,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
             Throwable error = ToolCallOutcomes.error(event);
             if (error != null) {
                 observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "error");
-                observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_TYPE, error.getClass().getSimpleName());
+                observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_TYPE, toolErrorType(error));
                 observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_MESSAGE, truncate(error.getMessage()));
                 observation.error(error);
             } else {
@@ -501,6 +502,12 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         } finally {
             observation.stop();
         }
+    }
+
+    /** A returned tool error carries the tool's own exception, when there is one, as its cause. */
+    private static String toolErrorType(Throwable error) {
+        Throwable reported = error instanceof ToolReturnedError && error.getCause() != null ? error.getCause() : error;
+        return reported.getClass().getSimpleName();
     }
 
     /**

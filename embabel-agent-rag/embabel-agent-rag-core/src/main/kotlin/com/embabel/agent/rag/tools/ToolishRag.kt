@@ -17,6 +17,7 @@ package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.reference.EagerSearch
 import com.embabel.agent.api.reference.LlmReference
+import com.embabel.agent.api.reference.prefixedTools
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.progressive.UnfoldingTool
@@ -320,18 +321,12 @@ data class ToolishRag @JvmOverloads constructor(
         )
     }
 
-    // LlmReference: returns flat list of inner tools with naming strategy applied.
-    //
-    // Items in [toolObjects] may already BE [Tool] instances (e.g. [TextSearchTools],
-    // which is a Tool with a description composed dynamically from the store's
-    // [TextSearch.luceneSyntaxNotes]) or they may be classes carrying `@LlmTool`-annotated
-    // methods (most other SearchTools). Handle both — `Tool.fromInstance` would throw
-    // "no @LlmTool methods" on the Tool branch.
+    // Items in [toolObjects] may already BE [Tool] instances (e.g. [TextSearchTools]) or objects
+    // with @LlmTool-annotated methods. Handle both — Tool.fromInstance throws on a plain Tool.
 
-    // unprefixedTools() returns bare tool names (e.g. "vectorSearch").
-    // PromptRunner.withReference() calls this and applies namingStrategy once, so each tool
-    // gets its prefix exactly once with no double-prefix.
-    override fun unprefixedTools(): List<Tool> = toolObjects
+    // tools() returns bare names (e.g. "vectorSearch").
+    // withReference() applies namingStrategy to these, so the LLM sees prefixed names (e.g. "docs_vectorSearch").
+    override fun tools(): List<Tool> = toolObjects
         .flatMap { instance ->
             when (instance) {
                 is Tool -> listOf(instance)
@@ -339,19 +334,14 @@ data class ToolishRag @JvmOverloads constructor(
             }
         }
 
-    // tools() returns prefixed names (e.g. "docs_vectorSearch") for backward compatibility.
-    // Direct callers that relied on rag.tools() returning prefixed names continue to work.
-    override fun tools(): List<Tool> = unprefixedTools()
-        .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
-
-    // Tool interface implementation via lazy UnfoldingTool
-    // When used directly as a Tool, wraps all inner tools in a UnfoldingTool
-    // Implements DelegatingTool so MatryoshkaToolInjectionStrategy can unwrap it
+    // When used directly as a Tool (not via withReference), wraps inner tools in an UnfoldingTool.
+    // Inner tools need prefixed names here because the LLM calls them directly by name.
+    // Implements DelegatingTool so MatryoshkaToolInjectionStrategy can unwrap it.
     override val delegate: Tool by lazy {
         UnfoldingTool.of(
             name = name,
             description = description,
-            innerTools = tools(),
+            innerTools = prefixedTools(),
             childToolUsageNotes = childToolUsageNotes,
         )
     }

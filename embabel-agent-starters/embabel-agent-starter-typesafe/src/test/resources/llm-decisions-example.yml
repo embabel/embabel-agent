@@ -1,0 +1,22 @@
+# Prompted decision services configuration shown on the LLM decisions reference page.
+# tag::yaml[]
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          api-key: ${TYPESAFE_API_KEY}
+      decisions:
+        llm:
+          max-attempts: 4
+          backoff-millis: 200
+          backoff-multiplier: 2.0
+          backoff-max-interval: 10000
+  models:
+    decision:
+      roles:
+        triage: small-chat-model
+    classification:
+      roles:
+        routing: fast-chat-model
+# end::yaml[]

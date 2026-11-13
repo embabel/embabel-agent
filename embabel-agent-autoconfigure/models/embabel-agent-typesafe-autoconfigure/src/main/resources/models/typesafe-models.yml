@@ -1,0 +1,5 @@
+# TypeSafe decision models. Each entry registers one decision service bean named after `name`.
+models:
+  - name: jev-latest
+    model_id: jev-latest
+    display_name: Jev (latest)

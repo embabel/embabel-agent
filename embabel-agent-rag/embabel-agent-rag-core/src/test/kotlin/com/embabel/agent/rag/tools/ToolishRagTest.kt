@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.api.reference.prefixedTools
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.support.safelyGetToolsFrom
@@ -230,7 +231,7 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "test_rag_vectorSearch" })
+            assertTrue(toolNames.any { it == "vectorSearch" })
         }
 
         @Test
@@ -247,7 +248,7 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "test_rag_textSearch" })
+            assertTrue(toolNames.any { it == "textSearch" })
         }
 
         @Test
@@ -264,8 +265,8 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "test_rag_vectorSearch" })
-            assertTrue(toolNames.any { it == "test_rag_textSearch" })
+            assertTrue(toolNames.any { it == "vectorSearch" })
+            assertTrue(toolNames.any { it == "textSearch" })
         }
 
         @Test
@@ -281,7 +282,7 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "test_rag_findById" })
+            assertTrue(toolNames.any { it == "findById" })
         }
 
         @Test
@@ -309,14 +310,16 @@ class ToolishRagTest {
             val toolNames1 = tools1.map { it.definition.name }
             val toolNames2 = tools2.map { it.definition.name }
 
-            // Each RAG should have its own namespaced tools
-            assertTrue(toolNames1.contains("books_vectorSearch"))
-            assertTrue(toolNames1.contains("books_textSearch"))
-            assertTrue(toolNames2.contains("movies_vectorSearch"))
-            assertTrue(toolNames2.contains("movies_textSearch"))
+            // After prefixing, each RAG's tools must carry its own namespace
+            val prefixed1 = rag1.prefixedTools().map { it.definition.name }
+            val prefixed2 = rag2.prefixedTools().map { it.definition.name }
+            assertTrue(prefixed1.contains("books_vectorSearch"))
+            assertTrue(prefixed1.contains("books_textSearch"))
+            assertTrue(prefixed2.contains("movies_vectorSearch"))
+            assertTrue(prefixed2.contains("movies_textSearch"))
 
-            // Tools should not overlap
-            assertFalse(toolNames1.any { it in toolNames2 })
+            // Prefixed names must not overlap across instances
+            assertFalse(prefixed1.any { it in prefixed2 })
         }
 
         @Test
@@ -329,12 +332,9 @@ class ToolishRagTest {
                 searchOperations = vectorSearch
             )
 
-            val tools = toolishRag.tools()
-            val toolNames = tools.map { it.definition.name }
-
-            // Special characters (!) should be replaced with underscores and lowercased
-            // Note: spaces are preserved by toolPrefix()
-            assertTrue(toolNames.any { it == "my special rag__vectorSearch" })
+            // Prefixed names: spaces and special chars all become underscores (toolPrefix() fix)
+            val prefixed = toolishRag.prefixedTools().map { it.definition.name }
+            assertTrue(prefixed.any { it == "my_special_rag__vectorSearch" })
         }
     }
 
@@ -378,7 +378,7 @@ class ToolishRagTest {
                 toolishRag.notes().contains(support),
                 "notes() must not duplicate the syntax notes — they belong on the textSearch tool's description.",
             )
-            val textTool = toolishRag.tools().first { it.definition.name == "test_rag_textSearch" }
+            val textTool = toolishRag.tools().first { it.definition.name == "textSearch" }
             assertTrue(
                 textTool.definition.description.contains(support),
                 "tool description must carry the store's syntax notes; was: ${textTool.definition.description}",
@@ -498,7 +498,7 @@ class ToolishRagTest {
                 vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Content"), score = 0.9))
             val rag = ToolishRag("fmt", "Formatter RAG", vectorSearch, formatter = customFormatter)
-            val tool = rag.tools().first { it.definition.name == "fmt_vectorSearch" }
+            val tool = rag.tools().first { it.definition.name == "vectorSearch" }
 
             // Act
             val result = tool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
@@ -701,7 +701,7 @@ class ToolishRagTest {
                 textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Content"), score = 0.85))
             val rag = ToolishRag("fmt", "Formatter RAG", textSearch, formatter = customFormatter)
-            val tool = rag.tools().first { it.definition.name == "fmt_textSearch" }
+            val tool = rag.tools().first { it.definition.name == "textSearch" }
 
             // Act
             val result = tool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
@@ -800,7 +800,7 @@ class ToolishRagTest {
                 regexSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Error E001"), score = 1.0))
             val rag = ToolishRag("fmt", "Formatter RAG", regexSearch, formatter = customFormatter)
-            val tool = rag.tools().first { it.definition.name == "fmt_regexSearch" }
+            val tool = rag.tools().first { it.definition.name == "regexSearch" }
 
             // Act
             val result = tool.call("""{"regex": "E\\d{3}", "topK": 10}""")
@@ -1069,16 +1069,16 @@ class ToolishRagTest {
 
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
-            assertTrue(toolNames.contains("integration_test_vectorSearch"))
-            assertTrue(toolNames.contains("integration_test_textSearch"))
+            assertTrue(toolNames.contains("vectorSearch"))
+            assertTrue(toolNames.contains("textSearch"))
 
             // Get and use vectorSearch tool
-            val vectorTool = tools.first { it.definition.name == "integration_test_vectorSearch" }
+            val vectorTool = tools.first { it.definition.name == "vectorSearch" }
             val vectorResult = vectorTool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
             assertTrue((vectorResult as com.embabel.agent.api.tool.Tool.Result.Text).content.contains("Integration test content"))
 
             // Get and use textSearch tool
-            val textTool = tools.first { it.definition.name == "integration_test_textSearch" }
+            val textTool = tools.first { it.definition.name == "textSearch" }
             val textResult = textTool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
             assertTrue((textResult as com.embabel.agent.api.tool.Tool.Result.Text).content.contains("Integration test content"))
 
@@ -1155,7 +1155,7 @@ class ToolishRagTest {
                 vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Content"), score = 0.9))
             val rag = ToolishRag("fmt", "Formatter RAG", vectorSearch).withFormatter(customFormatter)
-            val tool = rag.tools().first { it.definition.name == "fmt_vectorSearch" }
+            val tool = rag.tools().first { it.definition.name == "vectorSearch" }
 
             // Act
             val result = tool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
@@ -1576,9 +1576,9 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            // tools() returns flat list with naming strategy applied
-            assertTrue(toolNames.contains("test_rag_vectorSearch"))
-            assertTrue(toolNames.contains("test_rag_textSearch"))
+            // tools() returns bare names; namingStrategy is applied by withReference()
+            assertTrue(toolNames.contains("vectorSearch"))
+            assertTrue(toolNames.contains("textSearch"))
         }
 
         @Test
@@ -1678,7 +1678,7 @@ class ToolishRagTest {
                 description = "PG-backed store",
                 searchOperations = textSearch,
             )
-            val textTool = rag.tools().first { it.definition.name == "pg_store_textSearch" }
+            val textTool = rag.tools().first { it.definition.name == "textSearch" }
 
             assertTrue(
                 textTool.definition.description.contains("PostgreSQL substring matching only"),
@@ -1697,9 +1697,9 @@ class ToolishRagTest {
             val substringRag = ToolishRag("substring", "substring", searchOperations = substringStore)
 
             val luceneDesc = luceneRag.tools()
-                .first { it.definition.name == "lucene_textSearch" }.definition.description
+                .first { it.definition.name == "textSearch" }.definition.description
             val substringDesc = substringRag.tools()
-                .first { it.definition.name == "substring_textSearch" }.definition.description
+                .first { it.definition.name == "textSearch" }.definition.description
 
             assertTrue(luceneDesc.contains("Full Lucene"), luceneDesc)
             assertTrue(substringDesc.contains("Substring matching only"), substringDesc)
@@ -1715,7 +1715,7 @@ class ToolishRagTest {
             every { textSearch.luceneSyntaxNotes } returns ""
 
             val rag = ToolishRag("blank", "blank", searchOperations = textSearch)
-            val textTool = rag.tools().first { it.definition.name == "blank_textSearch" }
+            val textTool = rag.tools().first { it.definition.name == "textSearch" }
 
             // The base sentence is still there...
             assertTrue(textTool.definition.description.contains("Perform BM25 text search"))
@@ -1733,7 +1733,7 @@ class ToolishRagTest {
             every { textSearch.luceneSyntaxNotes } returns "PostgreSQL `LIKE` patterns with %"
 
             val rag = ToolishRag("pg", "pg", searchOperations = textSearch)
-            val textTool = rag.tools().first { it.definition.name == "pg_textSearch" }
+            val textTool = rag.tools().first { it.definition.name == "textSearch" }
             val queryParam = textTool.definition.inputSchema.parameters.first { it.name == "query" }
 
             assertTrue(
@@ -1763,37 +1763,21 @@ class ToolishRagTest {
         private val mockVectorSearch = mockk<VectorSearch>(relaxed = true)
 
         @Test
-        fun `tools returns prefixed names - backward compatibility`() {
+        fun `tools returns bare names`() {
             val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
 
             val names = rag.tools().map { it.definition.name }
 
             assertTrue(names.isNotEmpty())
-            assertTrue(names.all { it.startsWith("docs_") }, "tools() must return prefixed names; got: $names")
+            assertFalse(names.any { it.startsWith("docs_") }, "tools() must return bare names; got: $names")
         }
 
         @Test
-        fun `unprefixedTools returns unprefixed names`() {
+        fun `withReference applies prefix exactly once - no double-prefix`() {
             val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
 
-            val names = rag.unprefixedTools().map { it.definition.name }
-
-            assertTrue(names.isNotEmpty())
-            assertFalse(names.any { it.startsWith("docs_") }, "unprefixedTools() must return unprefixed names; got: $names")
-        }
-
-        @Test
-        fun `unprefixedTools and tools expose the same tools under different names`() {
-            val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
-
-            assertEquals(rag.tools().size, rag.unprefixedTools().size)
-        }
-
-        @Test
-        fun `withReference naming applies prefix exactly once - no docs_docs prefix`() {
-            val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
-
-            val tools = safelyGetToolsFrom(ToolObject(rag.unprefixedTools(), rag.namingStrategy))
+            // withReference passes tools() bare names through namingStrategy.
+            val tools = safelyGetToolsFrom(ToolObject(rag.tools(), rag.namingStrategy))
 
             assertTrue(tools.isNotEmpty())
             assertTrue(tools.all { it.definition.name.startsWith("docs_") }, "All tools must be prefixed with docs_; got: ${tools.map { it.definition.name }}")

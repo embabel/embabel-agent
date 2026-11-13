@@ -170,6 +170,10 @@ class GoogleGenAiChatIntegrationIT(
     companion object {
         @JvmStatic
         fun allGoogleGenAiModelIds(): List<String> = listOf(
+            GoogleGenAiModels.GEMINI_4_ARGON,
+            GoogleGenAiModels.GEMINI_3_8_FLASH,
+            GoogleGenAiModels.GEMINI_3_6_FLASH,
+            GoogleGenAiModels.GEMINI_3_5_FLASH_LITE,
             GoogleGenAiModels.GEMINI_3_5_FLASH,
             GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW,
             GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,

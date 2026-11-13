@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.classification
 
+import com.embabel.common.ai.decision.UnsupportedDecisionException
 import com.embabel.common.ai.model.ModelMetadata
 import com.embabel.common.ai.model.ModelType
 import com.embabel.common.core.types.HasInfoString
@@ -39,7 +40,12 @@ interface ClassificationServiceMetadata : ModelMetadata {
 /** Provider-neutral closed-category classification; implementations own execution and provider integration. */
 @ApiStatus.Experimental
 interface ClassificationService : ClassificationServiceMetadata, HasInfoString {
-    /** Classify text using only the request's category domain, returning evidence rather than routing policy. */
+    /**
+     * Classify text using only the request's category domain, returning evidence rather than routing policy.
+     *
+     * @throws UnsupportedDecisionException if provider-specific limits
+     * reject the request before any provider call
+     */
     fun classify(request: ClassificationRequest): ClassificationResult
 
     /**
@@ -48,6 +54,8 @@ interface ClassificationService : ClassificationServiceMetadata, HasInfoString {
      * @param input the text to classify, which may be empty
      * @param spec the classification to make
      * @return the result
+     * @throws UnsupportedDecisionException if provider-specific limits
+     * reject the request before any provider call
      */
     fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
         classify(ClassificationRequest.of(input, spec))

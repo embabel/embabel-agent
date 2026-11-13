@@ -48,7 +48,7 @@ import java.util.function.Supplier
  */
 class DecisionServiceRegistryBootTest {
 
-    private val llm = mockk<LlmService<*>> {
+    private val llm = mockk<LlmService<*>>(relaxed = true) {
         every { name } returns "fake"
         every { provider } returns "FakeProvider"
     }
@@ -72,7 +72,7 @@ class DecisionServiceRegistryBootTest {
         )
 
     @Test
-    fun `the platform configuration builds the registry with the configured prompted service`() {
+    fun `the platform configuration builds the registry with an application prompted service`() {
         runner.run { context ->
             context.startupFailure?.let { throw it }
             val registry = context.getBean("decisionServiceRegistry", DecisionServiceRegistry::class.java)
@@ -107,7 +107,19 @@ class DecisionServiceRegistryBootTest {
         }
     }
 
-    /** Stands in for a configured prompted service: the platform factory builds `llm-review`. */
+    @Test
+    fun `a decision role can name a chat model directly`() {
+        runner.withPropertyValues("embabel.models.decision.roles.chat=fake").run { context ->
+            context.startupFailure?.let { throw it }
+            val registry = context.getBean(DecisionServiceRegistry::class.java)
+            val service = registry.decisions().byRole("chat")
+            assertEquals("fake", service.name)
+            assertEquals("FakeProvider", service.provider)
+            assertSame(service, registry.classifications().named("fake"))
+        }
+    }
+
+    /** An application bean that builds a prompted service with the platform factory. */
     class ConfiguredReview {
         @Bean("llm-review")
         fun review(factory: LlmDecisionServiceFactory): DecisionService = factory.decisionService("fake")

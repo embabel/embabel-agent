@@ -15,8 +15,10 @@
  */
 package com.embabel.agent.autoconfigure.platform
 
+import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
+import com.embabel.common.ai.model.DecisionModelProvider
 import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
@@ -40,20 +42,23 @@ import java.util.IdentityHashMap
  * Builds the application's [DecisionServiceRegistry] from the decision and classification service
  * beans in the context, and applies the decision content capture property.
  *
- * Every `ClassificationService` bean registers under its bean name. That includes the services the
- * prompted and Jev registrars define from configuration. The family defaults and roles come from
- * these properties:
+ * Every `ClassificationService` bean registers under its bean name. Catalog starters define one bean
+ * definition per model, named after the model, so their models register the same way. The
+ * `ProviderInitialization` beans are created first, so a service one of them registers with
+ * `registerSingleton` is included. Every `DecisionModelProvider` bean is added as a provider, in
+ * bean order, for names no bean holds, such as chat models used for prompted decisions. The family
+ * defaults and roles come from these properties:
  *
  * ```yaml
  * embabel:
  *   models:
  *     decision:
- *       default: jev
+ *       default: jev-latest
  *       roles:
- *         support-triage: jev
+ *         support-triage: jev-latest
  *     classification:
  *       roles:
- *         dice-revision: llm-review
+ *         dice-revision: gpt-4.1-mini
  * ```
  *
  * Every `DecisionServiceRegistry.DefaultCandidate` bean is passed to the registry as a default
@@ -62,7 +67,7 @@ import java.util.IdentityHashMap
  * One service instance exposed under several bean names, for example through a `@Primary` bean
  * that returns another bean, registers once. It takes the name of its `@Primary` bean, or else its
  * first bean name. A default, role or default candidate that names one of the other bean names
- * resolves to that registration. The other names are logged at DEBUG.
+ * or a Spring alias resolves to that registration. The other bean names are logged at DEBUG.
  *
  * A service bean marked `@Lazy`, or one that is not a singleton, such as a prototype, is not created
  * here and is not registered. One INFO line names it. Pass it to `using(service)` to call it.
@@ -71,8 +76,8 @@ import java.util.IdentityHashMap
  * and the singletons registered before that point. A service registered later is not visible to
  * lookups; pass it to `using(service)`.
  *
- * Startup fails when a default or role names a missing service, or when a decision default or role
- * names a classification-only service. The error names the property. A missing or ambiguous family
+ * Startup fails when a default or role names neither a registered service nor a provider model, or
+ * when a decision default or role names a classification-only service. The error names the property. A missing or ambiguous family
  * default fails at lookup, when `defaultService()` is called.
  *
  * An application `DecisionServiceRegistry` bean replaces the one built here.
@@ -92,9 +97,15 @@ class DecisionServiceRegistryAutoConfiguration {
     fun decisionServiceRegistry(
         beanFactory: ListableBeanFactory,
         candidates: ObjectProvider<DecisionServiceRegistry.DefaultCandidate>,
+        providers: ObjectProvider<DecisionModelProvider>,
+        providerInitializations: ObjectProvider<ProviderInitialization>,
         observationRegistry: ObjectProvider<ObservationRegistry>,
         environment: Environment,
     ): DecisionServiceRegistry {
+        // An initializer that registers a decision or classification service with registerSingleton
+        // does so when its bean is created, so creating the initializers first puts those services
+        // in the snapshot below.
+        providerInitializations.orderedStream().toList()
         val binder = Binder.get(environment)
         val decision = bindFamily(binder, DECISION_PREFIX)
         val classification = bindFamily(binder, CLASSIFICATION_PREFIX)
@@ -109,6 +120,7 @@ class DecisionServiceRegistryAutoConfiguration {
         classification.default?.let { builder.classificationDefault(resolve(it)) }
         classification.roles.forEach { (role, name) -> builder.classificationRole(role, resolve(name)) }
         candidates.orderedStream().forEach { builder.defaultCandidate(resolve(it.name)) }
+        providers.orderedStream().forEach { builder.provider(it) }
         return try {
             builder.build()
         } catch (e: IllegalArgumentException) {
@@ -245,12 +257,12 @@ class DecisionServiceRegistryAutoConfiguration {
         }
 
         /**
-         * Maps every bean name to the name its instance registers under. An instance with several
-         * bean names takes its @Primary name, or else its first name.
+         * Maps every bean name and Spring alias to the name its instance registers under. An
+         * instance with several bean names takes its @Primary name, or else its first name.
          *
          * @param beanFactory bean factory to check for @Primary bean definitions
          * @param services each bean name mapped to its service instance
-         * @return every bean name mapped to its chosen registration name
+         * @return every bean name and alias mapped to its chosen registration name
          */
         private fun registrationNames(
             beanFactory: ListableBeanFactory,
@@ -265,7 +277,10 @@ class DecisionServiceRegistryAutoConfiguration {
                     configurable != null && configurable.containsBeanDefinition(name) &&
                         configurable.getMergedBeanDefinition(name).isPrimary
                 } ?: names.first()
-                names.forEach { registrationNames[it] = chosen }
+                names.forEach { name ->
+                    registrationNames[name] = chosen
+                    beanFactory.getAliases(name).forEach { alias -> registrationNames[alias] = chosen }
+                }
                 if (names.size > 1) {
                     logger.debug(
                         "Decision service '{}' is also exposed as bean {}. It registers once, as '{}'.",

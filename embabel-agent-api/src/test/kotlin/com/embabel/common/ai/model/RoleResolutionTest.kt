@@ -19,6 +19,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -45,7 +46,7 @@ class RoleResolutionTest {
     private fun llm(name: String, provider: String): LlmService<*> =
         SpringAiLlmService(name, provider, mockk<ChatModel>(), DefaultOptionsConverter)
 
-    private val openAiModel = llm("gpt-4.1-nano", "openai")
+    private val openAiModel = llm(OpenAiModels.GPT_6_LUNA, "openai")
     private val anthropicModel = llm("claude-haiku-4-5", "anthropic")
     private val defaultModel = llm("gpt-4.1-mini", "openai")
 
@@ -65,7 +66,7 @@ class RoleResolutionTest {
      */
     private val nestedRoles = mapOf(
         CHEAPEST_ROLE to mapOf(
-            "openai" to LlmOptions.withModel("gpt-4.1-nano"),
+            "openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA),
             "anthropic" to LlmOptions.withModel("claude-haiku-4-5").withTemperature(0.3),
         ),
     )
@@ -92,7 +93,7 @@ class RoleResolutionTest {
         @Test
         fun `falls back to the provider of the default LLM when no key is active`() {
             val resolved = provider().getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
-            assertEquals("gpt-4.1-nano", resolved.name)
+            assertEquals(OpenAiModels.GPT_6_LUNA, resolved.name)
         }
 
         @Test
@@ -120,11 +121,11 @@ class RoleResolutionTest {
         fun `provider match is case insensitive`() {
             val mp = provider(
                 properties = ConfigurableModelProviderProperties(
-                    roles = mapOf(CHEAPEST_ROLE to mapOf("OpenAI" to LlmOptions.withModel("gpt-4.1-nano"))),
+                    roles = mapOf(CHEAPEST_ROLE to mapOf("OpenAI" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA))),
                     defaultLlm = "gpt-4.1-mini",
                 ),
             )
-            assertEquals("gpt-4.1-nano", mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
+            assertEquals(OpenAiModels.GPT_6_LUNA, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
         }
 
         @Test
@@ -147,7 +148,7 @@ class RoleResolutionTest {
                     defaultLlm = "gpt-4.1-mini",
                 ),
             )
-            assertEquals("gpt-4.1-nano", mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
+            assertEquals(OpenAiModels.GPT_6_LUNA, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
         }
     }
 
@@ -199,7 +200,7 @@ class RoleResolutionTest {
                 provider(
                     models = listOf(expensiveDefault),
                     properties = ConfigurableModelProviderProperties(
-                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nano"))),
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA))),
                         defaultLlm = "gpt-4.1-mini",
                     ),
                 )
@@ -231,7 +232,7 @@ class RoleResolutionTest {
             val mp = provider(
                 models = listOf(placeholderModel),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    llms = mapOf(CHEAPEST_ROLE to OpenAiModels.GPT_6_LUNA),
                     defaultLlm = "setup-required",
                 ),
             )
@@ -265,13 +266,13 @@ class RoleResolutionTest {
                 provider(
                     models = listOf(placeholderModel),
                     properties = ConfigurableModelProviderProperties(
-                        roles = mapOf(CHEAPEST_ROLE to mapOf("none" to LlmOptions.withModel("gpt-4.1-nanoo"))),
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("none" to LlmOptions.withModel("gpt-6-lunaa"))),
                         defaultLlm = "setup-required",
                     ),
                 )
             }
             assertTrue(
-                warnings.any { it.contains("gpt-4.1-nanoo") && it.contains(CHEAPEST_ROLE) },
+                warnings.any { it.contains("gpt-6-lunaa") && it.contains(CHEAPEST_ROLE) },
                 "the entry must still be reported, just not fatally: $warnings",
             )
         }
@@ -328,7 +329,7 @@ class RoleResolutionTest {
                 properties = ConfigurableModelProviderProperties(
                     roles = mapOf(
                         CHEAPEST_ROLE to mapOf(
-                            "openai" to LlmOptions.withModel("gpt-4.1-nano")
+                            "openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA)
                                 .withTemperature(0.2)
                                 .withTimeout(Duration.ofSeconds(90)),
                         ),
@@ -347,7 +348,7 @@ class RoleResolutionTest {
                 properties = ConfigurableModelProviderProperties(
                     roles = mapOf(
                         CHEAPEST_ROLE to mapOf(
-                            "openai" to LlmOptions.withModel("gpt-4.1-nano").withTemperature(0.2),
+                            "openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA).withTemperature(0.2),
                         ),
                     ),
                     defaultLlm = "gpt-4.1-mini",
@@ -510,7 +511,7 @@ class RoleResolutionTest {
         fun `a user key does not fall through to the flat llms map either`() {
             val mp = provider(
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    llms = mapOf(CHEAPEST_ROLE to OpenAiModels.GPT_6_LUNA),
                     defaultLlm = "gpt-4.1-mini",
                 ),
                 factories = listOf(factory),
@@ -649,7 +650,7 @@ class RoleResolutionTest {
 
         @Test
         fun `the configured view answers with the nested entry for the provider`() {
-            assertEquals("gpt-4.1-nano", provider().configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
+            assertEquals(OpenAiModels.GPT_6_LUNA, provider().configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
         }
 
         @Test
@@ -686,7 +687,7 @@ class RoleResolutionTest {
                 roleResolvers = listOf(RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) }),
             )
             // The resolver decides what RUNS; configuration is what the deployment DECLARES.
-            assertEquals("gpt-4.1-nano", mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
+            assertEquals(OpenAiModels.GPT_6_LUNA, mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
         }
 
         @Test
@@ -785,7 +786,7 @@ class RoleResolutionTest {
             val mp = provider(
                 models = listOf(openAiModel),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                    llms = mapOf("workhorse" to OpenAiModels.GPT_6_LUNA),
                     defaultLlm = "workhorse",
                 ),
             )
@@ -848,10 +849,10 @@ class RoleResolutionTest {
         @Test
         fun `a role name is not reported as a model this deployment knows about`() {
             val properties = ConfigurableModelProviderProperties(
-                llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                llms = mapOf("workhorse" to OpenAiModels.GPT_6_LUNA),
                 defaultLlm = "workhorse",
             )
-            assertEquals(setOf("gpt-4.1-nano"), properties.allWellKnownLlmNames())
+            assertEquals(setOf(OpenAiModels.GPT_6_LUNA), properties.allWellKnownLlmNames())
         }
 
         @Test
@@ -904,7 +905,7 @@ class RoleResolutionTest {
                 provider(
                     models = listOf(defaultModel),
                     properties = ConfigurableModelProviderProperties(
-                        llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                        llms = mapOf("workhorse" to OpenAiModels.GPT_6_LUNA),
                         defaultLlm = "workhorse",
                     ),
                 )

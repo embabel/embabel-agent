@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.api.models.OpenAiModels
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -43,7 +44,7 @@ class RoleConfigurationBindingTest {
     fun `binds role to provider to model`() {
         runner
             .withPropertyValues(
-                "embabel.models.roles.cheapest.openai.model=gpt-4.1-nano",
+                "embabel.models.roles.cheapest.openai.model=${OpenAiModels.GPT_6_LUNA}",
                 "embabel.models.roles.cheapest.anthropic.model=claude-haiku-4-5",
             )
             .run { context ->
@@ -52,7 +53,7 @@ class RoleConfigurationBindingTest {
                     setOf("openai", "anthropic"),
                     properties.roles["cheapest"]?.keys,
                 )
-                assertEquals("gpt-4.1-nano", properties.roles["cheapest"]?.get("openai")?.modelName)
+                assertEquals(OpenAiModels.GPT_6_LUNA, properties.roles["cheapest"]?.get("openai")?.modelName)
                 assertEquals("claude-haiku-4-5", properties.roles["cheapest"]?.get("anthropic")?.modelName)
             }
     }
@@ -65,6 +66,7 @@ class RoleConfigurationBindingTest {
                 "embabel.models.roles.best.anthropic.temperature=0.3",
                 "embabel.models.roles.best.anthropic.timeout=90s",
                 "embabel.models.roles.best.anthropic.max-tokens=4096",
+                "embabel.models.roles.best.anthropic.reasoning-effort=low",
             )
             .run { context ->
                 val options = context.getBean(ConfigurableModelProviderProperties::class.java)
@@ -73,6 +75,7 @@ class RoleConfigurationBindingTest {
                 assertEquals(0.3, options?.temperature)
                 assertEquals(Duration.ofSeconds(90), options?.timeout)
                 assertEquals(4096, options?.maxTokens)
+                assertEquals(ReasoningEffort.LOW, options?.reasoningEffort)
             }
     }
 
@@ -80,12 +83,12 @@ class RoleConfigurationBindingTest {
     fun `the flat llms map still binds, unchanged`() {
         runner
             .withPropertyValues(
-                "embabel.models.llms.cheapest=gpt-4.1-nano",
+                "embabel.models.llms.cheapest=${OpenAiModels.GPT_6_LUNA}",
                 "embabel.models.default-llm=gpt-4.1-mini",
             )
             .run { context ->
                 val properties = context.getBean(ConfigurableModelProviderProperties::class.java)
-                assertEquals(mapOf("cheapest" to "gpt-4.1-nano"), properties.llms)
+                assertEquals(mapOf("cheapest" to OpenAiModels.GPT_6_LUNA), properties.llms)
                 assertEquals("gpt-4.1-mini", properties.defaultLlm)
                 assertEquals(emptyMap<String, Map<String, LlmOptions>>(), properties.roles)
             }
@@ -95,11 +98,11 @@ class RoleConfigurationBindingTest {
     fun `bound options report the model they name`() {
         // Binding sets the model field rather than selection criteria, so modelName has to read both.
         runner
-            .withPropertyValues("embabel.models.roles.cheapest.openai.model=gpt-4.1-nano")
+            .withPropertyValues("embabel.models.roles.cheapest.openai.model=${OpenAiModels.GPT_6_LUNA}")
             .run { context ->
                 val options = context.getBean(ConfigurableModelProviderProperties::class.java)
                     .roles["cheapest"]!!["openai"]!!
-                assertEquals("gpt-4.1-nano", options.modelName)
+                assertEquals(OpenAiModels.GPT_6_LUNA, options.modelName)
                 assertNull(options.modelSelectionCriteria)
             }
     }
@@ -108,13 +111,13 @@ class RoleConfigurationBindingTest {
     fun `models named under roles count as well known`() {
         runner
             .withPropertyValues(
-                "embabel.models.roles.cheapest.openai.model=gpt-4.1-nano",
+                "embabel.models.roles.cheapest.openai.model=${OpenAiModels.GPT_6_LUNA}",
                 "embabel.models.llms.best=gpt-4.1",
                 "embabel.models.default-llm=gpt-4.1-mini",
             )
             .run { context ->
                 assertEquals(
-                    setOf("gpt-4.1-nano", "gpt-4.1", "gpt-4.1-mini"),
+                    setOf(OpenAiModels.GPT_6_LUNA, OpenAiModels.GPT_41, OpenAiModels.GPT_41_MINI),
                     context.getBean(ConfigurableModelProviderProperties::class.java).allWellKnownLlmNames(),
                 )
             }

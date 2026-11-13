@@ -40,6 +40,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
+import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
 import tools.jackson.databind.ObjectMapper
@@ -127,6 +128,11 @@ abstract class AbstractLlmOperations(
         } catch (e: ExecutionException) {
             future.cancel(true)
             when (val cause = e.cause) {
+                // ThinkingException extends Exception, not RuntimeException.
+                // Without this branch it would match `is Exception` below, which wraps the cause
+                // in a new RuntimeException — callers catching ThinkingException would miss it.
+                // This branch must come first so ThinkingException is rethrown unwrapped.
+                is ThinkingException -> throw cause
                 is RuntimeException -> throw cause
                 is Exception -> throw RuntimeException(
                     "LLM call for interaction $interactionId failed",

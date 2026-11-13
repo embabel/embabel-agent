@@ -43,14 +43,14 @@ class TypeSafeConsumerTest {
                 .andRespond(
                         withSuccess(
                                 """
-                                {"model":"jev-latest","answers":{"classification":{"type":"choice","choice":"billing","probabilities":{"billing":0.8,"support":0.2},"confidence":0.7}}}
+                                {"model":"jev-latest","answers":{"q1":{"type":"choice","choice":"billing","probabilities":{"billing":0.8,"support":0.2},"confidence":0.7}}}
                                 """,
                                 MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://api.typesafe.ai/v1/systemone"))
                 .andRespond(
                         withSuccess(
                                 """
-                                {"model":"jev-latest","answers":{"proposition":{"type":"noul","noul":0.8}}}
+                                {"model":"jev-latest","answers":{"q1":{"type":"noul","noul":0.8}}}
                                 """,
                                 MediaType.APPLICATION_JSON));
 

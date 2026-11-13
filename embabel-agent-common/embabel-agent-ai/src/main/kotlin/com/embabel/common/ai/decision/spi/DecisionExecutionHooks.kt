@@ -22,6 +22,7 @@ import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.UnsupportedDecisionException
 import org.jetbrains.annotations.ApiStatus
 
 /**
@@ -51,7 +52,8 @@ interface DelegatingDecisionService {
  *
  * Execution sends the whole request to this method when the service implements it. The service's
  * capabilities list every question kind it answers this way. Execution reaches this method only
- * after the request has passed preflight.
+ * after the request's question kinds have passed preflight. A provider may still reject
+ * provider-specific limits before sending the request.
  */
 @ApiStatus.Experimental
 fun interface QuestionSetExecution {
@@ -65,6 +67,8 @@ fun interface QuestionSetExecution {
      *
      * @param request the input and the questions to answer
      * @return the response for the request's spec
+     * @throws UnsupportedDecisionException if provider-specific limits
+     * reject the request before any provider call
      */
     fun askQuestionSet(request: DecisionRequest): DecisionResponse
 }
@@ -85,6 +89,8 @@ fun interface PropositionAssessment {
      * @param input the text the model reasons over
      * @param question the proposition question, with its name and instructions
      * @return the question's outcome
+     * @throws UnsupportedDecisionException if provider-specific limits
+     * reject the request before any provider call
      */
     fun assess(input: String, question: PropositionQuestionSpec): PropositionResult
 }
@@ -104,6 +110,8 @@ fun interface RatingAssessment {
      * @param input the text the model reasons over
      * @param question the rating question, with its instructions and levels
      * @return the question's outcome
+     * @throws UnsupportedDecisionException if provider-specific limits
+     * reject the request before any provider call
      */
     fun rate(input: String, question: RatingQuestionSpec): RatingResult
 }

@@ -33,14 +33,8 @@ exactly once.
 A reference named `"docs"` with a tool named `"vectorSearch"` is exposed to the model as
 `docs_vectorSearch`.
 
-To implement your own `LlmReference`, override `unprefixedTools()` to return tools with **unprefixed** names.
-`withReference()` calls `unprefixedTools()` and applies the naming strategy to every tool name it returns.
-
-The default `unprefixedTools()` falls through to `tools()`.
-If your `tools()` already returns prefixed names (e.g. `"docs_vectorSearch"`) and you do not
-override `unprefixedTools()`, the naming strategy is applied a second time, turning
-`"docs_vectorSearch"` into `"docs_docs_vectorSearch"`.
-Override `unprefixedTools()` to return the bare names (`"vectorSearch"`) so the prefix is added exactly once.
+To implement your own `LlmReference`, override `tools()` to return tools with **bare** (unprefixed) names.
+`withReference()` calls `tools()` and applies `namingStrategy` to every tool name it returns.
 
 ==== Unfolding references and IDENTITY naming
 
@@ -68,17 +62,18 @@ Step 2 — model calls:
 This reduces catalog noise when you have several references: the model picks the right one first,
 then gets the specific tools it needs.
 
-NOTE: The inner tool names shown above come from what the delegate's `tools()` returns.
-For a standard `LlmReference.of("docs", ...)` the inner tools have bare names (`vectorSearch`).
-For a `ToolishRag` whose `tools()` already returns prefixed names, the inner tools are shown as
-`docs_vectorSearch`.
+NOTE: The inner tool names shown above come from what `LlmReference.prefixedTools(delegate)` returns —
+all `LlmReference` implementations return bare names from `tools()`, and `UnfoldingReference` applies
+the delegate's naming strategy internally so the inner tools carry their final prefixed names
+(e.g. `docs_vectorSearch`).
 
 Because the `UnfoldingTool` placeholder is already named `"docs"` (the prefix), applying the
 default naming strategy on top would produce `"docs_docs"`.
 `withUnfolding()` therefore overrides `namingStrategy` to `StringTransformer.IDENTITY`,
 which tells `withReference()` to leave the name unchanged.
 
-NOTE: Any `LlmReference` whose `unprefixedTools()` already returns tools with their final names
+NOTE: Any `LlmReference` whose `tools()` already returns tools with their final names
+(for example an `UnfoldingReference` whose outer tool is already named with the prefix)
 should override `namingStrategy` to return `StringTransformer.IDENTITY`.
 
 Use `LlmReference` if:

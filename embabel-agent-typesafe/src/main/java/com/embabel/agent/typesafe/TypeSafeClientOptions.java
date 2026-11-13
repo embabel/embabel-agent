@@ -15,7 +15,8 @@
  */
 package com.embabel.agent.typesafe;
 
-import org.apache.commons.lang3.Range;
+import com.embabel.agent.systemone.SystemOneEndpoint;
+
 import org.jetbrains.annotations.ApiStatus.Experimental;
 import org.springframework.util.Assert;
 
@@ -23,69 +24,65 @@ import java.net.URI;
 import java.time.Duration;
 
 /**
- * Non-secret settings for a synchronous native TypeSafe client.
+ * Where TypeSafe lives and how long to wait for it. None of these settings are secret.
  *
- * <p>Timeouts configure only the fallback transport. A supplied transport owns its timeouts;
- * neither configuration establishes a global request deadline.
+ * <p>The timeouts apply when the factory builds its own HTTP client. An application client keeps
+ * its own timeouts. The response limit applies either way.
  *
- * @param baseUri non-null provider base URI; endpoint validation belongs to the HTTP client
- * @param connectTimeout fallback connection timeout, from one millisecond to Integer.MAX_VALUE
- *     milliseconds
- * @param readTimeout fallback socket read timeout, with the same limits as connectTimeout
- * @param maxResponseBytes positive byte limit for TypeSafe response decoding; application-owned
- *     buffering/interceptors may read before this limit applies
+ * @param baseUri the TypeSafe address, without user info, a query or a fragment
+ * @param connectTimeout how long to wait for a connection, from 1 ms to {@link Integer#MAX_VALUE} ms
+ * @param readTimeout how long to wait for data once connected, with the same limits
+ * @param maxResponseBytes the largest response body that will be read
  */
 @Experimental
 public record TypeSafeClientOptions(
         URI baseUri, Duration connectTimeout, Duration readTimeout, int maxResponseBytes) {
+
     private static final URI DEFAULT_BASE_URI = URI.create("https://api.typesafe.ai");
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
-    private static final int DEFAULT_RESPONSE_BYTES = 1024 * 1024;
-    private static final Range<Duration> TIMEOUT_RANGE =
-            Range.of(Duration.ofMillis(1), Duration.ofMillis(Integer.MAX_VALUE));
 
     /**
-     * Validates settings without resolving credentials or opening a connection.
+     * Checks the settings without resolving a key or opening a connection.
      *
-     * @throws IllegalArgumentException if the URI is null or a timeout or response limit is invalid
+     * @throws IllegalArgumentException if the address, a timeout or the response limit is missing or unusable
      */
     public TypeSafeClientOptions {
         Assert.notNull(baseUri, "TypeSafe base URI is required");
-        Assert.isTrue(
-                baseUri.getUserInfo() == null
-                        && (baseUri.getRawAuthority() == null
-                                || !baseUri.getRawAuthority().contains("@"))
-                        && baseUri.getRawQuery() == null
-                        && baseUri.getRawFragment() == null,
-                "TypeSafe base URI must not contain credentials, a query or a fragment");
-        validateTimeout(connectTimeout);
-        validateTimeout(readTimeout);
-        Assert.isTrue(maxResponseBytes > 0, "TypeSafe response byte limit must be positive");
-    }
-
-    /** Keeps fallback timeouts within the finite millisecond range supported by URLConnection. */
-    private static void validateTimeout(Duration timeout) {
-        Assert.isTrue(
-                TIMEOUT_RANGE.contains(timeout),
-                "TypeSafe timeout must be between 1ms and 2147483647ms");
+        Assert.notNull(connectTimeout, "TypeSafe connect timeout is required");
+        Assert.notNull(readTimeout, "TypeSafe read timeout is required");
+        endpoint(baseUri, connectTimeout, readTimeout, maxResponseBytes);
     }
 
     /**
-     * Returns defaults targeting https://api.typesafe.ai with ten-second fallback connect/read
-     * timeouts and a one-MiB response decoding limit.
+     * Returns the settings for {@code https://api.typesafe.ai}, with 10 second timeouts and a
+     * 1 MiB response limit.
      *
-     * @return immutable defaults without a credential
+     * @return the default settings
      */
     public static TypeSafeClientOptions defaults() {
         return new TypeSafeClientOptions(
-                DEFAULT_BASE_URI, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_RESPONSE_BYTES);
+                DEFAULT_BASE_URI,
+                SystemOneEndpoint.DEFAULT_TIMEOUT,
+                SystemOneEndpoint.DEFAULT_TIMEOUT,
+                SystemOneEndpoint.DEFAULT_MAX_RESPONSE_BYTES);
     }
 
-    /**
-     * Keeps credentials, query parameters and gateway paths out of diagnostics.
-     *
-     * @return a representation containing only safe transport bounds
-     */
+    /** Returns these settings as a System One endpoint named TypeSafe. */
+    SystemOneEndpoint endpoint() {
+        return endpoint(baseUri, connectTimeout, readTimeout, maxResponseBytes);
+    }
+
+    private static SystemOneEndpoint endpoint(
+            URI baseUri, Duration connectTimeout, Duration readTimeout, int maxResponseBytes) {
+        return new SystemOneEndpoint(
+                TypeSafeModelFactory.PROVIDER,
+                baseUri,
+                connectTimeout,
+                readTimeout,
+                maxResponseBytes,
+                TypeSafeModelFactory.REQUEST_ID_HEADER);
+    }
+
+    /** Leaves the address out, since a gateway path can be private. */
     @Override
     public String toString() {
         return "TypeSafeClientOptions[baseUri=[CONFIGURED], connectTimeout=%s, readTimeout=%s, maxResponseBytes=%d]"

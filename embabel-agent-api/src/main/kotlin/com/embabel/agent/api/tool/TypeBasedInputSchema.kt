@@ -15,14 +15,22 @@
  */
 package com.embabel.agent.api.tool
 
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import tools.jackson.databind.ObjectMapper
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberProperties
+import kotlin.reflect.full.primaryConstructor
+import kotlin.reflect.jvm.javaField
+import kotlin.reflect.jvm.javaGetter
 import kotlin.reflect.jvm.javaType
 
 /**
  * InputSchema implementation that generates JSON schema from a Class type.
- * Uses reflection to extract properties and their types.
+ * Uses reflection to extract properties and their types, honouring top-level
+ * [JsonPropertyDescription] annotations for descriptions and delegating schema
+ * generation for property types to [VictoolsSchemaGenerator].
  */
 class TypeBasedInputSchema(
     private val type: Class<*>,
@@ -36,6 +44,87 @@ class TypeBasedInputSchema(
 
         @JvmStatic
         fun of(type: KClass<*>): TypeBasedInputSchema = TypeBasedInputSchema(type.java)
+
+        /**
+         * Resolves the description for a Kotlin property, checking for [JsonPropertyDescription].
+         *
+         * If a non-empty description is found, it overrides the default property name.
+         * Otherwise, it falls back to the property name itself.
+         *
+         * Example:
+         * ```kotlin
+         * data class SearchInput(
+         *     // Default target is constructor parameter
+         *     @JsonPropertyDescription("Search keyword")
+         *     val query: String,
+         *     // Explicit getter target
+         *     @get:JsonPropertyDescription("Max items to return")
+         *     val limit: Int,
+         * )
+         * ```
+         */
+        private fun findPropertyDescription(prop: KProperty1<*, *>, kClass: KClass<*>): String {
+            val description =
+                // 1. Check explicit getter use-site target, e.g. @get:JsonPropertyDescription("...")
+                prop.getter.findAnnotation<JsonPropertyDescription>()?.value
+                    // 2. Check property declaration target, e.g. @property:JsonPropertyDescription("...")
+                    ?: prop.findAnnotation<JsonPropertyDescription>()?.value
+                    // 3. Check backing field target, e.g. @field:JsonPropertyDescription("...")
+                    ?: prop.javaField?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                    // 4. Check Java getter method if present in bytecode
+                    ?: prop.javaGetter?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                    // 5. In Kotlin data classes without a use-site prefix (e.g. data class Foo(@JsonPropertyDescription(...) val bar: String)),
+                    // Kotlin applies the annotation to the primary constructor parameter by default.
+                    ?: kClass.primaryConstructor?.parameters?.firstOrNull { it.name == prop.name }
+                        ?.findAnnotation<JsonPropertyDescription>()?.value
+
+            // Annotation description overrides property name; fallback to property name if absent or blank
+            return if (!description.isNullOrEmpty()) description else prop.name
+        }
+
+        /**
+         * Resolves the description for a Java field or record component, checking for [JsonPropertyDescription].
+         *
+         * If a non-empty description is found, it overrides the default field name.
+         * Otherwise, it falls back to the field name itself.
+         *
+         * Example:
+         * ```java
+         * public record UserRecord(
+         *     @JsonPropertyDescription("User ID") String id
+         * ) {}
+         * ```
+         */
+        private fun findFieldDescription(field: java.lang.reflect.Field, type: Class<*>): String {
+            // 1. For Java records, check annotations on the record component or its accessor method
+            if (type.isRecord) {
+                val recordComponent = type.recordComponents?.firstOrNull { it.name == field.name }
+                val componentDesc = recordComponent?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                if (!componentDesc.isNullOrEmpty()) return componentDesc
+
+                val accessorDesc = recordComponent?.accessor?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                if (!accessorDesc.isNullOrEmpty()) return accessorDesc
+            }
+
+            // 2. Check field annotation directly (e.g. @JsonPropertyDescription private String name;)
+            val fieldDesc = field.getAnnotation(JsonPropertyDescription::class.java)?.value
+            if (!fieldDesc.isNullOrEmpty()) return fieldDesc
+
+            // 3. Check standard getter methods (e.g. getName() or isEnabled())
+            try {
+                val getter = type.methods.firstOrNull {
+                    (it.name == field.name ||
+                        it.name == "get" + field.name.replaceFirstChar { c -> c.uppercase() } ||
+                        it.name == "is" + field.name.replaceFirstChar { c -> c.uppercase() }) &&
+                        it.parameterCount == 0
+                }
+                val getterDesc = getter?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                if (!getterDesc.isNullOrEmpty()) return getterDesc
+            } catch (_: Exception) {}
+
+            // Annotation description overrides field name; fallback to field name if absent or blank
+            return field.name
+        }
 
         private fun mapPropertyTypeToParameterType(type: Class<*>): Tool.ParameterType = when {
             type == String::class.java || type == java.lang.String::class.java ->
@@ -80,7 +169,7 @@ class TypeBasedInputSchema(
                     VictoolsSchemaGenerator.ParameterInfo(
                         name = prop.name,
                         type = javaType,
-                        description = prop.name,
+                        description = findPropertyDescription(prop, kClass),
                         required = !prop.returnType.isMarkedNullable,
                     )
                 )
@@ -89,12 +178,12 @@ class TypeBasedInputSchema(
             // Fallback for non-Kotlin classes or reflection failures
             // For Java classes, try to get generic type info from fields
             for (field in type.declaredFields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                if (java.lang.reflect.Modifier.isStatic(field.modifiers) || field.isSynthetic) continue
                 parameterInfos.add(
                     VictoolsSchemaGenerator.ParameterInfo(
                         name = field.name,
                         type = field.genericType, // Use genericType for full type info
-                        description = field.name,
+                        description = findFieldDescription(field, type),
                         required = true,
                     )
                 )
@@ -122,7 +211,7 @@ class TypeBasedInputSchema(
                     Tool.Parameter(
                         name = prop.name,
                         type = mapPropertyTypeToParameterType(propType),
-                        description = prop.name,
+                        description = findPropertyDescription(prop, kClass),
                         required = !prop.returnType.isMarkedNullable,
                     )
                 )
@@ -130,12 +219,12 @@ class TypeBasedInputSchema(
         } catch (e: Exception) {
             // Fallback for non-Kotlin classes
             for (field in type.declaredFields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                if (java.lang.reflect.Modifier.isStatic(field.modifiers) || field.isSynthetic) continue
                 params.add(
                     Tool.Parameter(
                         name = field.name,
                         type = mapPropertyTypeToParameterType(field.type),
-                        description = field.name,
+                        description = findFieldDescription(field, type),
                         required = true,
                     )
                 )

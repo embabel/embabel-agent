@@ -428,9 +428,9 @@ class SkillsTest {
 
     @Test
     fun `notes references prefixed tool names matching withReference naming strategy`() {
-        // withReference applies namingStrategy (toolPrefix()_$name) to unprefixedTools().
-        // notes() must reference the same prefixed names so the model prompt matches
-        // the tool catalog it actually sees.
+        // notes() text is injected into the system prompt alongside the tool catalog.
+        // Tool names in notes() must match the registered names (e.g. "docs_search", not "search"),
+        // otherwise the LLM reads instructions that refer to tools it does not recognise.
         val skills = Skills(
             name = "Skills",
             description = "test",

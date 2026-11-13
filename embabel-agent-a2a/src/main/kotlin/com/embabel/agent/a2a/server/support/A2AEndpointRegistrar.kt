@@ -18,6 +18,10 @@ package com.embabel.agent.a2a.server.support
 import com.embabel.agent.a2a.server.A2AProtocolVersion
 import com.embabel.agent.a2a.server.AgentCardHandler
 import com.embabel.common.util.EmbabelObjectMapperHolder
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonNull
+import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import tools.jackson.databind.ObjectMapper
 import jakarta.servlet.ServletRequest
@@ -79,13 +83,17 @@ class A2AEndpointRegistrar(
     }
 
     private fun registerWebEndpoints(agentCardHandler: AgentCardHandler) {
-        val endpointPath = "/${agentCardHandler.path}/.well-known/agent.json"
+        // A2A 0.3 serves the card at agent-card.json; agent.json (A2A 0.2) is kept for older clients
+        val agentCardPaths = arrayOf(
+            "/${agentCardHandler.path}/.well-known/agent-card.json",
+            "/${agentCardHandler.path}/.well-known/agent.json",
+        )
         logger.info(
             "Registering web endpoint under {} for {}",
-            endpointPath,
+            agentCardPaths.joinToString(),
             agentCardHandler.infoString(verbose = true),
         )
-        val agentCardGetMapping = RequestMappingInfo.paths(endpointPath)
+        val agentCardGetMapping = RequestMappingInfo.paths(*agentCardPaths)
             .methods(RequestMethod.GET)
             .produces(MediaType.APPLICATION_JSON_VALUE)
             .build()
@@ -149,7 +157,7 @@ private class AgentCardHandlerWebFacade(
         when (A2AProtocolVersion.fromHeader(a2aVersion)) {
             A2AProtocolVersion.V1_0 -> handleJsonRpc10(body)
             A2AProtocolVersion.V0_3 -> when (val response = a2a03JsonRpcHandler.handle(body, requestIdOf(body))) {
-                is String -> jsonResponse(response)
+                is String -> jsonRpcResponse(response)
                 else -> response
             }
 
@@ -174,7 +182,7 @@ private class AgentCardHandlerWebFacade(
             when (request) {
                 is StreamingJSONRPCRequest<*> -> agentCardHandler.handleJsonRpcStream(request)
                 // The SDK turns a numeric string id such as "42" into a number, so answer with the id as sent
-                is NonStreamingJSONRPCRequest<*> -> jsonResponse(
+                is NonStreamingJSONRPCRequest<*> -> jsonRpcResponse(
                     toJson(agentCardHandler.handleJsonRpc(request), requestIdOf(body) ?: request.id)
                 )
             }
@@ -218,11 +226,28 @@ private class AgentCardHandlerWebFacade(
 
     private fun errorResponse(requestId: Any?, error: A2AError): ResponseEntity<String> {
         logger.warn("Returning JSON-RPC error: id='{}', code={}, message='{}'", requestId, error.code, error.message)
-        return jsonResponse(JSONRPCUtils.toJsonRPCErrorResponse(requestId, error))
+        return jsonRpcResponse(JSONRPCUtils.toJsonRPCErrorResponse(requestId, error))
+    }
+
+    /**
+     * JSON-RPC 2.0 requires the id member in every response, null when the request id could not be read.
+     * The A2A SDKs leave a null id out, so it is added here.
+     */
+    private fun jsonRpcResponse(json: String): ResponseEntity<String> {
+        val response = JsonParser.parseString(json).asJsonObject
+        if (response.has("id")) {
+            return jsonResponse(json)
+        }
+        response.add("id", JsonNull.INSTANCE)
+        return jsonResponse(NULL_PRESERVING_GSON.toJson(response))
     }
 
     private fun jsonResponse(json: String): ResponseEntity<String> =
         ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_JSON)
             .body(json)
+
+    private companion object {
+        val NULL_PRESERVING_GSON: Gson = GsonBuilder().serializeNulls().disableHtmlEscaping().create()
+    }
 }

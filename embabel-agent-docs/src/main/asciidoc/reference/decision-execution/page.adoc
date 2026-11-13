@@ -3,7 +3,8 @@
 
 This page covers selecting a decision service and running a decision spec on it.
 <<reference.decision-specs>> covers building specs and reading responses.
-<<reference.typesafe>> and <<reference.llm-decisions>> cover the two provider families.
+<<reference.systemone>> covers decision models served over the System One protocol, such as Jev from TypeSafe (<<reference.typesafe>>) and CLEF on Cloudflare (<<reference.cloudflare>>).
+<<reference.llm-decisions>> covers chat models prompted to decide.
 
 The types are in `embabel-agent-ai`.
 Selection is in the package `com.embabel.common.ai.model`.
@@ -21,10 +22,10 @@ flowchart TD
     Obs -->|ask: embabel.ai.ask| Exec[preflight and execution]
     Exec -->|question-set service| Hook[askQuestionSet: embabel.ai.decision ask_question_set]
     Exec -->|any other service| Split[assess / classify / rate]
-    Hook --> Jev[TypeSafeDecisionService]
+    Hook --> SystemOne[SystemOneDecisionService]
     Hook --> Llm[LlmDecisionService]
     Hook --> Fix[NoOpDecisionService / StubDecisionService]
-    Jev --> Asm[DecisionResponseAssembler]
+    SystemOne --> Asm[DecisionResponseAssembler]
     Llm --> Asm
 ----
 
@@ -39,15 +40,15 @@ Each selector has four terminals, and each terminal returns the service itself:
 
 |`defaultService()`
 |The family default
-|`ServiceSelectionException` with `NO_DEFAULT` or `AMBIGUOUS_DEFAULT`
+|`ServiceSelectionException` with `NO_DEFAULT` or `AMBIGUOUS_DEFAULT`, or `UNKNOWN_NAME` when the default is a provider model and no provider returns a service for that model
 
 |`named(name)`
-|The service registered under `name`
+|The service registered under the registry name `name`, or a provider service for a model of that name
 |`ServiceSelectionException` with `UNKNOWN_NAME`, or `WRONG_CAPABILITY` when the decision family is asked for a classification-only service
 
 |`byRole(role)`
 |The service bound to `role` in this family
-|`ServiceSelectionException` with `UNKNOWN_ROLE`
+|`ServiceSelectionException` with `UNKNOWN_ROLE`, or `UNKNOWN_NAME` when the role names a provider model and no provider returns a service for that model
 
 |`using(service)`
 |The given service. It is not registered. Inside a workflow a service that is not an `ObservedDecisionService` or `ObservedClassificationService` is wrapped in one on the registry's observation registry.
@@ -129,9 +130,9 @@ In a Spring application the spec can be a bean:
 include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/DecisionServicesSpringExampleTest.java[tag=spec-bean,indent=0]
 ----
 
-To use a prompted service for classification, declare it under `embabel.agent.platform.decisions.llm.services.<name>` and bind it to a role under `embabel.models.classification.roles.<role>`.
-The `ticket-classifier` entry in the configuration example below does both.
-A decision service also classifies, so a classification role can name it.
+A classification role can name a chat model directly, for example `embabel.models.classification.roles.routing: gpt-4.1-mini`.
+The registry builds a prompted service for that model on first use.
+A decision service also classifies, so a classification role can name one.
 
 A `ClassificationSpec` is a decision spec with one choice question, so a decision service answers it too.
 
@@ -155,6 +156,9 @@ A `ClassificationSpec` is a decision spec with one choice question, so a decisio
 |`defaultCandidate(name)`
 |Offers a registered service as a family default candidate
 
+|`provider(provider)`
+|Adds a `DecisionModelProvider` for names no registered service holds
+
 |`observationRegistry(registry)`
 |Sets the observation registry the registered services observe with
 
@@ -163,6 +167,7 @@ A `ClassificationSpec` is a decision spec with one choice question, so a decisio
 |===
 
 `build()` throws `IllegalArgumentException` for a blank or repeated name, for one service instance registered under two names, and for a default, role or candidate that names a missing or ineligible service.
+A default or role may name a model a provider serves.
 The message names the binding and the property that sets it.
 `DecisionServiceRegistry.empty()` returns a registry with no services.
 
@@ -187,49 +192,45 @@ No eligible service gives `NO_DEFAULT`.
 Several eligible candidates, or several eligible services with no candidate, give `AMBIGUOUS_DEFAULT`.
 The classification family resolves its default the same way with `embabel.models.classification.default`.
 
-The TypeSafe auto-configuration contributes `DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService")`.
-When TypeSafe is configured and no explicit default is set, Jev is the default of both families.
-Prompted LLM services contribute no candidate.
-An application that has only prompted services and several of them sets the default explicitly.
+The TypeSafe starter contributes `DecisionServiceRegistry.DefaultCandidate("jev-latest")` when it defines the `jev-latest` bean.
+When the TypeSafe starter defines `jev-latest` and no explicit default is set, `jev-latest` is the default of both families.
+An application bean named `jev-latest` replaces the model and withdraws the candidate, so set the default explicitly in that case.
+A model served by a provider is a default only when configuration names it.
 
 ===== Startup snapshot
 
-A registry is an immutable snapshot taken when `build()` runs.
-In Spring that happens when the `decisionServiceRegistry` bean is created.
-The registry holds the `ClassificationService` beans defined by then: bean definitions, including those the prompted and TypeSafe configuration adds, and singletons registered before the registry bean is created.
-A service registered later is not visible, and `named` reports `UNKNOWN_NAME` for it.
+A registry snapshots the service registrations available when `build()` runs.
+In Spring, the `decisionServiceRegistry` bean depends on every `ProviderInitialization` bean. Model beans registered during provider initialization are therefore present before the registry snapshots its services.
+A service registered later is outside the snapshot and cannot be found there by `named(name)`.
+Provider models are not in this snapshot: the registry looks them up on first selection and caches each service.
 Pass a service built at run time, such as a per-user service, to `using(service)`.
 
 ==== Configuration
 
-These properties configure services and selection together:
+Decision models are configured the way chat models are.
+A provider starter registers one service bean per catalog model, named after the model.
+TypeSafe registers `jev-latest`.
+A chat model is used for prompted decisions by naming it in a default or role.
+These properties select services:
 
 |===
 |Property |Default |Purpose
 
 |`embabel.models.decision.default`
 |none
-|Registration name of the decision family default
+|Model or registration name of the decision family default
 
 |`embabel.models.decision.roles.<role>`
 |none
-|Registration name bound to a decision role
+|Model or registration name bound to a decision role
 
 |`embabel.models.classification.default`
 |none
-|Registration name of the classification family default
+|Model or registration name of the classification family default
 
 |`embabel.models.classification.roles.<role>`
 |none
-|Registration name bound to a classification role
-
-|`embabel.agent.platform.models.typesafe.services.<name>.model`
-|none
-|Registers a Jev decision service under `<name>` for the given TypeSafe model
-
-|`embabel.agent.platform.decisions.llm.services.<name>.llm`
-|none
-|Registers a prompted decision service under `<name>`, answered by the named LLM. See <<reference.llm-decisions.configuration>>.
+|Model or registration name bound to a classification role
 
 |`embabel.agent.platform.decisions.capture-content`
 |`false`
@@ -237,18 +238,19 @@ These properties configure services and selection together:
 |===
 
 The registration name of a Spring service is its bean name.
-The service's own `name` is its model name.
-Named Jev services share the credential, base URL and response limit set under `embabel.agent.platform.models.typesafe`.
-The default `typeSafeDecisionService` bean stays registered next to them.
+A catalog model's bean name is its model name.
+Defaults, roles and default candidates can also name a Spring alias of a service bean.
+An alias resolves to the service's registration name without registering the service again.
+`named(name)` looks up the registry name directly and does not resolve a Spring alias.
+A chat model is selected by the name `ModelProvider` lists for it.
 
 [source,yaml]
 ----
 include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/resources/decision-services-example.yml[tag=yaml,indent=0]
 ----
 
-Startup fails when a default or role names a missing service, or when a decision default or role names a classification-only service.
+Startup fails when a default or role names neither a registered service nor a provider model, or when a decision default or role names a classification-only service.
 The error names the property.
-Startup also fails when a Jev entry has a blank model or an unknown key, naming the property.
 A default that is missing or ambiguous fails at lookup, when `defaultService()` is called.
 
 An application bean replaces configuration in these cases:
@@ -259,16 +261,17 @@ An application bean replaces configuration in these cases:
 |A `DecisionServiceRegistry` bean
 |Replaces the auto-configured registry
 
-|A bean named like a Jev or prompted entry
-|Replaces that entry only. One INFO line names the skipped entry.
+|A `TypeSafeModelFactory` bean
+|Replaces the TypeSafe configuration. No catalog models register and no credential is required.
 
-|A bean named `typeSafeDecisionService`
-|Replaces the default Jev service. The TypeSafe auto-configuration contributes no default candidate. Named Jev services still register, and they need the TypeSafe credential.
+|A `LlmDecisionServiceFactory` bean
+|Replaces the prompted decision factory and the chat model provider
 |===
 
 ==== Plain Java
 
-Plain Java builds Jev services with `TypeSafeModelFactory`, no-op and stub services with their constructors and builders, and the registry with `DecisionServiceRegistry.builder()`:
+Plain Java builds Jev services with `TypeSafeModelFactory`, no-op and stub services with their constructors and builders, and the registry with `DecisionServiceRegistry.builder()`.
+A `DecisionModelProvider` added with `provider(...)` serves chat models by name.
 
 [source,java]
 ----
@@ -459,20 +462,20 @@ Question names stay with the caller, so no name character can break a provider's
 
 ==== Service families
 
-TypeSafe is a separate provider integration module, `embabel-agent-typesafe`, with its public factory and package-private adapter in `com.embabel.agent.typesafe`.
-This follows the provider-module layout used by `com.embabel.agent.openai` and `com.embabel.agent.anthropic`.
-The shared contracts live in `com.embabel.common.ai.decision`; Spring configuration is under `com.embabel.agent.config.models.typesafe`.
-
+The shared contracts and the System One codec live in `embabel-agent-ai`, under `com.embabel.common.ai.decision`.
+The System One HTTP client is the `embabel-agent-systemone` module, in `com.embabel.agent.systemone`.
+TypeSafe is the `embabel-agent-typesafe` module, a System One preset in `com.embabel.agent.typesafe`, with its Spring configuration under `com.embabel.agent.config.models.typesafe`.
+Cloudflare is the `embabel-agent-cloudflare` module in `com.embabel.agent.cloudflare`, with its Spring configuration under `com.embabel.agent.config.models.cloudflare`.
 
 `DecisionService` has four implementations:
 
 |===
 |Family |Service |Outcomes |Evidence |Confidence
 
-|Jev
-|`TypeSafeDecisionService`
+|System One, such as Jev and CLEF
+|`SystemOneDecisionService`
 |Every outcome of each kind
-|`pTrue` for propositions. A score and a distribution for ratings.
+|`pTrue` for propositions. A distribution for choices. A score and a distribution for ratings.
 |Reported for choices and ratings
 
 |Prompted LLM
@@ -494,7 +497,7 @@ The shared contracts live in `com.embabel.common.ai.decision`; Spring configurat
 |As scripted
 |===
 
-Jev and prompted services support every kind and answer a whole spec in one question-set call.
+System One and prompted services support every kind and answer a whole spec in one question-set call.
 They also implement the proposition and rating hooks for direct calls.
 Their `classify` answers one choice question with its own instructions and categories.
 
@@ -514,31 +517,33 @@ After `perQuestion()` the builder builds a stub that answers each question throu
 The stub supports every kind unless the builder's `capabilities(...)` sets others.
 `calls()` returns the calls made, in order.
 
-===== TypeSafe evidence
+===== System One evidence
 
 |===
-|Question |Jev question |Mapping
+|Question |System One question |Mapping
 
 |Proposition
-|Noul
+|`noul`
 |The value becomes `pTrue`. Exactly `0.5` is `Inconclusive`. Above it is `Answered(true)` and below it `Answered(false)`.
 
 |Choice
-|Choice
-|The probabilities must cover exactly the options and sum to 1 within `1e-6`. A confidence of 0 is `Inconclusive`. Otherwise the answer is `Selected` with the reported confidence.
+|`choice`
+|The probabilities must cover exactly the options and sum to 1 within `1e-6`. A confidence of 0 is `Inconclusive`. Otherwise the answer is `Selected` with the reported confidence and the distribution in option order.
 
 |Rating
-|Score
-|The value becomes `RatingScore(value, EXPECTED_LEVEL_INDEX)`. The probabilities, keyed by level index, must cover exactly the levels and sum to 1 within `1e-6`. They become the distribution. The confidence is kept as reported.
+|`score`
+|The value becomes `RatingScore(value, EXPECTED_LEVEL_INDEX)`. The probabilities, keyed by level index, must cover exactly the levels and sum to 1 within `1e-6`. They become the distribution. A confidence of 0 is `Inconclusive`, as it is for a choice. Otherwise the confidence is kept as reported.
 |===
 
-The Score value is the probability-weighted mean of the zero-based level positions.
-In typesafe-java-sdk 0.2.0, `Score` makes level 0 the first criteria entry, and `ScoreAnswer` keys its legend and probabilities by level index.
+The score is the probability-weighted mean of the zero-based level positions.
+A `score` question lists its level descriptions in level order, so level 0 is the first entry, and the answer keys its legend and probabilities by level index.
+The requested level order is authoritative. The codec checks the legend's indexes but does not validate its label values or use them to reorder levels.
 The value 1.6 on the levels Calm, Frustrated and Very angry lies between the second and third level.
-A rated answer from Jev has no selected level.
-The confidence of a Score describes how concentrated the distribution is.
+A rated answer has no selected level.
+The confidence of a score describes how concentrated the distribution is.
 
-An unknown answer type is an unreadable answer.
+A missing or non-numeric field, or an unknown answer type, is an unreadable answer.
+An answer of another known type is the wrong kind, and a selection outside the options is out of domain.
 A value outside its range, or a distribution that fails its checks, fails only that question.
 
 ===== Prompted evidence
@@ -629,7 +634,7 @@ The framework returns evidence.
 ==== Observations
 
 `ObservedDecisionService` records one logical observation per ask and one observation per provider call.
-The TypeSafe and LLM factories return observed services.
+The System One, TypeSafe and LLM factories return observed services.
 Inside a workflow, `using(service)` wraps a service that is not already observed, so its asks are observed too.
 Outside a workflow, wrap a service you build in `ObservedDecisionService(service, observationRegistry)` to observe it.
 
@@ -661,6 +666,7 @@ A question-set ask records one ask and one `ask_question_set` observation.
 A per-question ask of three questions records one ask and three provider observations.
 A choice question among them records `embabel.ai.classification` with `operation=classify`.
 A request rejected by the preflight records one ask with `outcome=unsupported` and no provider observation.
+A provider-specific limit rejected inside an operation also records `outcome=unsupported` on that operation, before any HTTP request is sent.
 
 |===
 |Tag |Values
@@ -672,7 +678,7 @@ A request rejected by the preflight records one ask with `outcome=unsupported` a
 |`complete`, `partial`, `request_failure`, `unsupported`, `exception`, `interrupted`, `cancelled`
 
 |`outcome` on provider calls
-|The result kind, such as `answered`, `selected`, `no_match`, `inconclusive` or `failure`. `invalid_response` when a `classify` answer falls outside the question's options. `exception`, `interrupted` or `cancelled` when the call throws.
+|The result kind, such as `answered`, `selected`, `no_match`, `inconclusive` or `failure`. `invalid_response` when a `classify` answer falls outside the question's options. `unsupported` when provider-specific limits reject the request. `exception`, `interrupted` or `cancelled` for other thrown outcomes.
 
 |`question_count`
 |`1`, `2-4`, `5-16`, `17+`
@@ -811,18 +817,19 @@ Setting a package level reaches every class under it.
 |DEBUG
 |Each observed call's operation and outcome
 
-|`com.embabel.agent.typesafe`
-|WARN, TRACE
-|A failed Jev call. With content capture, the response received.
+|`com.embabel.agent.systemone`
+|INFO, WARN, DEBUG, TRACE
+|Factory startup and successful key validation at INFO. A failed System One call, and each call's operation, outcome and status class at DEBUG. With content capture, the response body received.
 
 |`com.embabel.agent.spi.support.decision`
 |WARN, TRACE
 |A failed prompted call. With content capture, the raw model reply.
 |===
 
-A provider WARN line holds the service name, provider, operation, failure reason, cause category, HTTP status class or `none`, attempts, elapsed milliseconds and the exception's simple class name.
-The cause category is one of `timeout`, `connection`, `rate_limited`, `http_4xx`, `http_5xx`, `invalid_response` and `other`.
-The Jev line starts with `TypeSafe <operation label> failed with reason <reason>`, makes one attempt, and ends with the provider request id or `none`.
+A provider WARN line holds the service name, provider, operation, failure reason, cause category, HTTP status class or `none`, attempts and elapsed milliseconds.
+The cause category is one of `timeout`, `connection`, `credential`, `rate_limited`, `http_4xx`, `http_5xx`, `invalid_response` and `other`.
+The System One line starts with `System One <operation label> failed with reason <reason>`, makes one attempt, and ends with the provider request id or `none`.
+The prompted line also names the exception's simple class.
 The prompted line starts with `Decision call failed`, counts the attempts made by its retry settings, and ends with a remedy that names the retry property prefix.
 A one-question call logs its operation: `assess`, `classify` or `rate`.
 Lines up to DEBUG hold no input, instructions, option or level text, received category ids, credentials or provider text.
@@ -834,7 +841,7 @@ The registry summary at INFO:
 
 [source,text]
 ----
-Decision service registry built with 3 services: [typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING]), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE]), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'typeSafeDecisionService' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
+Decision service registry built with 3 services: [jev-latest (name jev-latest, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING]), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE]), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'jev-latest' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
 ----
 
 Routing and completion at DEBUG:
@@ -857,7 +864,7 @@ Failed provider calls at WARN, from Jev and from a prompted service:
 
 [source,text]
 ----
-TypeSafe question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_question_set, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, exception=SafeHttpFailure, requestId=none
+System One question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_question_set, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, requestId=none
 Decision call failed: service=gpt-test, provider=TestProvider, operation=ask, reason=UNAVAILABLE, cause=timeout, httpStatus=none, attempts=3, elapsedMs=12, exception=SocketTimeoutException. Check the model's availability, credentials and retry settings under embabel.agent.platform.decisions.test.
 ----
 
@@ -880,7 +887,7 @@ It needs two settings together:
 
 The switch alone logs nothing, and TRACE alone logs no content.
 With both, `DecisionExecution` logs the input, each question's instructions, options or levels, and each answer with its evidence.
-The Jev service logs the response it received, and the prompted service logs the raw model reply.
+The System One service logs the response body it received, and the prompted service logs the raw model reply.
 Spring logs one WARN at startup when the property is on and turns the switch off when the context closes.
 
 WARNING: Captured lines hold the decision input and provider output, which can contain personal or confidential text.
@@ -895,7 +902,7 @@ The owner is James Dunnam (GitHub `@jimador`).
 Promotion to stable needs all of these:
 
 * Service resolution by role, name, default and instance, used by a consumer application
-* Interoperation of the Jev, prompted, no-op and stub families through one registry
+* Interoperation of the System One, prompted, no-op and stub families through one registry
 * A compatibility review of `DecisionService`, `Ai` and `PlatformServices`
 * Privacy checks on logs, tags and exception messages
 * A runnable consumer proof

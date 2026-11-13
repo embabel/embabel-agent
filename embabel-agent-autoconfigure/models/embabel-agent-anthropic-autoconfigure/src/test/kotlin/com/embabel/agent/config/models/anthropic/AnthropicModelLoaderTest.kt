@@ -215,6 +215,27 @@ class AnthropicModelLoaderTest {
     }
 
     @Test
+    fun `Claude Haiku 5_5 is in the catalog with its base-tier pricing`() {
+        val haiku55 = AnthropicModelLoader().loadAutoConfigMetadata().models.first { it.name == "claude_haiku_55" }
+
+        assertEquals(AnthropicModels.CLAUDE_HAIKU_5_5, haiku55.modelId)
+        assertEquals("Claude Haiku 5.5", haiku55.displayName)
+        assertEquals(0.10, haiku55.pricingModel?.usdPer1mInputTokens)
+        assertEquals(0.50, haiku55.pricingModel?.usdPer1mOutputTokens)
+    }
+
+    @Test
+    fun `models Anthropic has retired are not in the catalog`() {
+        val modelIds = AnthropicModelLoader().loadAutoConfigMetadata().models.map { it.modelId }
+
+        listOf(
+            "claude-opus-4-1", "claude-sonnet-4-0", "claude-opus-4-0", "claude-opus-4-20250514",
+            "claude-3-5-haiku-latest", "claude-3-7-sonnet-latest",
+        )
+            .forEach { assertFalse(it in modelIds, "$it is retired and must not be listed") }
+    }
+
+    @Test
     fun `should return empty definitions when file does not exist`() {
         // Arrange
         val loader = AnthropicModelLoader(
@@ -369,6 +390,29 @@ class AnthropicModelLoaderTest {
         assertNotNull(model.pricingModel)
         assertEquals(10.0, model.pricingModel?.usdPer1mInputTokens)
         assertEquals(20.0, model.pricingModel?.usdPer1mOutputTokens)
+        assertNull(model.pricingModel?.usdPer1mCacheReadInputTokens)
+    }
+
+    @Test
+    fun `should load prompt-cache pricing`() {
+        val tempYaml = createTempYamlFile("""
+            models:
+              - name: test-model
+                model_id: claude-test
+                pricing_model:
+                  usd_per1m_input_tokens: 10.0
+                  usd_per1m_output_tokens: 20.0
+                  usd_per1m_cache_read_input_tokens: 1.0
+                  usd_per1m_cache_write_input_tokens: 20.0
+        """.trimIndent())
+
+        val pricing = AnthropicModelLoader(
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
+        ).loadAutoConfigMetadata().models.single().pricingModel
+
+        assertEquals(1.0, pricing?.usdPer1mCacheReadInputTokens)
+        assertEquals(20.0, pricing?.usdPer1mCacheWriteInputTokens)
     }
 
     @Test
@@ -470,6 +514,14 @@ class AnthropicModelLoaderTest {
         assertNull(model.topK)
         assertNull(model.thinking)
         assertNull(model.pricingModel)
+    }
+
+    @Test
+    fun `every catalog model declares whether thinking can be turned off`() {
+        val models = AnthropicModelLoader().loadAutoConfigMetadata().models
+        models.forEach { assertNotNull(it.thinking?.canBeDisabled, it.modelId) }
+        assertEquals(true, models.single { it.modelId == AnthropicModels.CLAUDE_HAIKU_5_5 }.thinking?.canBeDisabled)
+        assertEquals(false, models.single { it.modelId == AnthropicModels.CLAUDE_OPUS_5_5 }.thinking?.canBeDisabled)
     }
 
     private data class TempYamlResource(

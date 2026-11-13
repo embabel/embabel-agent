@@ -21,6 +21,10 @@ import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.domain.io.AssistantContent
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
+import com.embabel.common.core.thinking.ThinkingBlock
+import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingOrigin
+import com.embabel.common.core.thinking.ThinkingTagType
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.EmptyLlmResponseException
@@ -387,6 +391,96 @@ class ToolLoopTest {
             assertEquals(5, exception.maxIterations)
         }
     }
+
+    /**
+     * Verifies that [DefaultToolLoop.buildResult] rethrows a [ThinkingException] carrying
+     * all blocks accumulated across tool loop iterations.
+     *
+     * Without the fix, the failure path loses native blocks:
+     *  1. Each iteration: [ThinkingCapturingLlmMessageSender] extracts native + prompt blocks
+     *     and stores them in [LoopState.accumulatedThinkingBlocks].
+     *  2. Final step: [buildResult] calls `outputParser(finalText)`. The parser scans only
+     *     the final response text for `<reason>` tags. On native-only models (e.g.
+     *     `claude-sonnet-5-5`) there are no such tags, so it finds nothing.
+     *  3. On conversion failure the parser throws `ThinkingException(blocks = [])` — empty,
+     *     because step 2 found nothing — and the call aborts before
+     *     `thinkingBlocks = state.accumulatedThinkingBlocks` is evaluated.
+     *  4. Result: the exception escapes with zero blocks even though step 1 captured them.
+     *
+     * The fix: [buildResult] catches the [ThinkingException] before it escapes and replaces
+     * its block list with [LoopState.accumulatedThinkingBlocks] — the complete set from all
+     * iterations. This is the only place in the call stack where both the exception and the
+     * accumulated state are accessible at the same time.
+     */
+    @Nested
+    inner class BuildResultThinkingTest {
+
+        private fun nativeBlock(content: String) = ThinkingBlock(
+            content = content, tagType = ThinkingTagType.NO_PREFIX, tagValue = "", origin = ThinkingOrigin.NATIVE,
+        )
+
+        private fun promptBlock(content: String) = ThinkingBlock(
+            content = content, tagType = ThinkingTagType.TAG, tagValue = "reason",
+        )
+
+        @Test
+        fun `NATIVE origin - accumulated blocks replace empty blocks in rethrown ThinkingException`() {
+            // NATIVE: blocks are extracted from the Anthropic API response and carried in LlmMessageResponse.thinkingBlocks,
+            // not embedded in finalText — so the parser's ThinkingException carries emptyList().
+            val nativeBlock = nativeBlock("native reasoning step")
+            val sender = MockLlmMessageSender(
+                listOf(MockLlmMessageSender.textResponseWithThinking("unparseable", listOf(nativeBlock)))
+            )
+            val loop = DefaultToolLoop(llmMessageSender = sender, objectMapper = objectMapper)
+
+            // outputParser throws ThinkingException(emptyList()) — native thinking produces no reasoning
+            // text in finalText, so the parser has no blocks to embed. buildResult catches the exception
+            // and rethrows with state.accumulatedThinkingBlocks, populated from LlmMessageResponse.thinkingBlocks.
+            val ex = assertThrows<ThinkingException> {
+                loop.execute(
+                    initialMessages = listOf(UserMessage("think")),
+                    initialTools = emptyList(),
+                    outputParser = { throw ThinkingException("parse failed", emptyList()) },
+                )
+            }
+
+            assertEquals(1, ex.thinkingBlocks.size)
+            assertEquals("native reasoning step", ex.thinkingBlocks[0].content)
+            assertEquals(ThinkingOrigin.NATIVE, ex.thinkingBlocks[0].origin)
+        }
+
+        @Test
+        fun `PROMPT_EXTRACTED origin - accumulated blocks from all iterations preserved in rethrown ThinkingException`() {
+            // PROMPT_EXTRACTED: blocks come from XML tags in the response text, one set per iteration.
+            val iter1Block = promptBlock("iteration 1 reasoning")
+            val iter2Block = promptBlock("iteration 2 reasoning")
+            val tool = MockTool("echo", "echo tool") { Tool.Result.text("done") }
+            val sender = MockLlmMessageSender(
+                listOf(
+                    MockLlmMessageSender.toolCallResponseWithThinking("c1", "echo", "{}", listOf(iter1Block)),
+                    MockLlmMessageSender.textResponseWithThinking("unparseable", listOf(iter2Block)),
+                )
+            )
+            val loop = DefaultToolLoop(llmMessageSender = sender, objectMapper = objectMapper)
+
+            // Each LLM call adds its thinkingBlocks to state.accumulatedThinkingBlocks:
+            //   iter 1 (tool call): iter1Block appended; iter 2 (final text): iter2Block appended.
+            // In production, outputParser gets only the current response's thinking blocks, not those
+            // from earlier iterations. Simulated here: the parser fails with iter2Block only.
+            // buildResult catches it and rethrows with state.accumulatedThinkingBlocks — both blocks.
+            val ex = assertThrows<ThinkingException> {
+                loop.execute(
+                    initialMessages = listOf(UserMessage("think")),
+                    initialTools = listOf(tool),
+                    outputParser = { throw ThinkingException("parse failed", listOf(iter2Block)) },
+                )
+            }
+
+            assertEquals(2, ex.thinkingBlocks.size)
+            assertEquals("iteration 1 reasoning", ex.thinkingBlocks[0].content)
+            assertEquals("iteration 2 reasoning", ex.thinkingBlocks[1].content)
+        }
+    }
 }
 
 /**
@@ -436,6 +530,23 @@ internal class MockLlmMessageSender(
                     toolCalls = listOf(toolCall),
                 ),
                 textContent = "",
+            )
+        }
+
+        fun textResponseWithThinking(text: String, thinkingBlocks: List<ThinkingBlock>): LlmMessageResponse =
+            LlmMessageResponse(message = AssistantMessage(text), textContent = text, thinkingBlocks = thinkingBlocks)
+
+        fun toolCallResponseWithThinking(
+            toolCallId: String,
+            toolName: String,
+            arguments: String,
+            thinkingBlocks: List<ThinkingBlock>,
+        ): LlmMessageResponse {
+            val toolCall = ToolCall(toolCallId, toolName, arguments)
+            return LlmMessageResponse(
+                message = AssistantMessageWithToolCalls(content = " ", toolCalls = listOf(toolCall)),
+                textContent = "",
+                thinkingBlocks = thinkingBlocks,
             )
         }
     }

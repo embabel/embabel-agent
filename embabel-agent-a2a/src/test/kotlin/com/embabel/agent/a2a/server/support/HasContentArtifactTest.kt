@@ -58,6 +58,7 @@ class HasContentArtifactTest {
         autonomy = mockk(),
         agenticEventListener = mockk(),
         streamingHandler = mockk(),
+        taskStateManager = mockk(),
     )
 
     private fun executionWithOutput(output: Any): AgentProcessExecution =

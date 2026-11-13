@@ -15,14 +15,18 @@
  */
 package com.embabel.agent.spi.support.streaming
 
+import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.loop.streaming.DefaultStreamingToolLoop
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
@@ -42,6 +46,8 @@ import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import java.time.Duration
+import java.time.Instant
 
 /**
  * Vendor-neutral implementation of [StreamingLlmOperations].
@@ -320,7 +326,7 @@ internal class StreamingLlmOperationsImpl(
         }
 
         return DefaultStreamingToolLoop(
-            messageStreamer = messageStreamer,
+            messageStreamer = agentProcess?.let { recordingUsage(it, interaction) } ?: messageStreamer,
             objectMapper = objectMapper,
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
@@ -330,6 +336,42 @@ internal class StreamingLlmOperationsImpl(
             toolNotFoundPolicy = interaction.toolNotFoundPolicy ?: AutoCorrectionPolicy(),
         ).execute(messages, tools)
     }
+
+    /**
+     * Records each inference's terminal usage in [agentProcess], as the synchronous path's
+     * billing inspector does, so streaming counts toward process usage, cost and budgets.
+     */
+    private fun recordingUsage(agentProcess: AgentProcess, interaction: LlmInteraction): LlmMessageStreamer =
+        object : LlmMessageStreamer {
+            override fun stream(
+                messages: List<Message>,
+                tools: List<Tool>,
+                toolCallInspectors: List<ToolCallInspector>,
+            ): Flux<String> = messageStreamer.stream(messages, tools, toolCallInspectors)
+
+            override fun streamInference(
+                messages: List<Message>,
+                tools: List<Tool>,
+            ): Flux<LlmInferenceStreamEvent> = messageStreamer.streamInference(messages, tools)
+                .doOnNext { event ->
+                    val usage = (event as? LlmInferenceStreamEvent.Complete)?.usage ?: return@doOnNext
+                    val invocation = LlmInvocation(
+                        llmMetadata = llmService,
+                        usage = usage,
+                        agentName = agentProcess.agent.name,
+                        timestamp = Instant.now(),
+                        runningTime = Duration.ZERO,
+                    )
+                    agentProcess.recordLlmInvocation(invocation)
+                    agentProcess.processContext.onProcessEvent(
+                        LlmInvocationEvent(
+                            agentProcess = agentProcess,
+                            invocation = invocation,
+                            interactionId = interaction.id.value,
+                        )
+                    )
+                }
+        }
 
     /**
      * Convert raw streaming chunks to NDJSON lines.

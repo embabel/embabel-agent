@@ -4,48 +4,35 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.5.4-SNAPSHOT</version>
+        <version>1.5.5-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-typesafe</artifactId>
     <name>Embabel Agent TypeSafe</name>
-    <description>TypeSafe decision services with guarded synchronous transport</description>
+    <description>Decision services for TypeSafe Jev models</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-ai</artifactId>
+            <artifactId>embabel-agent-systemone</artifactId>
         </dependency>
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-byok</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springaicommunity</groupId>
-            <artifactId>typesafe-java-sdk</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
         </dependency>
         <dependency>
-            <groupId>tools.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-        <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-observation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-core</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

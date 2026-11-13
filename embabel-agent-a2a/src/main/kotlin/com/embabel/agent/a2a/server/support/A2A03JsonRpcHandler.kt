@@ -27,8 +27,13 @@ import org.a2aproject.sdk.compat03.conversion.mappers.params.MessageSendParamsMa
 import org.a2aproject.sdk.compat03.conversion.mappers.params.TaskIdParamsMapper_v0_3
 import org.a2aproject.sdk.compat03.conversion.mappers.params.TaskQueryParamsMapper_v0_3
 import org.a2aproject.sdk.compat03.json.JsonUtil_v0_3
+import org.a2aproject.sdk.compat03.spec.A2AErrorCodes_v0_3.AUTHENTICATED_EXTENDED_CARD_NOT_CONFIGURED_ERROR_CODE
+import org.a2aproject.sdk.compat03.spec.AuthenticatedExtendedCardNotConfiguredError_v0_3
 import org.a2aproject.sdk.compat03.spec.CancelTaskRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.CancelTaskResponse_v0_3
+import org.a2aproject.sdk.compat03.spec.DeleteTaskPushNotificationConfigRequest_v0_3
+import org.a2aproject.sdk.compat03.spec.GetAuthenticatedExtendedCardRequest_v0_3
+import org.a2aproject.sdk.compat03.spec.GetTaskPushNotificationConfigRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.GetTaskRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.GetTaskResponse_v0_3
 import org.a2aproject.sdk.compat03.spec.InternalError_v0_3
@@ -37,10 +42,13 @@ import org.a2aproject.sdk.compat03.spec.InvalidRequestError_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONParseError_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONRPCErrorResponse_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONRPCError_v0_3
+import org.a2aproject.sdk.compat03.spec.ListTaskPushNotificationConfigRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.MethodNotFoundError_v0_3
+import org.a2aproject.sdk.compat03.spec.PushNotificationNotSupportedError_v0_3
 import org.a2aproject.sdk.compat03.spec.SendMessageRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.SendMessageResponse_v0_3
 import org.a2aproject.sdk.compat03.spec.SendStreamingMessageRequest_v0_3
+import org.a2aproject.sdk.compat03.spec.SetTaskPushNotificationConfigRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.TaskResubscriptionRequest_v0_3
 import org.a2aproject.sdk.compat03.util.Utils_v0_3
 import org.a2aproject.sdk.jsonrpc.common.wrappers.A2AResponse
@@ -112,6 +120,22 @@ internal class A2A03JsonRpcHandler(
                     )
                 }
 
+                // The agent card declares no push notifications and no authenticated extended card
+                SetTaskPushNotificationConfigRequest_v0_3.METHOD,
+                GetTaskPushNotificationConfigRequest_v0_3.METHOD,
+                ListTaskPushNotificationConfigRequest_v0_3.METHOD,
+                DeleteTaskPushNotificationConfigRequest_v0_3.METHOD -> errorJson(requestId, PushNotificationNotSupportedError_v0_3())
+
+                GetAuthenticatedExtendedCardRequest_v0_3.METHOD ->
+                    errorJson(
+                        requestId,
+                        AuthenticatedExtendedCardNotConfiguredError_v0_3(
+                            AUTHENTICATED_EXTENDED_CARD_NOT_CONFIGURED_ERROR_CODE,
+                            "Authenticated Extended Card not configured",
+                            null,
+                        ),
+                    )
+
                 else -> errorJson(requestId, MethodNotFoundError_v0_3())
             }
         } catch (e: JSONRPCError_v0_3) {
@@ -131,7 +155,8 @@ internal class A2A03JsonRpcHandler(
             throw JSONParseError_v0_3(e.message)
         }
         if (!request.isJsonObject) {
-            throw JSONParseError_v0_3("A JSON-RPC request must be a JSON object")
+            // Valid JSON that is not a request object is an invalid request, not a parse error
+            throw InvalidRequestError_v0_3("A JSON-RPC request must be a JSON object")
         }
         val method = request.asJsonObject.get("method")
         if (method == null || !method.isJsonPrimitive || !method.asJsonPrimitive.isString) {

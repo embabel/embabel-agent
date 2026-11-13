@@ -56,7 +56,7 @@ internal class ChatClientLlmOperationsIT {
     @Qualifier("chatClientLlmOperations")
     private lateinit var llmOperations: LlmOperations
 
-    private val llm = LlmOptions("gpt-4.1-nano")
+    private val llm = LlmOptions("gpt-4.1-mini")
 
     // gpt-4.1-mini supports thinking via <think> tag extraction
     private val thinkingLlm = LlmOptions("gpt-4.1-mini")

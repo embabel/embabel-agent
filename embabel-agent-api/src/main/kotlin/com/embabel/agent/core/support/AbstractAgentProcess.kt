@@ -128,7 +128,7 @@ abstract class AbstractAgentProcess(
                     platformServices.agentProcessRepository.update(this)
                 }
                 if (previousStatus != AgentProcessStatusCode.TERMINATED) {
-                    platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+                    processContext.onProcessEvent(AgentProcessTerminatedEvent(this))
                 }
                 Unit
             }
@@ -202,15 +202,8 @@ abstract class AbstractAgentProcess(
      * LLM token usage aggregated across the whole subtree.
      * Nulls from children with no invocations are coerced to 0.
      */
-    override fun usage(): Usage {
-        val own = ownUsage()
-        val children = childProcesses()
-        return Usage(
-            (own.promptTokens ?: 0) + children.sumOf { it.usage().promptTokens ?: 0 },
-            (own.completionTokens ?: 0) + children.sumOf { it.usage().completionTokens ?: 0 },
-            null,
-        )
-    }
+    override fun usage(): Usage =
+        childProcesses().fold(ownUsage()) { total, child -> total + child.usage() }
 
     /**
      * Distinct LLMs used anywhere in the subtree, sorted by name.
@@ -282,7 +275,13 @@ abstract class AbstractAgentProcess(
         val children = platformServices.agentProcessRepository.findByParentId(id)
         children.forEach { child ->
             logger.debug("Killing child process {} of {}", child.id, id)
-            child.kill()
+            // The caller publishes only the root's event: publish each live child's here.
+            // A child that already finished has already reported its end.
+            val wasFinished = child.finished
+            val killEvent = child.kill()
+            if (killEvent != null && !wasFinished) {
+                child.processContext.onProcessEvent(killEvent)
+            }
         }
 
         setStatus(AgentProcessStatusCode.KILLED)
@@ -376,7 +375,7 @@ abstract class AbstractAgentProcess(
                 if (!processOptions.ephemeral) {
                     platformServices.agentProcessRepository.update(this)
                 }
-                platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+                processContext.onProcessEvent(AgentProcessTerminatedEvent(this))
                 return this
             }
             tick()
@@ -391,11 +390,11 @@ abstract class AbstractAgentProcess(
             }
 
             AgentProcessStatusCode.COMPLETED -> {
-                platformServices.eventListener.onProcessEvent(AgentProcessCompletedEvent(this))
+                processContext.onProcessEvent(AgentProcessCompletedEvent(this))
             }
 
             AgentProcessStatusCode.FAILED -> {
-                platformServices.eventListener.onProcessEvent(AgentProcessFailedEvent(this))
+                processContext.onProcessEvent(AgentProcessFailedEvent(this))
             }
 
             AgentProcessStatusCode.TERMINATED, AgentProcessStatusCode.KILLED -> {
@@ -403,16 +402,16 @@ abstract class AbstractAgentProcess(
             }
 
             AgentProcessStatusCode.WAITING -> {
-                platformServices.eventListener.onProcessEvent(AgentProcessWaitingEvent(this))
+                processContext.onProcessEvent(AgentProcessWaitingEvent(this))
             }
 
             AgentProcessStatusCode.PAUSED -> {
-                platformServices.eventListener.onProcessEvent(AgentProcessPausedEvent(this))
+                processContext.onProcessEvent(AgentProcessPausedEvent(this))
                 handleStuck(agent)
             }
 
             AgentProcessStatusCode.STUCK -> {
-                platformServices.eventListener.onProcessEvent(AgentProcessStuckEvent(this))
+                processContext.onProcessEvent(AgentProcessStuckEvent(this))
                 handleStuck(agent)
             }
         }
@@ -436,7 +435,7 @@ abstract class AbstractAgentProcess(
             )
             _failureInfo = signalTermination
             setStatus(AgentProcessStatusCode.TERMINATED)
-            platformServices.eventListener.onProcessEvent(signalTermination)
+            processContext.onProcessEvent(signalTermination)
             return signalTermination
         }
 
@@ -460,7 +459,7 @@ abstract class AbstractAgentProcess(
             )
             _failureInfo = earlyTermination
             setStatus(AgentProcessStatusCode.TERMINATED)
-            platformServices.eventListener.onProcessEvent(earlyTermination)
+            processContext.onProcessEvent(earlyTermination)
             return earlyTermination
         }
         return null
@@ -486,7 +485,7 @@ abstract class AbstractAgentProcess(
             return
         }
         val result = stuckHandler.handleStuck(this)
-        platformServices.eventListener.onProcessEvent(result)
+        processContext.onProcessEvent(result)
         when (result.code) {
             StuckHandlingResultCode.REPLAN -> {
                 if (finished) {
@@ -512,7 +511,7 @@ abstract class AbstractAgentProcess(
 
         val worldState = worldStateDeterminer.determineWorldState()
         _lastWorldState = worldState
-        platformServices.eventListener.onProcessEvent(
+        processContext.onProcessEvent(
             AgentProcessReadyToPlanEvent(
                 agentProcess = this,
                 worldState = worldState,
@@ -535,7 +534,7 @@ abstract class AbstractAgentProcess(
                 if (previousStatus != AgentProcessStatusCode.TERMINATED &&
                     status == AgentProcessStatusCode.TERMINATED
                 ) {
-                    platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+                    processContext.onProcessEvent(AgentProcessTerminatedEvent(this))
                 }
             }
     }
@@ -582,7 +581,7 @@ abstract class AbstractAgentProcess(
             agentProcess = this,
             action = action,
         )
-        platformServices.eventListener.onProcessEvent(actionExecutionStartEvent)
+        processContext.onProcessEvent(actionExecutionStartEvent)
         val actionExecutionSchedule = platformServices.operationScheduler.scheduleAction(actionExecutionStartEvent)
         when (actionExecutionSchedule) {
             is ProntoActionExecutionSchedule -> {
@@ -667,7 +666,7 @@ abstract class AbstractAgentProcess(
             blackboard.setCondition(Rerun.hasRunCondition(action), true)
         }
 
-        platformServices.eventListener.onProcessEvent(
+        processContext.onProcessEvent(
             actionExecutionStartEvent.resultEvent(
                 actionStatus = actionStatus,
             )
