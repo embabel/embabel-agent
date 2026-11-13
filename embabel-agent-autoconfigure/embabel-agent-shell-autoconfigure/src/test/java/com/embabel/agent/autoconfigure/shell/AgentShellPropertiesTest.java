@@ -26,6 +26,7 @@ class AgentShellPropertiesTest {
         AgentShellProperties properties = new AgentShellProperties();
 
         assertEquals("none", properties.getWebApplicationType());
+        assertNull(properties.getContextClose());
         assertNotNull(properties.getCommand());
         assertNotNull(properties.getInteractive());
 
@@ -41,6 +42,13 @@ class AgentShellPropertiesTest {
     @Test
     void testSettersAndGetters() {
         AgentShellProperties properties = new AgentShellProperties();
+
+        properties.setContextClose(false);
+        assertEquals(false, properties.getContextClose());
+        properties.setContextClose(true);
+        assertEquals(true, properties.getContextClose());
+        properties.setContextClose(null);
+        assertNull(properties.getContextClose());
 
         // Main properties
         properties.setWebApplicationType("servlet");

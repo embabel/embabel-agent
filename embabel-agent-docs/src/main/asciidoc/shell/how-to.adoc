@@ -26,8 +26,12 @@ Type `quit` or `exit` at the shell prompt to stop the application.
 Spring Shell ends its input loop, then Embabel closes the application context and terminates the JVM with `System.exit`, so threads still running outside Spring's control do not keep the process alive.
 The application's exit code comes from any `ExitCodeGenerator` beans, as with `SpringApplication.exit`.
 
-This is controlled by `spring.shell.context.close`, which Embabel defaults to `true`.
-Set it to `false` explicitly if your application must keep running after the shell exits (for example, to keep serving web requests).
+This is controlled by `spring.shell.context.close`, which Embabel defaults to `true` in interactive mode and `false` when interactive mode is disabled.
+Disable interactive mode with `embabel.agent.shell.interactive.enabled=false` or `spring.shell.interactive.enabled=false`; an explicit Spring Shell setting takes precedence.
+Set `spring.shell.context.close=false` explicitly if your application must keep running after the shell exits (for example, to keep serving web requests).
+You can also use `embabel.agent.shell.context-close` to configure shutdown behavior.
+An explicit `spring.shell.context.close` takes precedence over `embabel.agent.shell.context-close`, and both override the default derived from interactive mode.
+Setting either close property to `true` explicitly requests shutdown after application runners finish, even when interactive mode is disabled.
 `EmbabelMockitoIntegrationTest` sets it to `false` so the test context stays open.
 
 ==== Navigating the Shell
