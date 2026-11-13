@@ -107,6 +107,7 @@ class GoogleGenAiModelLoaderTest {
 
         val modelIds = result.models.map { it.modelId }
         listOf(
+            GoogleGenAiModels.GEMINI_4_HYDROGEN,
             GoogleGenAiModels.GEMINI_4_CARBON,
             GoogleGenAiModels.GEMINI_4_ARGON,
             GoogleGenAiModels.GEMINI_3_8_FLASH,
@@ -127,6 +128,15 @@ class GoogleGenAiModelLoaderTest {
         assertNotNull(model.pricingModel, "$modelId should have a price")
         assertEquals(2.0, model.pricingModel?.usdPer1mInputTokens)
         assertEquals(10.0, model.pricingModel?.usdPer1mOutputTokens)
+    }
+
+    @Test
+    fun `Gemini 4 Hydrogen should have its price`() {
+        val model = GoogleGenAiModelLoader().loadAutoConfigMetadata().models
+            .single { it.modelId == GoogleGenAiModels.GEMINI_4_HYDROGEN }
+
+        assertEquals(1.5, model.pricingModel?.usdPer1mInputTokens)
+        assertEquals(7.5, model.pricingModel?.usdPer1mOutputTokens)
     }
 
     @Test
@@ -420,7 +430,8 @@ class GoogleGenAiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 14 expected Google GenAI models`() {
+    @Suppress("DEPRECATION")
+    fun `should load all 15 expected Google GenAI models`() {
 
         // Arrange
         val loader = GoogleGenAiModelLoader()
@@ -429,20 +440,27 @@ class GoogleGenAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(14, result.models.size, "Should load exactly 14 Google GenAI models")
+        assertEquals(15, result.models.size, "Should load exactly 15 Google GenAI models")
 
-        val expectedModels = listOf(
-            "gemini_4_carbon", "gemini_4_argon", "gemini_3_8_flash", "gemini_3_6_flash", "gemini_3_5_flash_lite",
-            "gemini_3_1_pro_preview", "gemini_3_1_pro_preview_customtools",
-            "gemini_3_flash_preview", "gemini_3_1_flash_lite_preview", "gemini_25_pro", "gemini_25_flash",
-            "gemini_25_flash_lite",
-            "gemini_3_5_flash", "gemini_3_1_flash_lite"
+        val expectedModelIds = listOf(
+            GoogleGenAiModels.GEMINI_4_HYDROGEN,
+            GoogleGenAiModels.GEMINI_4_CARBON,
+            GoogleGenAiModels.GEMINI_4_ARGON,
+            GoogleGenAiModels.GEMINI_3_8_FLASH,
+            GoogleGenAiModels.GEMINI_3_6_FLASH,
+            GoogleGenAiModels.GEMINI_3_5_FLASH_LITE,
+            GoogleGenAiModels.GEMINI_3_5_FLASH,
+            GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW,
+            GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
+            GoogleGenAiModels.GEMINI_3_FLASH_PREVIEW,
+            GoogleGenAiModels.GEMINI_3_1_FLASH_LITE,
+            GoogleGenAiModels.GEMINI_3_1_FLASH_LITE_PREVIEW,
+            GoogleGenAiModels.GEMINI_2_5_PRO,
+            GoogleGenAiModels.GEMINI_2_5_FLASH,
+            GoogleGenAiModels.GEMINI_2_5_FLASH_LITE,
         )
 
-        expectedModels.forEach { expectedName ->
-            assertTrue(result.models.any { it.name == expectedName },
-                "Should have model: $expectedName")
-        }
+        assertEquals(expectedModelIds.toSet(), result.models.map { it.modelId }.toSet())
     }
 
     @Test

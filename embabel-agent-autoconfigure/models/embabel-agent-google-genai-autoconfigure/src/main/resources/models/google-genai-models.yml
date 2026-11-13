@@ -10,6 +10,16 @@ models:
   # GEMINI 4 FAMILY (Latest Generation - Stable)
   # ========================================
 
+  # Gemini 4 Hydrogen - Fast, low-cost Gemini 4 model, upgrade from Gemini 3.8 Flash
+  - name: "gemini_4_hydrogen"
+    model_id: "gemini-4-hydrogen"
+    display_name: "Gemini 4 Hydrogen"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 1.50
+      usd_per1m_output_tokens: 7.50
+
   # Gemini 4 Carbon - Introductory price
   # Price rises to $4.00 / $20.00 on 2026-12-01
   - name: "gemini_4_carbon"
