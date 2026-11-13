@@ -32,16 +32,14 @@ enum class A2AProtocolVersion(val version: String) {
         /**
          * Resolves the version a client asked for in the A2A-Version header.
          * Per A2A 1.0, a request without the header is an A2A 0.3 request.
-         * Versions with the same major version are compatible, so 1.x is served as 1.0.
+         * The requested major and minor versions must match a supported version; the patch version is ignored.
          * @return null if the version is not supported
          */
+        @JvmStatic
         fun fromHeader(a2aVersion: String?): A2AProtocolVersion? {
             val requested = a2aVersion?.takeIf { it.isNotBlank() }?.trim() ?: return V0_3
-            return when {
-                requested.substringBefore('.') == V1_0.version.substringBefore('.') -> V1_0
-                requested == V0_3.version || requested.startsWith("${V0_3.version}.") -> V0_3
-                else -> null
-            }
+            val majorMinor = requested.split('.').takeIf { it.size >= 2 }?.take(2) ?: return null
+            return entries.firstOrNull { it.version.split('.') == majorMinor }
         }
     }
 }
