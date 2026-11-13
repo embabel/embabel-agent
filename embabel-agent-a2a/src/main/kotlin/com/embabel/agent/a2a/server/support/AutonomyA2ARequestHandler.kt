@@ -24,6 +24,7 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.ProcessOptions
 import io.a2a.spec.*
 import io.a2a.spec.InternalError
+import io.a2a.util.Utils
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
@@ -239,7 +240,9 @@ class AutonomyA2ARequestHandler(
             val emitter = SseEmitter(Long.MAX_VALUE)
             emitter.send(
                 SseEmitter.event()
-                    .data(JSONRPCErrorResponse(request.id, TaskNotFoundError()), MediaType.APPLICATION_JSON)
+                    // Written with the A2A SDK's own mapper, which serializes the error as a JSON-RPC error
+                    // rather than as an exception with its stack trace
+                    .data(Utils.toJsonString(JSONRPCErrorResponse(request.id, TaskNotFoundError())), MediaType.APPLICATION_JSON)
             )
             emitter.complete()
             emitter

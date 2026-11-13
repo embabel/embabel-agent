@@ -292,6 +292,11 @@ class A2AWebIntegrationTest(
             assertEquals(JSONRPCRequest.JSONRPC_VERSION, data.path("jsonrpc").asString())
             assertEquals("req-456", data.path("id").asString())
             assertEquals(TaskNotFoundError.DEFAULT_CODE, data.path("error").path("code").asInt())
+            assertEquals(
+                setOf("code", "message"),
+                data.path("error").propertyNames().toSet(),
+                "The error must not expose server internals such as the stack trace",
+            )
         }
 
         private fun resubscribeRequest(taskId: String): String =
