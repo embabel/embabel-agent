@@ -23,6 +23,7 @@
         <module>embabel-agent-byok</module>
         <module>embabel-agent-ai</module>
         <module>embabel-agent-webmvc</module>
+        <module>embabel-agent-decision-annotations</module>
     </modules>
 
     <build>
