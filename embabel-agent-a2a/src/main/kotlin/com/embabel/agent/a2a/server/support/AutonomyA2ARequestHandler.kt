@@ -24,10 +24,6 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.library.HasContent
-import org.a2aproject.sdk.compat03.conversion.ErrorConverter_v0_3
-import org.a2aproject.sdk.compat03.spec.JSONRPCErrorResponse_v0_3
-import org.a2aproject.sdk.compat03.util.Utils_v0_3
-import org.a2aproject.sdk.grpc.utils.JSONRPCUtils
 import org.a2aproject.sdk.jsonrpc.common.wrappers.A2AErrorResponse
 import org.a2aproject.sdk.jsonrpc.common.wrappers.A2AResponse
 import org.a2aproject.sdk.jsonrpc.common.wrappers.CancelTaskRequest
@@ -49,7 +45,6 @@ import org.a2aproject.sdk.jsonrpc.common.wrappers.SubscribeToTaskRequest
 import org.a2aproject.sdk.spec.*
 import org.a2aproject.sdk.spec.InternalError
 import org.slf4j.LoggerFactory
-import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.OffsetDateTime
@@ -275,35 +270,14 @@ class AutonomyA2ARequestHandler(
 
         logger.info("Handling task resubscribe request for taskId: {}, streamId: {}", taskId, streamId)
 
+        // Errors before the stream opens are thrown, so the caller answers with a plain JSON-RPC error response
         return try {
             streamingHandler.resubscribeToTask(taskId, streamId, protocolVersion)
         } catch (e: IllegalArgumentException) {
             logger.warn("Task not found for resubscribe: {}", taskId)
-            val emitter = SseEmitter(Long.MAX_VALUE)
-            emitter.send(
-                SseEmitter.event()
-                    .data(errorJson(request.id, TaskNotFoundError(), protocolVersion), MediaType.APPLICATION_JSON)
-            )
-            emitter.complete()
-            emitter
-        } catch (e: Exception) {
-            logger.error("Error resubscribing to task: {}", taskId, e)
-            val emitter = SseEmitter(Long.MAX_VALUE)
-            emitter.completeWithError(e)
-            emitter
+            throw TaskNotFoundError()
         }
     }
-
-    /**
-     * A JSON-RPC error response in the client's A2A version
-     */
-    private fun errorJson(requestId: Any?, error: A2AError, protocolVersion: A2AProtocolVersion): String =
-        when (protocolVersion) {
-            A2AProtocolVersion.V1_0 -> JSONRPCUtils.toJsonRPCErrorResponse(requestId, error)
-            A2AProtocolVersion.V0_3 -> Utils_v0_3.toJsonString(
-                JSONRPCErrorResponse_v0_3(requestId, ErrorConverter_v0_3.convertA2AError(error))
-            )
-        }
 
     private fun handleTasksGet(
         request: GetTaskRequest,

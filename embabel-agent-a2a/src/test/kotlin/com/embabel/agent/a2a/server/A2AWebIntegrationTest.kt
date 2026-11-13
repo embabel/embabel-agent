@@ -400,14 +400,16 @@ class A2AWebIntegrationTest(
         }
 
         @Test
-        fun `should return task not found error when resubscribing to unknown task`() {
-            val result = subscribeToTask("unknown-${UUID.randomUUID()}")
+        fun `should return task not found error without opening a stream when resubscribing to unknown task`() {
+            val result = postJsonRpc(subscribeToTaskBody("unknown-${UUID.randomUUID()}"))
 
-            val response = embabelObjectMapperHolder.get().readValue(awaitFirstSseData(result), Map::class.java)
+            assertTrue(
+                MediaType.APPLICATION_JSON.isCompatibleWith(MediaType.parseMediaType(result.response.contentType!!)),
+                "Clients such as the A2A TCK read an error before the stream as a plain JSON-RPC response",
+            )
+            val response = errorResponseOf(result)
             assertEquals("req-456", response["id"])
-            val error = assertIs<Map<*, *>>(response["error"])
-            assertEquals(A2AErrorCodes.TASK_NOT_FOUND.code(), error["code"])
-            assertNoServerInternals(error)
+            assertEquals(A2AErrorCodes.TASK_NOT_FOUND.code(), assertIs<Map<*, *>>(response["error"])["code"])
         }
 
         @Test
@@ -531,21 +533,10 @@ class A2AWebIntegrationTest(
         }
 
         @Test
-        fun `should return task not found error when resubscribing to unknown task`() {
-            val result = mockMvc.post("/a2a") {
-                contentType = MediaType.APPLICATION_JSON
-                content = rpc("req-03", TaskResubscriptionRequest_v0_3.METHOD, mapOf("id" to "unknown-${UUID.randomUUID()}"))
-            }.andExpect {
-                request { asyncStarted() }
-            }.andReturn()
-            result.getAsyncResult(Duration.ofSeconds(5).toMillis())
+        fun `should return task not found error without opening a stream when resubscribing to unknown task`() {
+            val body = rpc("req-03", TaskResubscriptionRequest_v0_3.METHOD, mapOf("id" to "unknown-${UUID.randomUUID()}"))
 
-            val data = result.response.contentAsString.lineSequence().first { it.startsWith("data:") }.removePrefix("data:")
-            val response = embabelObjectMapperHolder.get().readValue(data, Map::class.java)
-            assertEquals("req-03", response["id"])
-            val error = assertIs<Map<*, *>>(response["error"])
-            assertEquals(A2AErrorCodes.TASK_NOT_FOUND.code(), error["code"])
-            assertNoServerInternals(error)
+            assertEquals(A2AErrorCodes.TASK_NOT_FOUND.code(), errorCodeFor(body, "req-03", null))
         }
 
         @Test
