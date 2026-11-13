@@ -149,11 +149,12 @@ class AutonomyA2ARequestHandler(
 
     fun handleMessageStream(request: SendStreamingMessageRequest): SseEmitter {
         val params = request.params
-        val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
+        // Streams are keyed by a server id: clients may reuse a request id across concurrent streams
+        val streamId = UUID.randomUUID().toString()
         val taskId = ensureTaskId(params.message.taskId)
         val contextId = ensureContextId(params.message.contextId)
 
-        val emitter = streamingHandler.createStream(streamId, taskId, contextId)
+        val emitter = streamingHandler.createStream(streamId, taskId, contextId, request.id)
 
         Thread.startVirtualThread {
             try {
@@ -229,12 +230,12 @@ class AutonomyA2ARequestHandler(
     fun handleTaskResubscribe(request: TaskResubscriptionRequest): SseEmitter {
         val params = request.params
         val taskId = params.id  // TaskIdParams.id contains the task identifier
-        val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
+        val streamId = UUID.randomUUID().toString()
 
         logger.info("Handling task resubscribe request for taskId: {}, streamId: {}", taskId, streamId)
 
         return try {
-            streamingHandler.resubscribeToTask(taskId, streamId)
+            streamingHandler.resubscribeToTask(taskId, streamId, request.id)
         } catch (e: IllegalArgumentException) {
             logger.warn("Task not found for resubscribe: {}", taskId)
             val emitter = SseEmitter(Long.MAX_VALUE)

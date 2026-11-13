@@ -321,6 +321,48 @@ class AutonomyA2ARequestHandlerTest {
             assertEquals(completedAt, taskStateManager.getTaskInfo("task-1")!!.completedAt)
         }
 
+        @Test
+        fun `concurrent streams with the same request id each receive only their own task`() {
+            blockAgent()
+            val first = SseCapture(handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params("task-1", "hello"))))
+            val second = SseCapture(handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params("task-2", "hello"))))
+
+            finishAgent.countDown()
+
+            assertEquals(setOf("task-1"), taskIdsOf(first.awaitClosed()))
+            assertEquals(setOf("task-2"), taskIdsOf(second.awaitClosed()))
+            assertEquals(listOf("working", "working", "completed"), first.states())
+            assertEquals(listOf("working", "working", "completed"), second.states())
+        }
+
+        @Test
+        fun `resubscribing with the request id of the original stream keeps both streams`() {
+            blockAgent()
+            val original = startStream(handler, "task-1")
+            val resubscriber = SseCapture(handler.handleJsonRpcStream(TaskResubscriptionRequest("req-1", TaskIdParams("task-1"))))
+
+            finishAgent.countDown()
+
+            assertEquals(listOf("working", "working", "completed"), resubscriber.awaitClosed().states())
+            assertEquals(listOf("working", "working", "completed"), original.awaitClosed().states())
+        }
+
+        @Test
+        fun `stream events answer with the request id as sent`() {
+            every { autonomy.chooseAndRunAgent(any(), any()) } returns execution("done")
+
+            val stream = SseCapture(handler.handleJsonRpcStream(SendStreamingMessageRequest(7, params("task-1", "hello"))))
+            val resubscriber = SseCapture(handler.handleJsonRpcStream(TaskResubscriptionRequest(8, TaskIdParams("task-1"))))
+
+            val streamIds = stream.awaitClosed().events().map { it.path("id") }
+            assertTrue(streamIds.all { it.isNumber && it.asInt() == 7 }, "Stream ids: $streamIds")
+            val resubscriberIds = resubscriber.awaitClosed().events().map { it.path("id") }
+            assertTrue(resubscriberIds.all { it.isNumber && it.asInt() == 8 }, "Resubscriber ids: $resubscriberIds")
+        }
+
+        private fun taskIdsOf(capture: SseCapture): Set<String> =
+            capture.events().map { it.path("result").path("taskId").asString() }.toSet()
+
         private fun startStream(handler: AutonomyA2ARequestHandler, taskId: String): SseCapture {
             val capture = SseCapture(
                 handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params(taskId, "hello")))
