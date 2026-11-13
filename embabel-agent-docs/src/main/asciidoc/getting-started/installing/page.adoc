@@ -786,13 +786,13 @@ Available LLM models include:
 
 * `mistral-large-2512` - Mistral Large 3, top-tier flagship
 * `mistral-medium-2604` - Mistral Medium 3.5, reasoning-capable mid tier
-* `mistral-medium-2508` - Mistral Medium 3.1
+* `mistral-medium-2508` - Mistral Medium 3.1 (retired by Mistral on 2026-08-31, use `mistral-medium-2604`)
 * `mistral-small-2603` - Mistral Small 4, reasoning-capable small tier
-* `mistral-small-2506` - Mistral Small 3.2
-* `magistral-medium-2509` - Magistral Medium 1.2, dedicated reasoning model
-* `magistral-small-2509` - Magistral Small 1.2, dedicated reasoning model
+* `mistral-small-2506` - Mistral Small 3.2 (retired by Mistral on 2026-07-31, use `mistral-small-2603`)
+* `magistral-medium-2509` - Magistral Medium 1.2, dedicated reasoning model (retired by Mistral on 2026-07-31, use `mistral-medium-2604`)
+* `magistral-small-2509` - Magistral Small 1.2, dedicated reasoning model (retired by Mistral on 2026-07-31, use `mistral-small-2603`)
 * `codestral-2508` - Codestral, code generation
-* `devstral-2512` - Devstral 2, agentic coding
+* `devstral-2512` - Devstral 2, agentic coding (retired by Mistral on 2026-07-31, use `mistral-medium-2604`)
 * `ministral-8b-2512` - Ministral 8B, lightweight
 * `ministral-3b-2512` - Ministral 3B, lightweight
 
@@ -802,11 +802,11 @@ Example configuration in `application.yml`:
 ----
 embabel:
   models:
-    default-llm: mistral-medium-2508
+    default-llm: mistral-medium-2604
     llms:
-      fast: mistral-small-2506
+      fast: mistral-small-2603
       best: mistral-large-2512
-      reasoning: magistral-medium-2509
+      reasoning: mistral-medium-2604
 ----
 
 ===== LM Studio

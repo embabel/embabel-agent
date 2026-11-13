@@ -25,10 +25,18 @@ class MistralAiModels {
 
         const val PROVIDER = "Mistral AI"
 
+        @Deprecated(
+            message = "mistral-medium-2508 (Mistral Medium 3.1) was retired by Mistral on 2026-08-31 and now returns 400 (invalid model). Use MISTRAL_MEDIUM_35.",
+            replaceWith = ReplaceWith("MISTRAL_MEDIUM_35")
+        )
 		const val MISTRAL_MEDIUM_31 = "mistral-medium-2508"
 
         const val MISTRAL_MEDIUM_35 = "mistral-medium-2604"
 
+        @Deprecated(
+            message = "mistral-small-2506 (Mistral Small 3.2) was retired by Mistral on 2026-07-31 and now returns 400 (invalid model). Use MISTRAL_SMALL_4.",
+            replaceWith = ReplaceWith("MISTRAL_SMALL_4")
+        )
         const val MISTRAL_SMALL_32 = "mistral-small-2506"
 
         const val MINISTRAL_8B = "ministral-8b-2410"
@@ -38,14 +46,14 @@ class MistralAiModels {
         const val CODESTRAL = "codestral-2508"
 
         @Deprecated(
-            message = "devstral-medium-2507 (Devstral Medium 1.0) was retired by Mistral on 2026-05-31 and now returns 400 (invalid model). Use DEVSTRAL_2.",
-            replaceWith = ReplaceWith("DEVSTRAL_2")
+            message = "devstral-medium-2507 (Devstral Medium 1.0) was retired by Mistral on 2026-05-31 and now returns 400 (invalid model). Use MISTRAL_MEDIUM_35.",
+            replaceWith = ReplaceWith("MISTRAL_MEDIUM_35")
         )
         const val DEVSTRAL_MEDIUM_10 = "devstral-medium-2507"
 
         @Deprecated(
-            message = "devstral-small-2507 (Devstral Small 1.1) was retired by Mistral on 2026-05-31 and now returns 400 (invalid model). Use DEVSTRAL_2.",
-            replaceWith = ReplaceWith("DEVSTRAL_2")
+            message = "devstral-small-2507 (Devstral Small 1.1) was retired by Mistral on 2026-05-31 and now returns 400 (invalid model). Use MISTRAL_MEDIUM_35.",
+            replaceWith = ReplaceWith("MISTRAL_MEDIUM_35")
         )
         const val DEVSTRAL_SMALL_11 = "devstral-small-2507"
 
@@ -59,8 +67,16 @@ class MistralAiModels {
 
         const val MISTRAL_SMALL_4 = "mistral-small-2603"
 
+        @Deprecated(
+            message = "magistral-medium-2509 (Magistral Medium 1.2) was retired by Mistral on 2026-07-31 and now returns 400 (invalid model). Use MISTRAL_MEDIUM_35.",
+            replaceWith = ReplaceWith("MISTRAL_MEDIUM_35")
+        )
         const val MAGISTRAL_MEDIUM_12 = "magistral-medium-2509"
 
+        @Deprecated(
+            message = "magistral-small-2509 (Magistral Small 1.2) was retired by Mistral on 2026-07-31 and now returns 400 (invalid model). Use MISTRAL_SMALL_4.",
+            replaceWith = ReplaceWith("MISTRAL_SMALL_4")
+        )
         const val MAGISTRAL_SMALL_12 = "magistral-small-2509"
 
         const val MINISTRAL_3_14B = "ministral-14b-2512"
@@ -69,6 +85,10 @@ class MistralAiModels {
 
         const val MINISTRAL_3_3B = "ministral-3b-2512"
 
+        @Deprecated(
+            message = "devstral-2512 (Devstral 2) was retired by Mistral on 2026-07-31 and now returns 400 (invalid model). Use MISTRAL_MEDIUM_35.",
+            replaceWith = ReplaceWith("MISTRAL_MEDIUM_35")
+        )
         const val DEVSTRAL_2 = "devstral-2512"
 	}
 }
