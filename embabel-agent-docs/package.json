@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@asciidoctor/core": "~3.0.4"
+    "@asciidoctor/core": "~4.2.1"
   }
 }
