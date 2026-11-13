@@ -54,7 +54,7 @@ class GoogleGenAiChatTestConfig
 
 @SpringBootTest(
     properties = [
-        "embabel.models.default-llm=gemini-2.5-flash",
+        "embabel.models.default-llm=gemini-3.8-flash",
         "embabel.agent.platform.models.googlegenai.max-attempts=1",
         "embabel.agent.platform.models.googlegenai.api-key=\${GOOGLE_API_KEY:\${GEMINI_API_KEY:dummy-key-for-context-loading}}",
         "spring.main.allow-bean-definition-overriding=true",
@@ -109,7 +109,7 @@ class GoogleGenAiChatIntegrationIT(
     @Test
     fun `supports thinking mode for google genai prompt runner`() {
         val runner = ai.withLlm(
-            LlmOptions(GoogleGenAiModels.GEMINI_2_5_FLASH)
+            LlmOptions(GoogleGenAiModels.GEMINI_3_8_FLASH)
                 .withThinking(Thinking.withExtraction())
         )
 
@@ -118,7 +118,7 @@ class GoogleGenAiChatIntegrationIT(
 
     @Test
     fun `creates typed object through google genai thinking mode`() {
-        val modelId = GoogleGenAiModels.GEMINI_2_5_FLASH
+        val modelId = GoogleGenAiModels.GEMINI_3_8_FLASH
         val runner = ai.withLlm(
             LlmOptions(modelId)
                 .withThinking(Thinking.withExtraction())
@@ -170,6 +170,7 @@ class GoogleGenAiChatIntegrationIT(
     companion object {
         @JvmStatic
         fun allGoogleGenAiModelIds(): List<String> = listOf(
+            GoogleGenAiModels.GEMINI_4_CARBON,
             GoogleGenAiModels.GEMINI_4_ARGON,
             GoogleGenAiModels.GEMINI_3_8_FLASH,
             GoogleGenAiModels.GEMINI_3_6_FLASH,

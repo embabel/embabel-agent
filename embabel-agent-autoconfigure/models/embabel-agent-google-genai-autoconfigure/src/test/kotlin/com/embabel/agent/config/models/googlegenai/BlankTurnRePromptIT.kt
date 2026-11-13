@@ -43,7 +43,7 @@ import org.springframework.context.ApplicationContext
     matches = ".+",
     disabledReason = "Integration test requires GOOGLE_PROJECT_ID",
 )
-class BlankTurnRePromptIT : BlankTurnRePromptTestSupport(GoogleGenAiModels.GEMINI_2_5_FLASH) {
+class BlankTurnRePromptIT : BlankTurnRePromptTestSupport(GoogleGenAiModels.GEMINI_3_8_FLASH) {
 
     override fun withContext(check: (ApplicationContext) -> Unit) {
         ApplicationContextRunner()
