@@ -49,4 +49,28 @@ data class Usage @JvmOverloads constructor(
 
     private fun sum(a: Int?, b: Int?): Int? =
         if (a == null && b == null) null else (a ?: 0) + (b ?: 0)
+
+    /** Binary compatibility: the `copy` callers compiled before the cache fields link to. Keeps them. */
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    fun copy(promptTokens: Int?, completionTokens: Int?, nativeUsage: Any?): Usage =
+        copy(promptTokens = promptTokens, completionTokens = completionTokens, nativeUsage = nativeUsage)
+
+    companion object {
+
+        /**
+         * Binary compatibility: the `copy$default` that Kotlin callers compiled before the cache fields
+         * link to. Bit `i` of [mask] set means argument `i` was omitted, so [self]'s value is kept.
+         */
+        @Suppress("UNUSED_PARAMETER")
+        @JvmStatic
+        @JvmName("copy\$default")
+        @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+        fun copyDefault(
+            self: Usage, promptTokens: Int?, completionTokens: Int?, nativeUsage: Any?, mask: Int, marker: Any?,
+        ): Usage = self.copy(
+            promptTokens = if (mask and 1 != 0) self.promptTokens else promptTokens,
+            completionTokens = if (mask and 2 != 0) self.completionTokens else completionTokens,
+            nativeUsage = if (mask and 4 != 0) self.nativeUsage else nativeUsage,
+        )
+    }
 }

@@ -91,6 +91,22 @@ class AnthropicModelFactoryTest {
     }
 
     @Test
+    fun `build prices unconfigured cache writes at Anthropic's 1_25x input rate`() {
+        val factory = AnthropicModelFactory(
+            apiKey = "test-key",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+        val service = factory.build(
+            model = AnthropicModels.CLAUDE_HAIKU_4_5,
+            pricingModel = PricingModel.usdPer1MTokens(1.0, 5.0),
+        ) as SpringAiLlmService
+        val pricing = service.pricingModel!!
+        assertEquals(1.25 / 1_000_000, pricing.usdPerCacheWriteInputToken(), 1e-15)
+        assertEquals(1.0 / 1_000_000, pricing.usdPerCacheReadInputToken(), 1e-15)
+    }
+
+    @Test
     fun `build defaults to Anthropic itself, at an unstated price`() {
         val factory = AnthropicModelFactory(
             apiKey = "test-key",

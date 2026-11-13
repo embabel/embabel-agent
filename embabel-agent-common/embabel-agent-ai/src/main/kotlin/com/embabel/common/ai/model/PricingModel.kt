@@ -47,6 +47,9 @@ interface PricingModel {
     fun usdPerCacheWriteInputToken(): Double = usdPerInputToken()
 
     /**
+     * Implementations that override the 2-argument [costOf] must override this one too:
+     * this default prices cache tokens at the cache rates outside that override.
+     *
      * @param inputTokens input tokens not read from or written to the prompt cache
      */
     fun costOf(inputTokens: Int, outputTokens: Int, cacheReadInputTokens: Int, cacheWriteInputTokens: Int): Double =
@@ -107,9 +110,13 @@ class PerTokenPricingModel @JvmOverloads constructor(
         usdPer1mCacheWriteInputTokens?.let { it / ONE_MILLION } ?: usdPerInputToken()
 }
 
-/** Uses Anthropic's input-rate read fallback and 1.25x input-rate write fallback. */
+/**
+ * Uses Anthropic's input-rate read fallback and 1.25x input-rate write fallback.
+ * Returns this model unchanged when that changes no price.
+ */
 fun PerTokenPricingModel.withAnthropicCacheRateDefaults(): PerTokenPricingModel =
-    PerTokenPricingModel(
+    if (usdPer1mCacheWriteInputTokens != null || usdPer1mInputTokens == 0.0) this
+    else PerTokenPricingModel(
         usdPer1mInputTokens = usdPer1mInputTokens,
         usdPer1mOutputTokens = usdPer1mOutputTokens,
         usdPer1mCacheReadInputTokens = usdPer1mCacheReadInputTokens,

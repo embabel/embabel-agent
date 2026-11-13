@@ -25,7 +25,9 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.ai.model.withAnthropicCacheRateDefaults
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.byok.firstOfType
@@ -190,7 +192,8 @@ open class AnthropicModelFactory(
             provider = provider,
             optionsConverter = AnthropicOptionsConverter,
             knowledgeCutoffDate = knowledgeCutoffDate,
-            pricingModel = pricingModel,
+            // Unconfigured writes use the 5-minute TTL rate, as in AnthropicModelsConfig.
+            pricingModel = (pricingModel as? PerTokenPricingModel)?.withAnthropicCacheRateDefaults() ?: pricingModel,
             thinkingSupported = true,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             promptTokensExcludeCache = true,

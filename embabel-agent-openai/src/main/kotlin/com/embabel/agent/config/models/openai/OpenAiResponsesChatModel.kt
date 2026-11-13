@@ -386,7 +386,13 @@ class OpenAiResponsesChatModel(
             .map { AssistantMessage.ToolCall(it.callId(), FUNCTION_CALL_TYPE, it.name(), it.arguments()) }
 
         val usage = response.usage().orElse(null)?.let {
-            DefaultUsage(it.inputTokens().toInt(), it.outputTokens().toInt(), it.totalTokens().toInt(), it)
+            // input_tokens already includes cached tokens; the details may be absent, so never call the throwing getters.
+            val details = it._inputTokensDetails().asKnown().orElse(null)
+            DefaultUsage(
+                it.inputTokens().toInt(), it.outputTokens().toInt(), it.totalTokens().toInt(), it,
+                details?._cachedTokens()?.asKnown()?.orElse(null),
+                details?._cacheWriteTokens()?.asKnown()?.orElse(null),
+            )
         }
         val metadata = ChatResponseMetadata.builder()
             .model(modelNameOf(response.model()))
