@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.default-llm=claude-sonnet-4-5",
+                "embabel.models.default-llm=claude-opus-4-8",
                 "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
                 "spring.main.allow-bean-definition-overriding=true",
 
