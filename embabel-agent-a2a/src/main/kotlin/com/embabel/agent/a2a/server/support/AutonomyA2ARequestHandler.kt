@@ -271,6 +271,9 @@ class AutonomyA2ARequestHandler(
         logger.info("Handling task resubscribe request for taskId: {}, streamId: {}", taskId, streamId)
 
         // Errors before the stream opens are thrown, so the caller answers with a plain JSON-RPC error response
+        if (taskId.isNullOrBlank()) {
+            throw taskIdRequired()
+        }
         return try {
             streamingHandler.resubscribeToTask(taskId, streamId, protocolVersion)
         } catch (e: IllegalArgumentException) {
@@ -283,6 +286,9 @@ class AutonomyA2ARequestHandler(
         request: GetTaskRequest,
         params: TaskQueryParams,
     ): GetTaskResponse {
+        if (params.id.isNullOrBlank()) {
+            return GetTaskResponse(request.id, taskIdRequired())
+        }
         val task = taskStateManager.getTask(params.id)
             ?: return GetTaskResponse(request.id, TaskNotFoundError())
         return GetTaskResponse(request.id, task)
@@ -292,10 +298,18 @@ class AutonomyA2ARequestHandler(
         request: CancelTaskRequest,
         ctp: CancelTaskParams,
     ): CancelTaskResponse {
+        if (ctp.id.isNullOrBlank()) {
+            return CancelTaskResponse(request.id, taskIdRequired())
+        }
         // Agent processes run to completion, so no task can be canceled
         val error = if (taskStateManager.taskExists(ctp.id)) TaskNotCancelableError() else TaskNotFoundError()
         return CancelTaskResponse(request.id, error)
     }
+
+    /**
+     * The A2A SDK reads a request without params, or without a task id, as one with an empty task id
+     */
+    private fun taskIdRequired() = InvalidParamsError(null, "The task id is required", null)
 
     private fun createFailedTaskStatus(
         taskId: String,

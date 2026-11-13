@@ -42,6 +42,7 @@ import org.a2aproject.sdk.compat03.spec.InvalidRequestError_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONParseError_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONRPCErrorResponse_v0_3
 import org.a2aproject.sdk.compat03.spec.JSONRPCError_v0_3
+import org.a2aproject.sdk.compat03.spec.JSONRPCRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.ListTaskPushNotificationConfigRequest_v0_3
 import org.a2aproject.sdk.compat03.spec.MethodNotFoundError_v0_3
 import org.a2aproject.sdk.compat03.spec.PushNotificationNotSupportedError_v0_3
@@ -76,7 +77,7 @@ internal class A2A03JsonRpcHandler(
     private val logger = LoggerFactory.getLogger(A2A03JsonRpcHandler::class.java)
 
     /**
-     * @param requestId the id of the request, as sent
+     * @param requestId the id of the request, as sent, or null if it is not a string or a number
      * @return the JSON response, or the stream for a streaming request
      */
     fun handle(body: String, requestId: Any?): Any {
@@ -158,6 +159,14 @@ internal class A2A03JsonRpcHandler(
             // Valid JSON that is not a request object is an invalid request, not a parse error
             throw InvalidRequestError_v0_3("A JSON-RPC request must be a JSON object")
         }
+        val version = request.asJsonObject.get("jsonrpc")
+        if (version == null || !version.isJsonPrimitive || version.asString != JSONRPC_VERSION) {
+            throw InvalidRequestError_v0_3("The jsonrpc member must be \"$JSONRPC_VERSION\"")
+        }
+        val id = request.asJsonObject.get("id")
+        if (id != null && !id.isJsonNull && !(id.isJsonPrimitive && !id.asJsonPrimitive.isBoolean)) {
+            throw InvalidRequestError_v0_3("A JSON-RPC id must be a string, a number or null")
+        }
         val method = request.asJsonObject.get("method")
         if (method == null || !method.isJsonPrimitive || !method.asJsonPrimitive.isString) {
             throw InvalidRequestError_v0_3("A JSON-RPC request must have a string method")
@@ -165,12 +174,17 @@ internal class A2A03JsonRpcHandler(
         return method.asString
     }
 
-    private fun <T> read(body: String, type: Class<T>): T =
-        try {
+    private fun <T : JSONRPCRequest_v0_3<*>> read(body: String, type: Class<T>): T {
+        val request = try {
             JsonUtil_v0_3.fromJson(body, type)
         } catch (e: Exception) {
             throw InvalidParamsError_v0_3(e.message)
         }
+        if (request.params == null) {
+            throw InvalidParamsError_v0_3("A ${request.method} request must have params")
+        }
+        return request
+    }
 
     private fun toJson(response: A2AResponse<*>, requestId: Any?): String {
         response.error?.let { return errorJson(requestId, ErrorConverter_v0_3.convertA2AError(it)) }
@@ -190,5 +204,9 @@ internal class A2A03JsonRpcHandler(
     private fun errorJson(requestId: Any?, error: JSONRPCError_v0_3): String {
         logger.warn("Returning A2A 0.3 JSON-RPC error: id='{}', code={}, message='{}'", requestId, error.code, error.message)
         return Utils_v0_3.toJsonString(JSONRPCErrorResponse_v0_3(requestId, error))
+    }
+
+    private companion object {
+        const val JSONRPC_VERSION = "2.0"
     }
 }

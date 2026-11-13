@@ -39,7 +39,9 @@ import org.a2aproject.sdk.jsonrpc.common.wrappers.CancelTaskResponse
 import org.a2aproject.sdk.jsonrpc.common.wrappers.GetTaskResponse
 import org.a2aproject.sdk.jsonrpc.common.wrappers.NonStreamingJSONRPCRequest
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageResponse
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageRequest
 import org.a2aproject.sdk.jsonrpc.common.wrappers.StreamingJSONRPCRequest
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SubscribeToTaskRequest
 import org.a2aproject.sdk.spec.A2AError
 import org.a2aproject.sdk.spec.InternalError
 import org.a2aproject.sdk.spec.InvalidParamsError
@@ -153,16 +155,24 @@ private class AgentCardHandlerWebFacade(
     fun handleJsonRpc(
         @RequestBody body: String,
         @RequestHeader(name = A2AHeaders.A2A_VERSION, required = false) a2aVersion: String?,
-    ): Any =
-        when (A2AProtocolVersion.fromHeader(a2aVersion)) {
-            A2AProtocolVersion.V1_0 -> handleJsonRpc10(body)
-            A2AProtocolVersion.V0_3 -> when (val response = a2a03JsonRpcHandler.handle(body, requestIdOf(body))) {
+    ): Any {
+        val sentId = requestIdOf(body)
+        // Only a string or a number is a JSON-RPC id: a request with any other id is answered with a null id
+        val requestId = sentId?.takeIf { it is String || it is Number }
+        return when (A2AProtocolVersion.fromHeader(a2aVersion)) {
+            A2AProtocolVersion.V1_0 -> if (sentId == requestId) {
+                handleJsonRpc10(body, requestId)
+            } else {
+                errorResponse(null, InvalidRequestError(null, "A JSON-RPC id must be a string, a number or null", null))
+            }
+
+            A2AProtocolVersion.V0_3 -> when (val response = a2a03JsonRpcHandler.handle(body, requestId)) {
                 is String -> jsonRpcResponse(response)
                 else -> response
             }
 
             null -> errorResponse(
-                requestIdOf(body),
+                requestId,
                 VersionNotSupportedError(
                     null,
                     "Protocol version '$a2aVersion' is not supported. " +
@@ -171,29 +181,34 @@ private class AgentCardHandlerWebFacade(
                 ),
             )
         }
+    }
 
     /**
      * Handles an A2A 1.0 JSON-RPC request.
+     * @param requestId the id of the request, as sent
      */
-    private fun handleJsonRpc10(body: String): Any {
+    private fun handleJsonRpc10(body: String, requestId: Any?): Any {
         return try {
             val request = JSONRPCUtils.parseRequestBody(body, null)
             logger.info("Received JSON-RPC request: method='{}', id='{}'", request.method, request.id)
             when (request) {
-                is StreamingJSONRPCRequest<*> -> agentCardHandler.handleJsonRpcStream(request)
+                is StreamingJSONRPCRequest<*> -> agentCardHandler.handleJsonRpcStream(
+                    requestId?.let { withId(request, it) } ?: request
+                )
                 // The SDK turns a numeric string id such as "42" into a number, so answer with the id as sent
                 is NonStreamingJSONRPCRequest<*> -> jsonRpcResponse(
-                    toJson(agentCardHandler.handleJsonRpc(request), requestIdOf(body) ?: request.id)
+                    toJson(agentCardHandler.handleJsonRpc(request), requestId ?: request.id)
                 )
             }
         } catch (e: A2AError) {
-            errorResponse(requestIdOf(body), e)
+            errorResponse(requestId, e)
         } catch (e: InvalidParamsJsonMappingException) {
-            errorResponse(e.id, InvalidParamsError(null, e.message, null))
+            // The id as sent comes first: the SDK's exceptions carry a wide or fractional id cut to 32 bits
+            errorResponse(requestId ?: e.id, InvalidParamsError(null, e.message, null))
         } catch (e: MethodNotFoundJsonMappingException) {
-            errorResponse(e.id, MethodNotFoundError(null, e.message, null))
+            errorResponse(requestId ?: e.id, MethodNotFoundError(null, e.message, null))
         } catch (e: IdJsonMappingException) {
-            errorResponse(e.id, InvalidRequestError(null, e.message, null))
+            errorResponse(requestId ?: e.id, InvalidRequestError(null, e.message, null))
         } catch (e: JsonMappingException) {
             errorResponse(null, InvalidRequestError(null, e.message, null))
         } catch (e: JsonProcessingException) {
@@ -203,9 +218,19 @@ private class AgentCardHandlerWebFacade(
         } catch (e: Throwable) {
             // Throwable, not Exception: errors such as kotlin.NotImplementedError must still get a JSON-RPC response
             logger.error("Error handling JSON-RPC request: {}", e.message, e)
-            errorResponse(requestIdOf(body), InternalError("Internal server error: ${e.message}"))
+            errorResponse(requestId, InternalError("Internal server error: ${e.message}"))
         }
     }
+
+    /**
+     * The SDK cuts a number id that is wider than 32 bits, or has a fraction, to an integer,
+     * so the stream is opened with the id as sent.
+     */
+    private fun withId(request: StreamingJSONRPCRequest<*>, requestId: Any): StreamingJSONRPCRequest<*> =
+        when (request) {
+            is SendStreamingMessageRequest -> SendStreamingMessageRequest(requestId, request.params)
+            is SubscribeToTaskRequest -> SubscribeToTaskRequest(requestId, request.params)
+        }
 
     private fun toJson(response: A2AResponse<*>, requestId: Any?): String {
         response.error?.let { return JSONRPCUtils.toJsonRPCErrorResponse(requestId, it) }

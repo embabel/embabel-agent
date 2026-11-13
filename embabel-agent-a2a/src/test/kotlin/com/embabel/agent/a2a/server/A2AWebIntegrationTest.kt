@@ -456,6 +456,24 @@ class A2AWebIntegrationTest(
         }
 
         @Test
+        fun `should answer stream events with a numeric id beyond 32 bits as sent`() {
+            val body = sendMessageBody(A2AMethods.SEND_STREAMING_MESSAGE_METHOD).replace("\"id\":\"msg-123\"", "\"id\":1700000000000")
+            assertTrue(body.contains("\"id\":1700000000000"), body)
+            val result = mockMvc.post("/a2a") {
+                contentType = MediaType.APPLICATION_JSON
+                content = body
+                header(A2AHeaders.A2A_VERSION, AgentInterface.CURRENT_PROTOCOL_VERSION)
+            }.andExpect {
+                request { asyncStarted() }
+            }.andReturn()
+            mockMvc.perform(asyncDispatch(result))
+
+            val ids = sseData(result).map { embabelObjectMapperHolder.get().readValue(it, Map::class.java)["id"].toString() }
+
+            assertEquals(setOf("1700000000000"), ids.toSet(), result.response.contentAsString)
+        }
+
+        @Test
         fun `should reject A2A 0_3 method name`() {
             val error = errorOf(postJsonRpc(sendMessageBody(method = "message/send")))
 
@@ -603,6 +621,23 @@ class A2AWebIntegrationTest(
                 errorCodeFor(rpc("p-03", SendMessageRequest_v0_3.METHOD, emptyMap<String, Any>()), "p-03", null),
             )
             assertEquals(A2AErrorCodes.METHOD_NOT_FOUND.code(), errorCodeFor(rpc("m-03", "tasks/list"), "m-03", null))
+            assertEquals(
+                A2AErrorCodes.INVALID_REQUEST.code(),
+                errorCodeFor("""{"jsonrpc":"1.0","id":"v-03","method":"tasks/get","params":{"id":"t"}}""", "v-03", null),
+            )
+            assertEquals(
+                A2AErrorCodes.INVALID_REQUEST.code(),
+                errorCodeFor("""{"id":"w-03","method":"tasks/get","params":{"id":"t"}}""", "w-03", null),
+            )
+            listOf(
+                SendMessageRequest_v0_3.METHOD,
+                GetTaskRequest_v0_3.METHOD,
+                CancelTaskRequest_v0_3.METHOD,
+                SendStreamingMessageRequest_v0_3.METHOD,
+                TaskResubscriptionRequest_v0_3.METHOD,
+            ).forEach { method ->
+                assertEquals(A2AErrorCodes.INVALID_PARAMS.code(), errorCodeFor(rpc("n-03", method), "n-03", null), method)
+            }
         }
 
         @Test
@@ -613,6 +648,28 @@ class A2AWebIntegrationTest(
             )
 
             assertEquals(42, response["id"])
+        }
+
+        @Test
+        fun `should answer with a numeric id beyond 32 bits or with a fraction as sent`() {
+            listOf<Number>(1700000000000L, 1.5).forEach { id ->
+                assertEquals(
+                    A2AErrorCodes.TASK_NOT_FOUND.code(),
+                    errorCodeFor(rpc(id, GetTaskRequest_v0_3.METHOD, mapOf("id" to "t")), id, null),
+                )
+                assertEquals(A2AErrorCodes.METHOD_NOT_FOUND.code(), errorCodeFor(rpc(id, "tasks/list"), id, null))
+            }
+        }
+
+        @Test
+        fun `should return invalid request for an id that is not a string or a number`() {
+            listOf("true", "{}", "[1]").forEach { id ->
+                assertEquals(
+                    A2AErrorCodes.INVALID_REQUEST.code(),
+                    errorCodeFor("""{"jsonrpc":"2.0","id":$id,"method":"tasks/get","params":{"id":"t"}}""", null, null),
+                    "id $id",
+                )
+            }
         }
 
         private fun rpc(id: Any?, method: String, params: Any? = null): String =
@@ -690,11 +747,46 @@ class A2AWebIntegrationTest(
                 errorCodeFor(rpc("r-3", A2AMethods.SEND_MESSAGE_METHOD, emptyMap<String, Any>()), "r-3"),
             )
             assertEquals(A2AErrorCodes.METHOD_NOT_FOUND.code(), errorCodeFor(rpc("r-4", "tasks/list"), "r-4"))
+            listOf(
+                A2AMethods.SEND_MESSAGE_METHOD,
+                A2AMethods.GET_TASK_METHOD,
+                A2AMethods.CANCEL_TASK_METHOD,
+                A2AMethods.SEND_STREAMING_MESSAGE_METHOD,
+                A2AMethods.SUBSCRIBE_TO_TASK_METHOD,
+            ).forEach { method ->
+                assertEquals(A2AErrorCodes.INVALID_PARAMS.code(), errorCodeFor(rpc("r-5", method), "r-5"), method)
+            }
         }
 
         @Test
         fun `should answer with a numeric request id as sent`() {
             assertEquals(A2AErrorCodes.TASK_NOT_FOUND.code(), errorCodeFor(rpc(42, A2AMethods.GET_TASK_METHOD, mapOf("id" to "t")), 42))
+        }
+
+        @Test
+        fun `should answer with a numeric id beyond 32 bits or with a fraction as sent`() {
+            listOf<Number>(1700000000000L, 1.5).forEach { id ->
+                assertEquals(
+                    A2AErrorCodes.TASK_NOT_FOUND.code(),
+                    errorCodeFor(rpc(id, A2AMethods.GET_TASK_METHOD, mapOf("id" to "t")), id),
+                )
+                assertEquals(A2AErrorCodes.METHOD_NOT_FOUND.code(), errorCodeFor(rpc(id, "tasks/list"), id))
+                assertEquals(
+                    A2AErrorCodes.INVALID_PARAMS.code(),
+                    errorCodeFor(rpc(id, A2AMethods.SEND_MESSAGE_METHOD, emptyMap<String, Any>()), id),
+                )
+            }
+        }
+
+        @Test
+        fun `should return invalid request for an id that is not a string or a number`() {
+            listOf("true", "{}", "[1]").forEach { id ->
+                assertEquals(
+                    A2AErrorCodes.INVALID_REQUEST.code(),
+                    errorCodeFor("""{"jsonrpc":"2.0","id":$id,"method":"GetTask","params":{"id":"t"}}""", null),
+                    "id $id",
+                )
+            }
         }
     }
 
