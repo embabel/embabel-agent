@@ -688,6 +688,7 @@ class A2AWebIntegrationTest(
         @Test
         fun `should answer malformed requests with JSON-RPC errors`() {
             assertEquals(A2AErrorCodes.JSON_PARSE.code(), errorCodeFor("{", null))
+            assertEquals(A2AErrorCodes.INVALID_REQUEST.code(), errorCodeFor("[]", null))
             assertEquals(A2AErrorCodes.INVALID_REQUEST.code(), errorCodeFor("""{"jsonrpc":"2.0","id":"r-1"}""", "r-1"))
             assertEquals(
                 A2AErrorCodes.INVALID_REQUEST.code(),
