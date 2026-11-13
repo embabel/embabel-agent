@@ -26,7 +26,6 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
 import io.a2a.spec.*
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -76,6 +75,10 @@ class A2AWebIntegrationTest(
 
     @BeforeEach
     fun setup() {
+        deployStarNewsFinder(horoscopeService)
+    }
+
+    private fun deployStarNewsFinder(horoscopeService: TestHoroscopeService) {
         AgentMetadataReader().createAgentScopes(
             TestStarNewsFinder(
                 horoscopeService = horoscopeService,
@@ -84,6 +87,70 @@ class A2AWebIntegrationTest(
             ),
         ).forEach { agentPlatform.deploy(it) }
     }
+
+    private fun jsonRpc(id: Any?, method: String, params: Any? = null): String =
+        embabelObjectMapperHolder.get().writeValueAsString(
+            buildMap {
+                put("jsonrpc", "2.0")
+                put("id", id)
+                put("method", method)
+                params?.let { put("params", it) }
+            }
+        )
+
+    private fun sendMessage(taskId: String): String =
+        jsonRpc(
+            "send-$taskId",
+            SendMessageRequest.METHOD,
+            mapOf(
+                "message" to mapOf(
+                    "kind" to "message",
+                    "messageId" to "msg-$taskId",
+                    "role" to "user",
+                    "taskId" to taskId,
+                    "contextId" to "ctx-$taskId",
+                    "parts" to listOf(mapOf("kind" to "text", "text" to "Hello, agent!")),
+                )
+            ),
+        )
+
+    private fun postJsonRpc(body: String): MvcResult = mockMvc.post("/a2a") {
+        contentType = MediaType.APPLICATION_JSON
+        content = body
+    }.andReturn()
+
+    private fun responseOf(result: MvcResult): JsonNode {
+        assertEquals(200, result.response.status, "JSON-RPC answers, errors included, are returned with HTTP 200")
+        assertTrue(
+            MediaType.APPLICATION_JSON.isCompatibleWith(MediaType.parseMediaType(result.response.contentType!!)),
+            "Unexpected content type: ${result.response.contentType}",
+        )
+        return embabelObjectMapperHolder.get().readTree(result.response.contentAsString)
+    }
+
+    /**
+     * Checks the response is a JSON-RPC error answering the request id, and returns its code
+     */
+    private fun errorCodeOf(result: MvcResult, expectedId: String?): Int {
+        val response = responseOf(result)
+        val error = response.path("error")
+        assertTrue(error.isObject, "Expected a JSON-RPC error: ${result.response.contentAsString}")
+        assertTrue(
+            setOf("code", "message", "data").containsAll(error.propertyNames().toSet()),
+            "The error must not expose server internals such as the stack trace: ${error.propertyNames().toSet()}",
+        )
+        assertEquals("2.0", response.path("jsonrpc").asString())
+        if (expectedId == null) {
+            assertTrue(response.path("id").isNull, "Expected a null id: ${result.response.contentAsString}")
+        } else {
+            assertEquals(expectedId, response.path("id").asString())
+        }
+        return error.path("code").asInt()
+    }
+
+    private fun taskStateOf(taskId: String): String =
+        responseOf(postJsonRpc(jsonRpc("get-$taskId", GetTaskRequest.METHOD, mapOf("id" to taskId))))
+            .path("result").path("status").path("state").asString()
 
     @Nested
     inner class AgentCardTests {
@@ -347,126 +414,135 @@ class A2AWebIntegrationTest(
     }
 
     @Nested
-    @Disabled
     inner class TaskTests {
         @Test
-        fun `should get task`() {
-            val params = TaskQueryParams("task-123")
+        fun `should get a finished task with only its id`() {
+            postJsonRpc(sendMessage("task-get"))
 
-            val result = mockMvc.post("/a2a/tasks/get") {
-                contentType = MediaType.APPLICATION_JSON
-                content = embabelObjectMapperHolder.get().writeValueAsString(params)
-            }
-                .andExpect {
-                    status().isOk()
-                    content { contentType(MediaType.APPLICATION_JSON) }
-                }.andReturn()
+            val response = responseOf(postJsonRpc(jsonRpc("get-1", GetTaskRequest.METHOD, mapOf("id" to "task-get"))))
 
-            val content = result.response.contentAsString
-            val response = embabelObjectMapperHolder.get().readValue(content, GetTaskResponse::class.java)
-
-            assertNotNull(response)
-            assertEquals("task-123", response.id)
-
-            val task = embabelObjectMapperHolder.get().convertValue(response.result, Task::class.java)
-            assertEquals("task-123", task.id)
-            assertEquals("ctx-1", task.contextId)
-            assertEquals(TaskState.COMPLETED, task.status.state)
+            assertEquals("get-1", response.path("id").asString())
+            assertEquals("task-get", response.path("result").path("id").asString())
+            assertEquals("completed", response.path("result").path("status").path("state").asString())
         }
 
         @Test
-        fun `should cancel task`() {
-            val params = TaskIdParams("task-123")
+        fun `should return task not found when getting an unknown task`() {
+            val result = postJsonRpc(jsonRpc("get-2", GetTaskRequest.METHOD, mapOf("id" to "unknown-${UUID.randomUUID()}")))
 
-            val result = mockMvc.post("/a2a/tasks/cancel") {
-                contentType = MediaType.APPLICATION_JSON
-                content = embabelObjectMapperHolder.get().writeValueAsString(params)
+            assertEquals(TaskNotFoundError.DEFAULT_CODE, errorCodeOf(result, "get-2"))
+        }
+
+        @Test
+        fun `should not cancel a finished task`() {
+            postJsonRpc(sendMessage("task-cancel"))
+
+            val result = postJsonRpc(jsonRpc("cancel-1", CancelTaskRequest.METHOD, mapOf("id" to "task-cancel")))
+
+            assertEquals(TaskNotCancelableError.DEFAULT_CODE, errorCodeOf(result, "cancel-1"))
+            assertEquals("completed", taskStateOf("task-cancel"))
+        }
+
+        @Test
+        fun `should return task not found when canceling an unknown task`() {
+            val result = postJsonRpc(jsonRpc("cancel-2", CancelTaskRequest.METHOD, mapOf("id" to "unknown-${UUID.randomUUID()}")))
+
+            assertEquals(TaskNotFoundError.DEFAULT_CODE, errorCodeOf(result, "cancel-2"))
+        }
+    }
+
+    /**
+     * The agent card declares no push notifications and no authenticated extended card.
+     */
+    @Nested
+    inner class UnsupportedMethodTests {
+        @Test
+        fun `should return push notification not supported for every push notification method`() {
+            listOf(
+                SetTaskPushNotificationConfigRequest.METHOD,
+                GetTaskPushNotificationConfigRequest.METHOD,
+                ListTaskPushNotificationConfigRequest.METHOD,
+                DeleteTaskPushNotificationConfigRequest.METHOD,
+            ).forEach { method ->
+                val result = postJsonRpc(jsonRpc("push-1", method, mapOf("id" to "task-123")))
+
+                assertEquals(PushNotificationNotSupportedError.DEFAULT_CODE, errorCodeOf(result, "push-1"), method)
             }
-                .andExpect {
-                    status().isOk()
-                    content { contentType(MediaType.APPLICATION_JSON) }
-                }.andReturn()
+        }
 
-            val content = result.response.contentAsString
-            val response = embabelObjectMapperHolder.get().readValue(content, CancelTaskResponse::class.java)
+        @Test
+        fun `should return extended card not configured`() {
+            val result = postJsonRpc(jsonRpc("card-1", GetAuthenticatedExtendedCardRequest.METHOD))
 
-            assertNotNull(response)
-            assertEquals("task-123", response.id)
+            assertEquals(AuthenticatedExtendedCardNotConfiguredError.DEFAULT_CODE, errorCodeOf(result, "card-1"))
+        }
 
-            val task = embabelObjectMapperHolder.get().convertValue(response.result, Task::class.java)
-            assertEquals("task-123", task.id)
-            assertEquals("ctx-1", task.contextId)
-            assertEquals(TaskState.CANCELED, task.status.state)
+        @Test
+        fun `should return method not found for an unknown method`() {
+            val result = postJsonRpc(jsonRpc("unknown-1", "tasks/list", emptyMap<String, Any>()))
+
+            assertEquals(MethodNotFoundError().code, errorCodeOf(result, "unknown-1"))
         }
     }
 
     @Nested
-    @Disabled
-    inner class PushNotificationTests {
+    inner class JsonRpcErrorTests {
         @Test
-        fun `should set push notification config`() {
-            val config = PushNotificationConfig(
-                "https://client/notify",
-                "test-token",
-                PushNotificationAuthenticationInfo(
-                    listOf("Bearer"),
-                    "test-secret"
-                ),
-                null
-            )
-            val params = TaskPushNotificationConfig(
-                "task-123",
-                config
-            )
-
-            val result = mockMvc.post("/a2a/tasks/pushNotificationConfig/set") {
-                contentType = MediaType.APPLICATION_JSON
-                content = embabelObjectMapperHolder.get().writeValueAsString(params)
-            }
-                .andExpect {
-                    status().isOk()
-                    content { contentType(MediaType.APPLICATION_JSON) }
-                }.andReturn()
-
-            val content = result.response.contentAsString
-            val response = embabelObjectMapperHolder.get().readValue(content, SetTaskPushNotificationConfigResponse::class.java)
-
-            assertNotNull(response)
-            assertEquals("task-123", response.id)
-
-            val resultConfig = embabelObjectMapperHolder.get().convertValue(response.result, TaskPushNotificationConfig::class.java)
-            assertEquals("task-123", resultConfig.taskId)
-            assertEquals("https://client/notify", resultConfig.pushNotificationConfig.url)
-            assertEquals("test-token", resultConfig.pushNotificationConfig.token)
-            assertEquals(listOf("Bearer"), resultConfig.pushNotificationConfig.authentication?.schemes)
-            assertEquals("test-secret", resultConfig.pushNotificationConfig.authentication?.credentials)
+        fun `should return parse error for invalid JSON`() {
+            assertEquals(JSONParseError().code, errorCodeOf(postJsonRpc("{"), null))
         }
 
         @Test
-        fun `should get push notification config`() {
-            val params = TaskIdParams("task-123")
+        fun `should return invalid request for a body that is not an object`() {
+            assertEquals(InvalidRequestError().code, errorCodeOf(postJsonRpc("[]"), null))
+        }
 
-            val result = mockMvc.post("/a2a/tasks/pushNotificationConfig/get") {
-                contentType = MediaType.APPLICATION_JSON
-                content = embabelObjectMapperHolder.get().writeValueAsString(params)
-            }
-                .andExpect {
-                    status().isOk()
-                    content { contentType(MediaType.APPLICATION_JSON) }
-                }.andReturn()
+        @Test
+        fun `should return invalid request without a method`() {
+            val result = postJsonRpc("""{"jsonrpc":"2.0","id":"r-1"}""")
 
-            val content = result.response.contentAsString
-            val response = embabelObjectMapperHolder.get().readValue(content, GetTaskPushNotificationConfigResponse::class.java)
+            assertEquals(InvalidRequestError().code, errorCodeOf(result, "r-1"))
+        }
 
-            assertNotNull(response)
-            assertEquals("task-123", response.id)
+        @Test
+        fun `should return invalid request for another JSON-RPC version`() {
+            val result = postJsonRpc("""{"jsonrpc":"1.0","id":"r-2","method":"tasks/get","params":{"id":"t"}}""")
 
-            val config = embabelObjectMapperHolder.get().convertValue(response.result, TaskPushNotificationConfig::class.java)
-            assertEquals("task-123", config.taskId)
-            assertEquals("https://client/notify", config.pushNotificationConfig.url)
-            assertEquals("demo-token", config.pushNotificationConfig.token)
-            assertEquals(listOf("Bearer"), config.pushNotificationConfig.authentication?.schemes)
-            assertEquals("secret", config.pushNotificationConfig.authentication?.credentials)
+            assertEquals(InvalidRequestError().code, errorCodeOf(result, "r-2"))
+        }
+
+        @Test
+        fun `should return invalid params without params`() {
+            val result = postJsonRpc(jsonRpc("r-3", GetTaskRequest.METHOD))
+
+            assertEquals(InvalidParamsError().code, errorCodeOf(result, "r-3"))
+        }
+
+        @Test
+        fun `should return invalid params for a message send without a message`() {
+            val result = postJsonRpc(jsonRpc("r-4", SendMessageRequest.METHOD, mapOf("configuration" to emptyMap<String, Any>())))
+
+            assertEquals(InvalidParamsError().code, errorCodeOf(result, "r-4"))
+        }
+
+        @Test
+        fun `should answer with the request id as sent`() {
+            val numeric = responseOf(postJsonRpc("""{"jsonrpc":"2.0","id":42,"method":"tasks/get","params":{"id":"t"}}"""))
+            val text = responseOf(postJsonRpc("""{"jsonrpc":"2.0","id":"42","method":"tasks/get","params":{"id":"t"}}"""))
+
+            assertTrue(numeric.path("id").isNumber, "Numeric id: ${numeric.path("id")}")
+            assertEquals(42, numeric.path("id").asInt())
+            assertTrue(text.path("id").isString, "String id: ${text.path("id")}")
+        }
+
+        @Test
+        fun `should return internal error and fail the task when the agent throws an Error`() {
+            deployStarNewsFinder { throw NotImplementedError("not yet") }
+
+            val result = postJsonRpc(sendMessage("task-error"))
+
+            assertEquals(InternalError("").code, errorCodeOf(result, "send-task-error"))
+            assertEquals("failed", taskStateOf("task-error"))
         }
     }
 }

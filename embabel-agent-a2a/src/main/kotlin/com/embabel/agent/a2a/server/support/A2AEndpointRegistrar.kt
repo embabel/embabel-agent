@@ -16,16 +16,32 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.AgentCardHandler
-import com.embabel.common.util.EmbabelObjectMapperHolder
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.ObjectNode
 import io.a2a.spec.AgentCard
+import io.a2a.spec.AuthenticatedExtendedCardNotConfiguredError
 import io.a2a.spec.CancelTaskRequest
+import io.a2a.spec.DeleteTaskPushNotificationConfigRequest
+import io.a2a.spec.GetAuthenticatedExtendedCardRequest
+import io.a2a.spec.GetTaskPushNotificationConfigRequest
 import io.a2a.spec.GetTaskRequest
+import io.a2a.spec.InternalError
+import io.a2a.spec.InvalidParamsError
+import io.a2a.spec.InvalidRequestError
+import io.a2a.spec.JSONParseError
 import io.a2a.spec.JSONRPCError
 import io.a2a.spec.JSONRPCErrorResponse
+import io.a2a.spec.JSONRPCRequest
+import io.a2a.spec.JSONRPCResponse
+import io.a2a.spec.ListTaskPushNotificationConfigRequest
+import io.a2a.spec.MethodNotFoundError
+import io.a2a.spec.PushNotificationNotSupportedError
 import io.a2a.spec.SendMessageRequest
 import io.a2a.spec.SendStreamingMessageRequest
+import io.a2a.spec.SetTaskPushNotificationConfigRequest
 import io.a2a.spec.TaskResubscriptionRequest
+import io.a2a.util.Utils
 import jakarta.servlet.ServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -48,7 +64,6 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 class A2AEndpointRegistrar(
     private val agentCardHandlers: List<AgentCardHandler>,
     private val requestMappingHandlerMapping: RequestMappingHandlerMapping,
-    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
 ) {
 
     private val logger = LoggerFactory.getLogger(A2AEndpointRegistrar::class.java)
@@ -76,10 +91,7 @@ class A2AEndpointRegistrar(
             .methods(RequestMethod.GET)
             .produces(MediaType.APPLICATION_JSON_VALUE)
             .build()
-        val achwf = AgentCardHandlerWebFacade(
-            agentCardHandler,
-            embabelObjectMapperHolder.get(),
-        )
+        val achwf = AgentCardHandlerWebFacade(agentCardHandler)
         requestMappingHandlerMapping.registerMapping(
             agentCardGetMapping,
             achwf,
@@ -88,7 +100,7 @@ class A2AEndpointRegistrar(
 
         val jsonRpcPostMethod = achwf.javaClass.getMethod(
             "handleJsonRpc",
-            Map::class.java,
+            String::class.java,
         )
         val jsonRpcPostMapping = RequestMappingInfo.paths(agentCardHandler.path)
             .methods(RequestMethod.POST)
@@ -105,7 +117,6 @@ class A2AEndpointRegistrar(
 
 private class AgentCardHandlerWebFacade(
     val agentCardHandler: AgentCardHandler,
-    val objectMapper: ObjectMapper,
 ) {
     private val logger = LoggerFactory.getLogger(AgentCardHandlerWebFacade::class.java)
 
@@ -121,88 +132,101 @@ private class AgentCardHandlerWebFacade(
             .body(agentCard)
     }
 
+    /**
+     * Handles a JSON-RPC request.
+     * Requests are read and responses written with the A2A SDK's own JSON mapper,
+     * which knows the A2A types, and every failure is answered with a JSON-RPC error.
+     */
     @ResponseBody
-    fun handleJsonRpc(@RequestBody requestMap: Map<String, Any>): Any {
+    fun handleJsonRpc(@RequestBody body: String): Any {
+        var requestId: Any? = null
         return try {
-            val method = requestMap["method"] as? String
-            val requestId = requestMap["id"]
-            logger.info("Received JSON-RPC request: method='{}', id='{}', params keys={}",
-                method, requestId, (requestMap["params"] as? Map<*, *>)?.keys)
-            logger.debug("Full JSON-RPC request: {}", requestMap)
-
-            return when (method) {
-                SendStreamingMessageRequest.METHOD -> {
-                    logger.debug("Processing streaming request for method: {}", method)
-                    // For streaming requests, return the SseEmitter directly without wrapping
-                    try {
-                        val request = objectMapper.convertValue(requestMap, SendStreamingMessageRequest::class.java)
-                        logger.debug("Successfully deserialized SendStreamingMessageRequest")
-                        agentCardHandler.handleJsonRpcStream(request)
-                    } catch (e: Exception) {
-                        logger.error("Failed to deserialize or handle streaming request", e)
-                        throw e
-                    }
-                }
-                TaskResubscriptionRequest.METHOD -> {
-                    logger.debug("Processing resubscribe request for method: {}", method)
-                    val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
-                    agentCardHandler.handleJsonRpcStream(request)
-                }
-                else -> {
-                    logger.debug("Processing non-streaming request for method: {}", method)
-                    val request = when (method) {
-                        SendMessageRequest.METHOD -> {
-                            try {
-                                objectMapper.convertValue(requestMap, SendMessageRequest::class.java)
-                            } catch (e: Exception) {
-                                logger.error("Failed to deserialize SendMessageRequest", e)
-                                throw e
-                            }
-                        }
-                        GetTaskRequest.METHOD -> {
-                            try {
-                                objectMapper.convertValue(requestMap, GetTaskRequest::class.java)
-                            } catch (e: Exception) {
-                                logger.error("Failed to deserialize GetTaskRequest", e)
-                                throw e
-                            }
-                        }
-                        CancelTaskRequest.METHOD -> {
-                            try {
-                                objectMapper.convertValue(requestMap, CancelTaskRequest::class.java)
-                            } catch (e: Exception) {
-                                logger.error("Failed to deserialize CancelTaskRequest", e)
-                                throw e
-                            }
-                        }
-                        else -> {
-                            logger.warn("Unsupported method: {}", method)
-                            throw UnsupportedOperationException("Method ${method} is not supported")
-                        }
-                    }
-                    // Regular JSON-RPC handling
-                    ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(agentCardHandler.handleJsonRpc(request))
-                }
+            val request = readTree(body)
+            requestId = idOf(request)
+            if (request.path("jsonrpc").asText() != JSONRPCRequest.JSONRPC_VERSION) {
+                throw InvalidRequestError("The jsonrpc member must be \"${JSONRPCRequest.JSONRPC_VERSION}\"")
             }
-        } catch (e: Exception) {
-            val requestId = requestMap.getOrDefault("id", "unknown")
-            val method = requestMap.getOrDefault("method", "unknown")
-            logger.error("Error handling JSON-RPC request: method='{}', id='{}', error={}",
-                method, requestId, e.message, e)
-            ResponseEntity.status(500)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(
-                    JSONRPCErrorResponse(
-                        requestId,
-                        JSONRPCError(
-                            500,
-                            "Internal server error: ${e.message}",
-                            null
-                        )
-                    )
-                )
+            val method = request.get("method")?.takeIf { it.isTextual }?.asText()
+                ?: throw InvalidRequestError("A JSON-RPC request must have a string method")
+            logger.info("Received JSON-RPC request: method='{}', id='{}'", method, requestId)
+            when (method) {
+                SendStreamingMessageRequest.METHOD ->
+                    agentCardHandler.handleJsonRpcStream(read(request, SendStreamingMessageRequest::class.java))
+
+                TaskResubscriptionRequest.METHOD ->
+                    agentCardHandler.handleJsonRpcStream(read(request, TaskResubscriptionRequest::class.java))
+
+                SendMessageRequest.METHOD ->
+                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, SendMessageRequest::class.java)))
+
+                GetTaskRequest.METHOD ->
+                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, GetTaskRequest::class.java)))
+
+                CancelTaskRequest.METHOD ->
+                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, CancelTaskRequest::class.java)))
+
+                // The agent card declares no push notifications and no authenticated extended card
+                SetTaskPushNotificationConfigRequest.METHOD,
+                GetTaskPushNotificationConfigRequest.METHOD,
+                ListTaskPushNotificationConfigRequest.METHOD,
+                DeleteTaskPushNotificationConfigRequest.METHOD -> throw PushNotificationNotSupportedError()
+
+                GetAuthenticatedExtendedCardRequest.METHOD -> throw AuthenticatedExtendedCardNotConfiguredError()
+                else -> throw MethodNotFoundError()
+            }
+        } catch (e: JSONRPCError) {
+            errorResponse(requestId, e)
+        } catch (e: Throwable) {
+            // Throwable, not Exception: errors such as kotlin.NotImplementedError must still get a JSON-RPC response
+            logger.error("Error handling JSON-RPC request: id='{}', error={}", requestId, e.message, e)
+            errorResponse(requestId, InternalError("Internal error: ${e.message}"))
         }
+    }
+
+    private fun readTree(body: String): JsonNode {
+        val request = try {
+            Utils.OBJECT_MAPPER.readTree(body)
+        } catch (e: JsonProcessingException) {
+            throw JSONParseError(e.originalMessage)
+        }
+        if (request == null || !request.isObject) {
+            throw InvalidRequestError("A JSON-RPC request must be a JSON object")
+        }
+        return request
+    }
+
+    private fun idOf(request: JsonNode): Any? {
+        val id = request.get("id")
+        return when {
+            id == null || id.isNull -> null
+            id.isTextual -> id.asText()
+            id.isNumber -> id.numberValue()
+            else -> throw InvalidRequestError("A JSON-RPC id must be a string, a number or null")
+        }
+    }
+
+    private fun <T> read(request: JsonNode, type: Class<T>): T =
+        try {
+            Utils.OBJECT_MAPPER.treeToValue(request, type)
+        } catch (e: JsonProcessingException) {
+            throw InvalidParamsError(e.originalMessage)
+        } catch (e: IllegalArgumentException) {
+            throw InvalidParamsError(e.message)
+        }
+
+    private fun errorResponse(requestId: Any?, error: JSONRPCError): ResponseEntity<String> {
+        logger.warn("Returning JSON-RPC error: id='{}', code={}, message='{}'", requestId, error.code, error.message)
+        return jsonResponse(JSONRPCErrorResponse(requestId, error))
+    }
+
+    private fun jsonResponse(response: JSONRPCResponse<*>): ResponseEntity<String> {
+        val json = Utils.OBJECT_MAPPER.valueToTree<ObjectNode>(response)
+        // JSON-RPC 2.0 requires the id member, null when the request id could not be read
+        if (!json.has("id")) {
+            json.putNull("id")
+        }
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Utils.OBJECT_MAPPER.writeValueAsString(json))
     }
 }
