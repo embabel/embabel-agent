@@ -23,10 +23,13 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
 import javax.annotation.concurrent.ThreadSafe
+import kotlin.concurrent.withLock
 
 /**
- * Handles streaming functionality for A2A messages
+ * Handles streaming functionality for A2A messages.
+ * Task events are recorded whether or not a client is connected, and delivered to every stream subscribed to the task.
  */
 @Service
 @ThreadSafe
@@ -36,6 +39,16 @@ class A2AStreamingHandler(
 ) {
     private val logger = LoggerFactory.getLogger(A2AStreamingHandler::class.java)
     private val activeStreams = ConcurrentHashMap<String, SseEmitter>()
+    private val taskSubscribers = ConcurrentHashMap<String, TaskSubscribers>()
+
+    /**
+     * Publishing an event and replaying the task to a new subscriber both hold [lock],
+     * so a subscriber receives every event once, in order, and the final event before its stream closes.
+     */
+    private class TaskSubscribers {
+        val lock = ReentrantLock()
+        val streamIds = mutableSetOf<String>()
+    }
 
     /**
      * Creates a new SSE stream for the given stream ID
@@ -50,6 +63,9 @@ class A2AStreamingHandler(
         // Register task if taskId is provided
         if (taskId != null && contextId != null) {
             taskStateManager.registerTask(taskId, contextId, streamId)
+            subscribersOf(taskId).let { subscribers ->
+                subscribers.lock.withLock { subscribers.streamIds.add(streamId) }
+            }
         }
 
         emitter.onCompletion {
@@ -76,25 +92,21 @@ class A2AStreamingHandler(
             throw IllegalArgumentException("Task not found: $taskId")
         }
 
-        val taskInfo = taskStateManager.getTaskInfo(taskId)!!
         // Attach the new stream without registering the task again, which would reset its state
         val emitter = createStream(newStreamId)
         taskStateManager.updateStreamId(taskId, newStreamId)
 
-        // Replay all events for this task without recording them again
-        Thread.startVirtualThread {
-            try {
-                taskInfo.events.forEach { event ->
-                    sendStreamEvent(newStreamId, event) // removed  taskId due to flakes
-                }
-
-                // If task is completed, close the stream
-                if (!taskStateManager.isTaskActive(taskId)) {
-                    closeStream(newStreamId)
-                }
-            } catch (e: Exception) {
-                logger.error("Error replaying events for task {}", taskId, e)
-                emitter.completeWithError(e)
+        // Replay without recording again; the emitter buffers events until the response is ready
+        val subscribers = subscribersOf(taskId)
+        subscribers.lock.withLock {
+            taskStateManager.getTaskEvents(taskId).forEach { event ->
+                sendStreamEvent(newStreamId, event)
+            }
+            if (taskStateManager.isTaskActive(taskId)) {
+                subscribers.streamIds.add(newStreamId)
+            } else {
+                closeStream(newStreamId)
+                taskSubscribers.remove(taskId, subscribers)
             }
         }
 
@@ -102,20 +114,38 @@ class A2AStreamingHandler(
     }
 
     /**
-     * Sends a streaming event to the specified stream and records it for the task
+     * Records an event for the task and sends it to the streams subscribed to the task.
+     * The streams are closed once the task is finished.
      */
-    fun sendStreamEvent(streamId: String, event: StreamingEventKind, taskId: String? = null) {
+    fun publishTaskEvent(taskId: String, event: StreamingEventKind) {
+        val subscribers = subscribersOf(taskId)
+        subscribers.lock.withLock {
+            taskStateManager.recordEvent(taskId, event)
+            subscribers.streamIds.retainAll(activeStreams.keys)
+            subscribers.streamIds.forEach { streamId ->
+                sendStreamEvent(streamId, event)
+            }
+            if (!taskStateManager.isTaskActive(taskId)) {
+                subscribers.streamIds.forEach(::closeStream)
+                subscribers.streamIds.clear()
+                taskSubscribers.remove(taskId, subscribers)
+            }
+        }
+    }
+
+    private fun subscribersOf(taskId: String): TaskSubscribers =
+        taskSubscribers.computeIfAbsent(taskId) { TaskSubscribers() }
+
+    /**
+     * Sends a streaming event to the specified stream without recording it
+     */
+    fun sendStreamEvent(streamId: String, event: StreamingEventKind) {
         val emitter = activeStreams[streamId] ?: run {
             logger.warn("No active stream found for streamId: {}", streamId)
             return
         }
 
         try {
-            // Record event in task state manager if taskId is provided
-            taskId?.let { tid ->
-                taskStateManager.recordEvent(tid, event)
-            }
-
             // All events must be wrapped in SendStreamingMessageResponse per A2A protocol
             val response = SendStreamingMessageResponse(
                 "2.0",
