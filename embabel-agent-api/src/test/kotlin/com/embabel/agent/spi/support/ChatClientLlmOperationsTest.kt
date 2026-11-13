@@ -24,6 +24,7 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
@@ -45,6 +46,9 @@ import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
+import com.embabel.common.core.validation.ValidationError
+import com.embabel.common.core.validation.ValidationResult
+import com.embabel.common.core.validation.ValidationSeverity
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.module.kotlin.jacksonObjectMapper
@@ -1358,6 +1362,168 @@ class ChatClientLlmOperationsTest {
     }
 
     @Nested
+    inner class OutputValidation {
+
+        private val totalMustMatchItems = OutputValidator<SummedOrder> { order, _ ->
+            if (order.items.sum() == order.total) {
+                ValidationResult.VALID
+            } else {
+                ValidationResult(
+                    isValid = false,
+                    errors = listOf(
+                        ValidationError(
+                            code = "TOTAL_MISMATCH",
+                            message = "total ${order.total} must equal the sum of items ${order.items.sum()}",
+                            severity = ValidationSeverity.ERROR,
+                        )
+                    ),
+                )
+            }
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        private fun <T> untyped(validator: OutputValidator<T>) = validator as OutputValidator<Any?>
+
+        private fun interaction(vararg validators: OutputValidator<SummedOrder>, validation: Boolean = true) =
+            LlmInteraction(
+                id = InteractionId("id"),
+                llm = LlmOptions(),
+                validation = validation,
+                outputValidators = validators.map { untyped(it) },
+            )
+
+        @Test
+        fun `accepts object that passes validator`() {
+            val valid = SummedOrder(items = listOf(2, 3), total = 5)
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(valid))
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            val created = setup.llmOperations.createObject(
+                messages = listOf(UserMessage("prompt")),
+                interaction = interaction(totalMustMatchItems),
+                outputClass = SummedOrder::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+            assertEquals(valid, created)
+            assertEquals(1, fakeChatModel.promptsPassed.size)
+        }
+
+        @Test
+        fun `corrects object that fails validator and reports error to LLM`() {
+            val invalid = SummedOrder(items = listOf(2, 3), total = 6)
+            val valid = SummedOrder(items = listOf(2, 3), total = 5)
+            val fakeChatModel = FakeChatModel(
+                responses = listOf(
+                    jacksonObjectMapper().writeValueAsString(invalid),
+                    jacksonObjectMapper().writeValueAsString(valid),
+                )
+            )
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            val created = setup.llmOperations.createObject(
+                messages = listOf(UserMessage("prompt")),
+                interaction = interaction(totalMustMatchItems),
+                outputClass = SummedOrder::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+            assertEquals(valid, created)
+            assertTrue(
+                fakeChatModel.promptsPassed[1].toString().contains("total 6 must equal the sum of items 5"),
+                "Retry prompt should contain the validator's error",
+            )
+        }
+
+        @Test
+        fun `throws with validation errors when retry still fails validator`() {
+            val invalid = SummedOrder(items = listOf(2, 3), total = 6)
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(invalid))
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            val e = assertThrows(InvalidLlmReturnTypeException::class.java) {
+                setup.llmOperations.createObject(
+                    messages = listOf(UserMessage("prompt")),
+                    interaction = interaction(totalMustMatchItems),
+                    outputClass = SummedOrder::class.java,
+                    action = SimpleTestAgent.actions.first(),
+                    agentProcess = setup.mockAgentProcess,
+                )
+            }
+            assertEquals(invalid, e.returnedObject)
+            assertTrue(e.constraintViolations.isEmpty())
+            assertEquals(listOf("TOTAL_MISMATCH"), e.validationErrors.map { it.code })
+            assertEquals(2, fakeChatModel.promptsPassed.size)
+        }
+
+        @Test
+        fun `reports JSR-380 violations and validator errors in the same retry`() {
+            val sumRule = OutputValidator<PricedOrder> { order, _ ->
+                if (order.items.sum() == order.total) ValidationResult.VALID
+                else ValidationResult(
+                    isValid = false,
+                    errors = listOf(ValidationError("TOTAL_MISMATCH", "total must equal the sum of items", ValidationSeverity.ERROR)),
+                )
+            }
+            val invalid = PricedOrder(currency = "dollars", items = listOf(1, 1), total = 3)
+            val valid = PricedOrder(currency = "USD", items = listOf(1, 1), total = 2)
+            val fakeChatModel = FakeChatModel(
+                responses = listOf(
+                    jacksonObjectMapper().writeValueAsString(invalid),
+                    jacksonObjectMapper().writeValueAsString(valid),
+                )
+            )
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            val created = setup.llmOperations.createObject(
+                messages = listOf(UserMessage("prompt")),
+                interaction = LlmInteraction(
+                    id = InteractionId("id"),
+                    llm = LlmOptions(),
+                    outputValidators = listOf(untyped(sumRule)),
+                ),
+                outputClass = PricedOrder::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+            assertEquals(valid, created)
+            val retryPrompt = fakeChatModel.promptsPassed[1].toString()
+            assertTrue(retryPrompt.contains("currency must be an ISO code"))
+            assertTrue(retryPrompt.contains("total must equal the sum of items"))
+        }
+
+        @Test
+        fun `passes the agent process blackboard to the validator`() {
+            val valid = SummedOrder(items = listOf(1), total = 1)
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(valid))
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            var seen: Blackboard? = null
+            setup.llmOperations.createObject(
+                messages = listOf(UserMessage("prompt")),
+                interaction = interaction(OutputValidator { _, blackboard ->
+                    seen = blackboard
+                    ValidationResult.VALID
+                }),
+                outputClass = SummedOrder::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+            assertSame(setup.mockAgentProcess, seen)
+        }
+
+        @Test
+        fun `does not run validators if interaction validation is set to false`() {
+            val invalid = SummedOrder(items = listOf(2, 3), total = 6)
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(invalid))
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            val created = setup.llmOperations.createObject(
+                messages = listOf(UserMessage("prompt")),
+                interaction = interaction(totalMustMatchItems, validation = false),
+                outputClass = SummedOrder::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+            assertEquals(invalid, created)
+        }
+    }
+
+    @Nested
     inner class ModelBinding {
 
         @Test
@@ -1380,3 +1546,15 @@ class ChatClientLlmOperationsTest {
     }
 
 }
+
+data class SummedOrder(
+    val items: List<Int>,
+    val total: Int,
+)
+
+data class PricedOrder(
+    @field:Pattern(regexp = "^[A-Z]{3}$", message = "currency must be an ISO code")
+    val currency: String,
+    val items: List<Int>,
+    val total: Int,
+)

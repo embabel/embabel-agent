@@ -30,6 +30,7 @@ import com.embabel.agent.api.tool.agentic.simple.DomainAwareSink
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -78,6 +79,7 @@ internal data class OperationContextDelegate(
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
+    private val outputValidators: List<OutputValidator<Any?>> = emptyList(),
     private val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
     private val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
     private val toolCallInspectors: List<ToolCallInspector> = emptyList(),
@@ -137,6 +139,9 @@ internal data class OperationContextDelegate(
         copy(fieldFilter = this.fieldFilter.and(filter))
 
     override fun withValidation(validation: Boolean): PromptExecutionDelegate = copy(validation = validation)
+
+    override fun withOutputValidator(validator: OutputValidator<Any?>): PromptExecutionDelegate =
+        copy(outputValidators = this.outputValidators + validator)
 
     override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate =
         copy(guardRails = this.guardRails + guards)
@@ -236,6 +241,7 @@ internal data class OperationContextDelegate(
                 toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = toolNotFoundPolicy,
+                outputValidators = outputValidators,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,

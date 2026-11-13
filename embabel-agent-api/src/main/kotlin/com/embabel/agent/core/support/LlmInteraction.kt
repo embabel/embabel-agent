@@ -22,6 +22,7 @@ import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
@@ -32,6 +33,7 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.core.validation.ValidationError
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.validation.ConstraintViolation
@@ -114,6 +116,7 @@ private data class LlmCallImpl(
  * @param tools Tools to use for this interaction
  * @param promptContributors Prompt contributors to use for this interaction
  * @param maxToolIterations Maximum number of tool loop iterations (default 20)
+ * @param outputValidators Programmatic validators applied to created objects when validation is enabled
  */
 data class LlmInteraction(
     val id: InteractionId,
@@ -133,6 +136,7 @@ data class LlmInteraction(
     val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
+    val outputValidators: List<OutputValidator<Any?>> = emptyList(),
 ) : LlmCall {
 
     override val name: String = id.value
@@ -197,9 +201,10 @@ class InvalidLlmReturnFormatException(
  * Thrown the LLM returned an object that fails validation,
  * and although we tried, we could not correct it.
  */
-class InvalidLlmReturnTypeException(
+class InvalidLlmReturnTypeException @JvmOverloads constructor(
     val returnedObject: Any,
     val constraintViolations: Set<ConstraintViolation<*>>,
+    val validationErrors: List<ValidationError> = emptyList(),
 ) : RuntimeException(
-    "Validation errors: ${constraintViolations.joinToString(", ")}",
+    "Validation errors: ${(constraintViolations + validationErrors).joinToString(", ")}",
 )

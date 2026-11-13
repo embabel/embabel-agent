@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.nested.support
 
 import com.embabel.agent.api.common.CreationExample
 import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.chat.Message
 import com.embabel.common.ai.prompt.PromptContributor
 import tools.jackson.databind.ObjectMapper
@@ -59,6 +60,12 @@ internal data class PromptRunnerCreating<T>(
 
     override fun withValidation(
         validation: Boolean
+    ): PromptRunner.Creating<T> {
+        throw UnsupportedOperationException("not implemented")
+    }
+
+    override fun withOutputValidator(
+        validator: OutputValidator<T>,
     ): PromptRunner.Creating<T> {
         throw UnsupportedOperationException("not implemented")
     }

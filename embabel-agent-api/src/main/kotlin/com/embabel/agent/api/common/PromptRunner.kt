@@ -24,6 +24,7 @@ import com.embabel.agent.api.tool.agentic.ToolChaining
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import com.embabel.agent.api.validation.OutputValidator
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -636,6 +637,17 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @return this instance for method chaining
          */
         fun withoutValidation(): Creating<T> = withValidation(false)
+
+        /**
+         * Validate created objects with the given programmatic validator, in addition to
+         * any JSR-380 annotations and previously added validators.
+         * Errors are reported back to the LLM for one corrective retry.
+         * Has no effect if validation is disabled.
+         *
+         * @param validator the validator to apply to created objects
+         * @return this instance for method chaining
+         */
+        fun withOutputValidator(validator: OutputValidator<T>): Creating<T>
 
         /**
          * Create an object of the desired type using the given prompt and LLM options from context
