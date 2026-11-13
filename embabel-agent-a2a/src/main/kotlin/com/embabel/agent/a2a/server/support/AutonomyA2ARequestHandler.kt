@@ -130,7 +130,8 @@ class AutonomyA2ARequestHandler(
             val jSONRPCResponse = request.successResponseWith(result = task)
             logger.info("Handled message send request, response={}", jSONRPCResponse)
             return jSONRPCResponse
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable, not Exception: an Error must still fail the task, or it stays working and its streams stay open
             logger.error("Error handling message send request", e)
             streamingHandler.publishTaskEvent(
                 taskId,
@@ -198,7 +199,7 @@ class AutonomyA2ARequestHandler(
                         .isFinal(true)
                         .build(),
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 logger.error("Streaming error", e)
                 try {
                     streamingHandler.publishTaskEvent(
@@ -270,7 +271,7 @@ class AutonomyA2ARequestHandler(
 
     private fun createFailedTaskStatus(
         params: MessageSendParams,
-        e: Exception,
+        e: Throwable,
     ): TaskStatus = TaskStatus(
         TaskState.FAILED,
         Message.Builder()

@@ -102,6 +102,18 @@ class AutonomyA2ARequestHandlerTest {
         }
 
         @Test
+        fun `returns internal error and fails the task when the agent throws an Error`() {
+            every { autonomy.chooseAndRunAgent(any(), any()) } throws NotImplementedError("not yet")
+
+            val response = handler.handleJsonRpc(sendMessage("task-1", "hello"))
+
+            assertInstanceOf(InternalError::class.java, response.error)
+            assertEquals("req-1", response.id)
+            val task = handler.handleJsonRpc(GetTaskRequest("req-2", TaskQueryParams("task-1"))).result as Task
+            assertEquals(TaskState.FAILED, task.status.state)
+        }
+
+        @Test
         fun `completed task can be read back with tasks get`() {
             every { autonomy.chooseAndRunAgent(any(), any()) } returns execution("done")
             handler.handleJsonRpc(sendMessage("task-1", "hello"))
@@ -144,6 +156,18 @@ class AutonomyA2ARequestHandlerTest {
         fun `resubscriber receives the failure of a running message send task`() {
             blockAgent { throw IllegalStateException("boom") }
             Thread.startVirtualThread { handler.handleJsonRpc(sendMessage("task-1", "hello")) }
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf("failed"), resubscriber.awaitClosed().states())
+        }
+
+        @Test
+        fun `resubscriber receives the failure when the agent throws an Error`() {
+            blockAgent { throw NotImplementedError("not yet") }
+            Thread.startVirtualThread { runCatching { handler.handleJsonRpc(sendMessage("task-1", "hello")) } }
             assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
             val resubscriber = resubscribe(handler, "task-1")
 
@@ -199,6 +223,18 @@ class AutonomyA2ARequestHandlerTest {
             val last = awaitStatusUpdates("task-1").last()
             assertEquals(TaskState.FAILED, last.status.state)
             assertTrue(last.isFinal)
+        }
+
+        @Test
+        fun `task fails and every stream closes when the agent throws an Error`() {
+            blockAgent { throw NotImplementedError("not yet") }
+            val original = startStream(handler, "task-1")
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf("working", "working", "failed"), resubscriber.awaitClosed().states())
+            assertEquals(listOf("working", "working", "failed"), original.awaitClosed().states())
         }
 
         @Test
