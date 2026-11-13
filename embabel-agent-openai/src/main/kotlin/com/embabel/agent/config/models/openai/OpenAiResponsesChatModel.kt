@@ -67,6 +67,12 @@ import java.util.Base64
 import java.util.function.Supplier
 import com.openai.models.responses.Response as OpenAiResponse
 
+/** Options specific to models served through OpenAI's Responses API. */
+object OpenAiResponsesOptions {
+    /** Key used in [OpenAiChatOptions.extraBody] to continue a stored conversation. */
+    const val PREVIOUS_RESPONSE_ID = "previous_response_id"
+}
+
 /**
  * Spring AI [ChatModel] backed by the OpenAI Responses API, which serves the `*-pro` models and
  * carries tool calls for the GPT-5.6 and GPT-6 tiers.
@@ -149,6 +155,7 @@ class OpenAiResponsesChatModel(
             builder.replaceAdditionalHeaders(name, value)
         }
         instructionsOf(prompt)?.let(builder::instructions)
+        previousResponseIdOf(options)?.let(builder::previousResponseId)
         maxOutputTokensOf(options)?.let { builder.maxOutputTokens(it.toLong()) }
         ((options as? OpenAiChatOptions)?.reasoningEffort ?: defaultOptions.reasoningEffort)?.let {
             builder.reasoning(Reasoning.builder().effort(ReasoningEffort.of(it)).build())
@@ -160,6 +167,12 @@ class OpenAiResponsesChatModel(
         // dropped here rather than refused by the endpoint.
         return builder.build()
     }
+
+    private fun previousResponseIdOf(options: ChatOptions?): String? =
+        ((options as? OpenAiChatOptions)?.extraBody?.get(OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID)
+            ?: defaultOptions.extraBody?.get(OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID))
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
 
     /**
      * Since #1857 the provider converters stamp the configured model themselves, so a request built
@@ -389,6 +402,7 @@ class OpenAiResponsesChatModel(
             DefaultUsage(it.inputTokens().toInt(), it.outputTokens().toInt(), it.totalTokens().toInt(), it)
         }
         val metadata = ChatResponseMetadata.builder()
+            .id(response.id())
             .model(modelNameOf(response.model()))
             .usage(usage)
             .build()
