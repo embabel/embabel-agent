@@ -18,6 +18,7 @@ package com.embabel.agent.a2a.server.support
 import com.embabel.agent.a2a.server.AgentCardHandler
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.NullNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.a2a.spec.AgentCard
 import io.a2a.spec.AuthenticatedExtendedCardNotConfiguredError
@@ -139,7 +140,7 @@ private class AgentCardHandlerWebFacade(
      */
     @ResponseBody
     fun handleJsonRpc(@RequestBody body: String): Any {
-        var requestId: Any? = null
+        var requestId: JsonNode? = null
         return try {
             val request = readTree(body)
             requestId = idOf(request)
@@ -157,13 +158,13 @@ private class AgentCardHandlerWebFacade(
                     agentCardHandler.handleJsonRpcStream(read(request, TaskResubscriptionRequest::class.java))
 
                 SendMessageRequest.METHOD ->
-                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, SendMessageRequest::class.java)))
+                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, SendMessageRequest::class.java)), requestId)
 
                 GetTaskRequest.METHOD ->
-                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, GetTaskRequest::class.java)))
+                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, GetTaskRequest::class.java)), requestId)
 
                 CancelTaskRequest.METHOD ->
-                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, CancelTaskRequest::class.java)))
+                    jsonResponse(agentCardHandler.handleJsonRpc(read(request, CancelTaskRequest::class.java)), requestId)
 
                 // The agent card declares no push notifications and no authenticated extended card
                 SetTaskPushNotificationConfigRequest.METHOD,
@@ -183,48 +184,55 @@ private class AgentCardHandlerWebFacade(
         }
     }
 
-    private fun readTree(body: String): JsonNode {
+    private fun readTree(body: String): ObjectNode {
         val request = try {
             Utils.OBJECT_MAPPER.readTree(body)
         } catch (e: JsonProcessingException) {
             throw JSONParseError(e.originalMessage)
         }
-        if (request == null || !request.isObject) {
-            throw InvalidRequestError("A JSON-RPC request must be a JSON object")
-        }
-        return request
+        return request as? ObjectNode ?: throw InvalidRequestError("A JSON-RPC request must be a JSON object")
     }
 
-    private fun idOf(request: JsonNode): Any? {
+    /**
+     * @return the id as sent, or null if the request has none
+     */
+    private fun idOf(request: JsonNode): JsonNode? {
         val id = request.get("id")
         return when {
             id == null || id.isNull -> null
-            id.isTextual -> id.asText()
-            id.isNumber -> id.numberValue()
+            id.isTextual || id.isNumber -> id
             else -> throw InvalidRequestError("A JSON-RPC id must be a string, a number or null")
         }
     }
 
-    private fun <T> read(request: JsonNode, type: Class<T>): T =
+    /**
+     * The A2A SDK reads only string and 32-bit integer ids, so any other number is read as a string,
+     * and a null id as no id. The response is still written with the id as sent.
+     */
+    private fun <T> read(request: ObjectNode, type: Class<T>): T =
         try {
-            Utils.OBJECT_MAPPER.treeToValue(request, type)
+            val id = request.get("id")
+            val readable = when {
+                id == null || id.isTextual || (id.isIntegralNumber && id.canConvertToInt()) -> request
+                id.isNull -> request.deepCopy().without("id")
+                else -> request.deepCopy().put("id", id.asText())
+            }
+            Utils.OBJECT_MAPPER.treeToValue(readable, type)
         } catch (e: JsonProcessingException) {
             throw InvalidParamsError(e.originalMessage)
         } catch (e: IllegalArgumentException) {
             throw InvalidParamsError(e.message)
         }
 
-    private fun errorResponse(requestId: Any?, error: JSONRPCError): ResponseEntity<String> {
+    private fun errorResponse(requestId: JsonNode?, error: JSONRPCError): ResponseEntity<String> {
         logger.warn("Returning JSON-RPC error: id='{}', code={}, message='{}'", requestId, error.code, error.message)
-        return jsonResponse(JSONRPCErrorResponse(requestId, error))
+        return jsonResponse(JSONRPCErrorResponse(null, error), requestId)
     }
 
-    private fun jsonResponse(response: JSONRPCResponse<*>): ResponseEntity<String> {
+    private fun jsonResponse(response: JSONRPCResponse<*>, requestId: JsonNode?): ResponseEntity<String> {
         val json = Utils.OBJECT_MAPPER.valueToTree<ObjectNode>(response)
-        // JSON-RPC 2.0 requires the id member, null when the request id could not be read
-        if (!json.has("id")) {
-            json.putNull("id")
-        }
+        // JSON-RPC 2.0 requires the id member: the id as sent, or null when the request id could not be read
+        json.set<JsonNode>("id", requestId ?: NullNode.instance)
         return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_JSON)
             .body(Utils.OBJECT_MAPPER.writeValueAsString(json))

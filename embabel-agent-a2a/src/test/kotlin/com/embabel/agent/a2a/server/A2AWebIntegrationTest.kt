@@ -536,6 +536,33 @@ class A2AWebIntegrationTest(
         }
 
         @Test
+        fun `should answer with a numeric id beyond 32 bits or with a fraction as sent`() {
+            postJsonRpc(sendMessage("task-wide-id"))
+
+            listOf("1700000000000", "1.5").forEach { id ->
+                val task = responseOf(postJsonRpc("""{"jsonrpc":"2.0","id":$id,"method":"tasks/get","params":{"id":"task-wide-id"}}"""))
+                val unknownTask = responseOf(postJsonRpc("""{"jsonrpc":"2.0","id":$id,"method":"tasks/get","params":{"id":"t"}}"""))
+                val unknownMethod = responseOf(postJsonRpc("""{"jsonrpc":"2.0","id":$id,"method":"tasks/list"}"""))
+
+                assertEquals("completed", task.path("result").path("status").path("state").asString())
+                assertEquals(TaskNotFoundError.DEFAULT_CODE, unknownTask.path("error").path("code").asInt())
+                assertEquals(MethodNotFoundError().code, unknownMethod.path("error").path("code").asInt())
+                listOf(task, unknownTask, unknownMethod).forEach { response ->
+                    assertEquals(id, response.path("id").toString(), "Expected the id as sent: $response")
+                }
+            }
+        }
+
+        @Test
+        fun `should serve a request with a null id like a request without an id`() {
+            listOf(""""id":null,""", "").forEach { id ->
+                val result = postJsonRpc("""{"jsonrpc":"2.0",$id"method":"tasks/get","params":{"id":"t"}}""")
+
+                assertEquals(TaskNotFoundError.DEFAULT_CODE, errorCodeOf(result, null))
+            }
+        }
+
+        @Test
         fun `should return internal error and fail the task when the agent throws an Error`() {
             deployStarNewsFinder { throw NotImplementedError("not yet") }
 
