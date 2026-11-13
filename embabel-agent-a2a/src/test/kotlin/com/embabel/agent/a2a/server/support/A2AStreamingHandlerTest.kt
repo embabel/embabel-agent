@@ -15,13 +15,12 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import com.embabel.common.util.EmbabelObjectMapperHolder
-import io.a2a.spec.Message
-import io.a2a.spec.Task
-import io.a2a.spec.TaskState
-import io.a2a.spec.TaskStatus
-import io.a2a.spec.TaskStatusUpdateEvent
-import io.a2a.spec.TextPart
+import org.a2aproject.sdk.spec.Message
+import org.a2aproject.sdk.spec.Task
+import org.a2aproject.sdk.spec.TaskState
+import org.a2aproject.sdk.spec.TaskStatus
+import org.a2aproject.sdk.spec.TaskStatusUpdateEvent
+import org.a2aproject.sdk.spec.TextPart
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -34,7 +33,7 @@ class A2AStreamingHandlerTest {
     @BeforeEach
     fun setup() {
         taskStateManager = TaskStateManager()
-        streamingHandler = A2AStreamingHandler(EmbabelObjectMapperHolder.createDefault(), taskStateManager)
+        streamingHandler = A2AStreamingHandler(taskStateManager)
     }
 
     @Test
@@ -72,9 +71,9 @@ class A2AStreamingHandlerTest {
     fun `should handle resubscribe to existing task`() {
         // Given - create initial task with events
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val message = Message.Builder()
+        val message = Message.builder()
             .messageId("msg-1")
-            .role(Message.Role.USER)
+            .role(Message.Role.ROLE_USER)
             .parts(listOf(TextPart("Hello")))
             .build()
         taskStateManager.recordEvent("task-1", message)
@@ -96,17 +95,17 @@ class A2AStreamingHandlerTest {
     }
 
     @Test
-    fun `should record events when sending with task ID`() {
+    fun `should record events when publishing for a task`() {
         // Given
         streamingHandler.createStream("stream-1", "task-1", "ctx-1")
-        val statusUpdate = TaskStatusUpdateEvent.Builder()
+        val statusUpdate = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.WORKING))
+            .status(TaskStatus(TaskState.TASK_STATE_WORKING))
             .build()
 
         // When
-        streamingHandler.sendStreamEvent("stream-1", statusUpdate, "task-1")
+        streamingHandler.publishTaskEvent("task-1", statusUpdate)
 
         // Then
         val events = taskStateManager.getTaskEvents("task-1")
@@ -118,9 +117,9 @@ class A2AStreamingHandlerTest {
     fun `should handle send event without task ID`() {
         // Given
         streamingHandler.createStream("stream-1")
-        val message = Message.Builder()
+        val message = Message.builder()
             .messageId("msg-1")
-            .role(Message.Role.USER)
+            .role(Message.Role.ROLE_USER)
             .parts(listOf(TextPart("Hello")))
             .build()
 
@@ -133,9 +132,9 @@ class A2AStreamingHandlerTest {
     @Test
     fun `should handle send event to non-existent stream gracefully`() {
         // Given
-        val message = Message.Builder()
+        val message = Message.builder()
             .messageId("msg-1")
-            .role(Message.Role.USER)
+            .role(Message.Role.ROLE_USER)
             .parts(listOf(TextPart("Hello")))
             .build()
 
@@ -149,10 +148,10 @@ class A2AStreamingHandlerTest {
     fun `should close stream after resubscribing to completed task`() {
         // Given - create completed task
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val completedTask = Task.Builder()
+        val completedTask = Task.builder()
             .id("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.COMPLETED))
+            .status(TaskStatus(TaskState.TASK_STATE_COMPLETED))
             .build()
         taskStateManager.recordEvent("task-1", completedTask)
 
@@ -166,10 +165,10 @@ class A2AStreamingHandlerTest {
     @Test
     fun `resubscribing keeps the state and history of a completed task`() {
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val completedTask = Task.Builder()
+        val completedTask = Task.builder()
             .id("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.COMPLETED))
+            .status(TaskStatus(TaskState.TASK_STATE_COMPLETED))
             .build()
         taskStateManager.recordEvent("task-1", completedTask)
         val completedAt = taskStateManager.getTaskInfo("task-1")!!.completedAt
@@ -177,10 +176,10 @@ class A2AStreamingHandlerTest {
         streamingHandler.resubscribeToTask("task-1", "stream-2")
 
         val taskInfo = taskStateManager.getTaskInfo("task-1")!!
-        assertEquals(TaskState.COMPLETED, taskInfo.currentState)
+        assertEquals(TaskState.TASK_STATE_COMPLETED, taskInfo.currentState)
         assertEquals(completedAt, taskInfo.completedAt)
         assertFalse(taskStateManager.isTaskActive("task-1"))
-        assertEquals(TaskState.COMPLETED, taskStateManager.getTask("task-1")!!.status.state)
+        assertEquals(TaskState.TASK_STATE_COMPLETED, taskStateManager.getTask("task-1")!!.status.state)
         assertTrue(taskInfo.events.contains(completedTask))
         assertEquals("stream-2", taskInfo.streamId)
     }

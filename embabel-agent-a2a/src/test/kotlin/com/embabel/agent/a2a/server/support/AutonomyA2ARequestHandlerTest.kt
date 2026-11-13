@@ -18,40 +18,47 @@ package com.embabel.agent.a2a.server.support
 import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
-import com.embabel.common.util.EmbabelObjectMapperHolder
-import io.a2a.spec.CancelTaskRequest
-import io.a2a.spec.DataPart
-import io.a2a.spec.GetTaskRequest
-import io.a2a.spec.InternalError
-import io.a2a.spec.Message
-import io.a2a.spec.MessageSendParams
-import io.a2a.spec.SendMessageRequest
-import io.a2a.spec.SendStreamingMessageRequest
-import io.a2a.spec.Task
-import io.a2a.spec.TaskIdParams
-import io.a2a.spec.TaskNotCancelableError
-import io.a2a.spec.TaskNotFoundError
-import io.a2a.spec.TaskQueryParams
-import io.a2a.spec.TaskState
-import io.a2a.spec.TaskStatusUpdateEvent
-import io.a2a.spec.TextPart
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.spyk
+import java.time.Duration
+import java.time.Instant
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import org.a2aproject.sdk.jsonrpc.common.wrappers.CancelTaskRequest
+import org.a2aproject.sdk.jsonrpc.common.wrappers.GetTaskRequest
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageRequest
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageRequest
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SubscribeToTaskRequest
+import org.a2aproject.sdk.spec.CancelTaskParams
+import org.a2aproject.sdk.spec.DataPart
+import org.a2aproject.sdk.spec.InternalError
+import org.a2aproject.sdk.spec.Message
+import org.a2aproject.sdk.spec.MessageSendParams
+import org.a2aproject.sdk.spec.Task
+import org.a2aproject.sdk.spec.TaskIdParams
+import org.a2aproject.sdk.spec.TaskNotCancelableError
+import org.a2aproject.sdk.spec.TaskNotFoundError
+import org.a2aproject.sdk.spec.TaskQueryParams
+import org.a2aproject.sdk.spec.TaskState
+import org.a2aproject.sdk.spec.TaskStatusUpdateEvent
+import org.a2aproject.sdk.spec.TextPart
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.time.Duration
-import java.time.Instant
 
 class AutonomyA2ARequestHandlerTest {
 
     private val autonomy = mockk<Autonomy>(relaxed = true)
     private val taskStateManager = TaskStateManager()
-    private val handler = AutonomyA2ARequestHandler(
+    private val handler = handlerWith(taskStateManager)
+
+    private fun handlerWith(taskStateManager: TaskStateManager) = AutonomyA2ARequestHandler(
         autonomy = autonomy,
         agenticEventListener = mockk<AgenticEventListener>(relaxed = true),
-        streamingHandler = A2AStreamingHandler(EmbabelObjectMapperHolder.createDefault(), taskStateManager),
+        streamingHandler = A2AStreamingHandler(taskStateManager),
         taskStateManager = taskStateManager,
     )
 
@@ -73,9 +80,9 @@ class AutonomyA2ARequestHandlerTest {
         fun `accepts a message without text parts`() {
             every { autonomy.chooseAndRunAgent(any(), any()) } returns execution("done")
 
-            val message = Message.Builder()
+            val message = Message.builder()
                 .messageId("msg-1")
-                .role(Message.Role.USER)
+                .role(Message.Role.ROLE_USER)
                 .parts(listOf(DataPart(mapOf("city" to "Sydney"))))
                 .build()
 
@@ -95,6 +102,18 @@ class AutonomyA2ARequestHandlerTest {
         }
 
         @Test
+        fun `returns internal error and fails the task when the agent throws an Error`() {
+            every { autonomy.chooseAndRunAgent(any(), any()) } throws NotImplementedError("not yet")
+
+            val response = handler.handleJsonRpc(sendMessage("task-1", "hello"))
+
+            assertInstanceOf(InternalError::class.java, response.error)
+            assertEquals("req-1", response.id)
+            val task = handler.handleJsonRpc(GetTaskRequest("req-2", TaskQueryParams("task-1"))).result as Task
+            assertEquals(TaskState.TASK_STATE_FAILED, task.status().state())
+        }
+
+        @Test
         fun `completed task can be read back with tasks get`() {
             every { autonomy.chooseAndRunAgent(any(), any()) } returns execution("done")
             handler.handleJsonRpc(sendMessage("task-1", "hello"))
@@ -103,7 +122,7 @@ class AutonomyA2ARequestHandlerTest {
 
             val task = response.result as Task
             assertEquals("task-1", task.id)
-            assertEquals(TaskState.COMPLETED, task.status.state)
+            assertEquals(TaskState.TASK_STATE_COMPLETED, task.status.state)
             assertEquals(1, task.artifacts.size)
         }
 
@@ -114,7 +133,47 @@ class AutonomyA2ARequestHandlerTest {
 
             val response = handler.handleJsonRpc(GetTaskRequest("req-2", TaskQueryParams("task-1")))
 
-            assertEquals(TaskState.FAILED, (response.result as Task).status.state)
+            assertEquals(TaskState.TASK_STATE_FAILED, (response.result as Task).status.state)
+        }
+    }
+
+    @Nested
+    inner class MessageSendResubscribe {
+
+        @Test
+        fun `resubscriber receives the result of a running message send task`() {
+            blockAgent()
+            Thread.startVirtualThread { handler.handleJsonRpc(sendMessage("task-1", "hello")) }
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf(TaskState.TASK_STATE_COMPLETED), resubscriber.awaitClosed().states())
+        }
+
+        @Test
+        fun `resubscriber receives the failure of a running message send task`() {
+            blockAgent { throw IllegalStateException("boom") }
+            Thread.startVirtualThread { handler.handleJsonRpc(sendMessage("task-1", "hello")) }
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf(TaskState.TASK_STATE_FAILED), resubscriber.awaitClosed().states())
+        }
+
+        @Test
+        fun `resubscriber receives the failure when the agent throws an Error`() {
+            blockAgent { throw NotImplementedError("not yet") }
+            Thread.startVirtualThread { runCatching { handler.handleJsonRpc(sendMessage("task-1", "hello")) } }
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf(TaskState.TASK_STATE_FAILED), resubscriber.awaitClosed().states())
         }
     }
 
@@ -138,7 +197,7 @@ class AutonomyA2ARequestHandlerTest {
             every { autonomy.chooseAndRunAgent(any(), any()) } returns execution("done")
             handler.handleJsonRpc(sendMessage("task-1", "hello"))
 
-            val response = handler.handleJsonRpc(CancelTaskRequest("req-2", TaskIdParams("task-1")))
+            val response = handler.handleJsonRpc(CancelTaskRequest("req-2", CancelTaskParams("task-1")))
 
             assertInstanceOf(TaskNotCancelableError::class.java, response.error)
             assertEquals("req-2", response.id)
@@ -146,7 +205,7 @@ class AutonomyA2ARequestHandlerTest {
 
         @Test
         fun `returns task not found for unknown task`() {
-            val response = handler.handleJsonRpc(CancelTaskRequest("req-1", TaskIdParams("unknown")))
+            val response = handler.handleJsonRpc(CancelTaskRequest("req-1", CancelTaskParams("unknown")))
 
             assertInstanceOf(TaskNotFoundError::class.java, response.error)
         }
@@ -162,8 +221,21 @@ class AutonomyA2ARequestHandlerTest {
             handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params("task-1", "hello")))
 
             val last = awaitStatusUpdates("task-1").last()
-            assertEquals(TaskState.FAILED, last.status.state)
+            assertEquals(TaskState.TASK_STATE_FAILED, last.status.state)
             assertTrue(last.isFinal)
+        }
+
+        @Test
+        fun `task fails and every stream closes when the agent throws an Error`() {
+            blockAgent { throw NotImplementedError("not yet") }
+            val original = startStream(handler, "task-1")
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            val expected = listOf(TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_FAILED)
+            assertEquals(expected, resubscriber.awaitClosed().states())
+            assertEquals(expected, original.awaitClosed().states())
         }
 
         @Test
@@ -191,6 +263,80 @@ class AutonomyA2ARequestHandlerTest {
             assertEquals("first\nsecond", intent.captured)
         }
 
+        @Test
+        fun `resubscriber receives the final event when the agent finishes`() {
+            blockAgent()
+            val original = startStream(handler, "task-1")
+            val resubscriber = resubscribe(handler, "task-1")
+
+            finishAgent.countDown()
+
+            assertEquals(listOf(TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_COMPLETED), resubscriber.awaitClosed().states())
+            assertEquals(listOf(TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_COMPLETED), original.awaitClosed().states())
+        }
+
+        @Test
+        fun `resubscriber receives the final event when the agent finishes during the replay`() {
+            val spiedTaskStateManager = spyk(TaskStateManager())
+            val racingHandler = handlerWith(spiedTaskStateManager)
+            blockAgent()
+            startStream(racingHandler, "task-1")
+            val firstCheck = AtomicBoolean(true)
+            every { spiedTaskStateManager.isTaskActive("task-1") } answers {
+                if (firstCheck.getAndSet(false)) {
+                    finishAgent.countDown()
+                    awaitFinalState(spiedTaskStateManager, "task-1", Duration.ofMillis(200))
+                }
+                callOriginal()
+            }
+
+            val resubscriber = resubscribe(racingHandler, "task-1")
+
+            assertEquals(listOf(TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_COMPLETED), resubscriber.awaitClosed().states())
+        }
+
+        @Test
+        fun `task completes and can be replayed when the client disconnects before the agent finishes`() {
+            blockAgent()
+            startStream(handler, "task-1").disconnect()
+
+            finishAgent.countDown()
+
+            assertEquals(TaskState.TASK_STATE_COMPLETED, awaitStatusUpdates("task-1").last().status.state)
+            assertNotNull(taskStateManager.getTaskInfo("task-1")!!.completedAt)
+            assertEquals(listOf(TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_COMPLETED), resubscribe(handler, "task-1").awaitClosed().states())
+        }
+
+        @Test
+        fun `replaying a finished task repeatedly leaves its history and retention unchanged`() {
+            every { autonomy.chooseAndRunAgent(any(), any()) } returns execution("done")
+            handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params("task-1", "hello")))
+            val events = awaitStatusUpdates("task-1")
+            val completedAt = taskStateManager.getTaskInfo("task-1")!!.completedAt
+
+            repeat(2) {
+                assertEquals(listOf(TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_WORKING, TaskState.TASK_STATE_COMPLETED), resubscribe(handler, "task-1").awaitClosed().states())
+            }
+
+            assertEquals(events, statusUpdates("task-1"))
+            assertEquals(completedAt, taskStateManager.getTaskInfo("task-1")!!.completedAt)
+        }
+
+        private fun startStream(handler: AutonomyA2ARequestHandler, taskId: String): SseCapture {
+            val capture = SseCapture(
+                handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params(taskId, "hello")))
+            )
+            assertTrue(agentStarted.await(5, TimeUnit.SECONDS))
+            return capture
+        }
+
+        private fun awaitFinalState(taskStateManager: TaskStateManager, taskId: String, timeout: Duration) {
+            val deadline = Instant.now().plus(timeout)
+            while (taskStateManager.getTaskInfo(taskId)?.currentState?.isFinal != true && Instant.now().isBefore(deadline)) {
+                Thread.sleep(10)
+            }
+        }
+
         private fun statusUpdates(taskId: String): List<TaskStatusUpdateEvent> =
             taskStateManager.getTaskEvents(taskId).filterIsInstance<TaskStatusUpdateEvent>()
 
@@ -204,15 +350,29 @@ class AutonomyA2ARequestHandlerTest {
         }
     }
 
+    private val agentStarted = CountDownLatch(1)
+    private val finishAgent = CountDownLatch(1)
+
+    private fun blockAgent(result: () -> AgentProcessExecution = { execution("done") }) {
+        every { autonomy.chooseAndRunAgent(any(), any()) } answers {
+            agentStarted.countDown()
+            check(finishAgent.await(10, TimeUnit.SECONDS)) { "Agent was not released" }
+            result()
+        }
+    }
+
+    private fun resubscribe(handler: AutonomyA2ARequestHandler, taskId: String) =
+        SseCapture(handler.handleJsonRpcStream(SubscribeToTaskRequest("req-2", TaskIdParams(taskId))))
+
     private fun execution(output: Any): AgentProcessExecution =
         mockk<AgentProcessExecution> { every { this@mockk.output } returns output }
 
     private fun sendMessage(taskId: String, vararg texts: String) = SendMessageRequest("req-1", params(taskId, *texts))
 
     private fun params(taskId: String, vararg texts: String) = MessageSendParams(
-        Message.Builder()
+        Message.builder()
             .messageId("msg-1")
-            .role(Message.Role.USER)
+            .role(Message.Role.ROLE_USER)
             .parts(texts.map { TextPart(it) })
             .taskId(taskId)
             .contextId("ctx-1")

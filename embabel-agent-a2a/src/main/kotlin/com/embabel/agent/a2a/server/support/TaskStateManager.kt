@@ -16,11 +16,11 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.config.A2AConfigurationProperties
-import io.a2a.spec.StreamingEventKind
-import io.a2a.spec.Task
-import io.a2a.spec.TaskState
-import io.a2a.spec.TaskStatus
-import io.a2a.spec.TaskStatusUpdateEvent
+import org.a2aproject.sdk.spec.StreamingEventKind
+import org.a2aproject.sdk.spec.Task
+import org.a2aproject.sdk.spec.TaskState
+import org.a2aproject.sdk.spec.TaskStatus
+import org.a2aproject.sdk.spec.TaskStatusUpdateEvent
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
@@ -63,7 +63,7 @@ class TaskStateManager @JvmOverloads constructor(
         val events: CopyOnWriteArrayList<StreamingEventKind> = CopyOnWriteArrayList(),
         val createdAt: Instant = Instant.now(),
         val completedAt: Instant? = null,
-        val currentState: TaskState = TaskState.WORKING
+        val currentState: TaskState = TaskState.TASK_STATE_WORKING
     )
 
     /**
