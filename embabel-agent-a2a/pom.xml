@@ -111,6 +111,13 @@
             <artifactId>spring-boot-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Embedded server for A2ASdkClientInteropTest, which calls the endpoint over HTTP with the A2A Java SDK client -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
