@@ -12,6 +12,98 @@ A tool instance is an object with methods annotated with Embabel `@LlmTool` or S
 
 `LlmReference` implementations also expose tools, but this is handled internally by the framework.
 
+[[reference.tools.scratch]]
+==== Persistent Scratch Sessions and File Publication
+
+The optional `embabel-agent-sandbox` module provides `ScratchTool` for model-written
+commands in a persistent Docker workspace. Files and installed packages remain
+available across calls to `scratch_run`. Add the module as an application dependency;
+it is version-managed by the Embabel Agent BOM. The application explicitly creates
+the tools and supplies its sandbox configuration and artifact sink.
+
+Register `ScratchPublishTool` with the *same* `ScratchTool` instance to expose
+`scratch_publish`. It exports only the finished files selected by the model,
+including files created by earlier commands. It does not scan the workspace or
+automatically collect `OUTPUT_DIR`.
+
+Build the included scratch image from the repository root before using the example:
+
+[source,shell]
+----
+docker build -t embabel/agent-sandbox:latest ./embabel-agent-sandbox/src/main/docker
+----
+
+Use an image containing the dependencies your commands need. The scratch and
+skills modules ship different image recipes under the same default tag;
+build the recipe appropriate for your application.
+
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.ArtifactSink
+import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.sandbox.ExecutionArtifact
+import com.embabel.agent.sandbox.SandboxConfig
+import com.embabel.agent.sandbox.ScratchPublishTool
+import com.embabel.agent.sandbox.ScratchTool
+import com.embabel.agent.sandbox.docker.ArtifactExportConfig
+import com.embabel.agent.sandbox.docker.DockerSandboxSessionManager
+import java.nio.file.Path
+
+val manager = DockerSandboxSessionManager(
+    artifactExport = ArtifactExportConfig(Path.of("sandbox-exports").toAbsolutePath()),
+)
+val scratch = ScratchTool(
+    sessionManager = manager,
+    config = SandboxConfig(
+        enabled = true,
+        image = ScratchTool.DEFAULT_IMAGE,
+        network = false,
+        propagateEnv = emptyList(),
+    ),
+)
+val publish = Tool.sinkArtifacts(
+    tool = ScratchPublishTool(scratch),
+    clazz = ExecutionArtifact.File::class.java,
+    sink = ArtifactSink { artifact ->
+        val file = artifact as ExecutionArtifact.File
+        // Persist or serve file.path through application-owned storage.
+    },
+)
+// Supply your configured PromptRunner:
+val runnerWithScratch = promptRunner.withTools(scratch, publish)
+----
+
+After creating and checking its deliverables, the model can call `scratch_publish`:
+
+[source,json]
+----
+{"paths":["/workspace/report.pdf","/workspace/data.csv"]}
+----
+
+Use an array even for one file. Successful exports are returned as a list of
+`ExecutionArtifact.File` descriptors in `Tool.Result.WithArtifact`.
+`ArtifactSinkingTool` forwards each matching file to the application sink, while
+the model receives publication text. Partial success retains successful files
+and reports failed paths; retry only those paths.
+
+Publication validates paths and archive entries, rejects links and non-regular
+files, and bounds transfer size and time during the copy. Execution, publication,
+and session lifecycle operations share a lock so a managed command or eviction
+cannot overlap publication. Background processes can still modify files: finish
+all writes before publishing.
+
+Scope the scratch instance to a conversation or job when workspaces must be
+isolated. Close `scratch` and `manager` when that scope ends. Exported files remain
+available after the container closes; the application owns storage, retention,
+download access, and idempotency when interactions are retried.
+
+Use `ScratchTool` when the model must write commands or code and work across
+several executions. Use the <<reference.agent_skills,skill script engines>> when
+running existing scripts packaged with a skill. Their Docker and Podman engines
+create a fresh container per execution and collect outputs from `OUTPUT_DIR`;
+they do not share the scratch session. An application can combine skill
+instructions with scratch tools in the same prompt runner.
+
 ==== In Process Tools: Implementing Tool Instances
 
 Implement one or more methods annotated with `@LlmTool` on a class.

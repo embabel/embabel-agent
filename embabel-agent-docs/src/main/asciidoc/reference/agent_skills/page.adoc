@@ -348,11 +348,35 @@ val loader = DefaultDirectorySkillDefinitionLoader(validateFileReferences = fals
 ----
 ====
 
-==== Current Limitations
+==== Script Execution
 
-Script execution::
-Skills with `scripts/` directories are loaded, but script execution is not yet supported.
-A warning is logged when such skills are loaded.
+Scripts bundled in a skill's `scripts/` directory can be exposed as `ScriptTool`
+instances by configuring a `SkillScriptExecutionEngine`. Script execution is
+disabled by default (`NoOpExecutionEngine`).
+
+[source,kotlin]
+----
+import com.embabel.agent.skills.Skills
+import com.embabel.agent.skills.script.DockerSkillScriptExecutionEngine
+
+val skills = Skills("pdf-skills", "Packaged PDF scripts")
+    .withGitHubUrl("https://github.com/anthropics/skills/tree/main/skills/pdf")
+    .withScriptExecutionEngine(DockerSkillScriptExecutionEngine())
+----
+
+`ScriptTool` accepts arguments, stdin, and input files for an existing packaged
+script; it does not accept model-written source. Docker and Podman skill engines
+run scripts in a fresh container per execution and collect files written to
+`OUTPUT_DIR`. The process engine runs directly on the host and does not provide
+container isolation.
+
+For model-written commands and a workspace that persists across executions, use
+<<reference.tools.scratch,ScratchTool and ScratchPublishTool>> from the optional
+`embabel-agent-sandbox` module. Skills can supply instructions while the scratch
+tools execute model-written code; these are separate execution paths with
+separate workspaces.
+
+==== Current Limitations
 
 allowed-tools field::
 The `allowed-tools` frontmatter field is parsed but not currently enforced.
