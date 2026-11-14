@@ -161,9 +161,14 @@ class TaskStateManager @JvmOverloads constructor(
      * Updates the stream ID for a task (used during resubscription)
      */
     fun updateStreamId(taskId: String, newStreamId: String) {
-        tasks.computeIfPresent(taskId) { _, taskInfo ->
-            logger.info("Updating stream ID for task {} from {} to {}", taskId, taskInfo.streamId, newStreamId)
+        // Log outside computeIfPresent: the lambda runs under the map's bin lock.
+        var oldStreamId: String? = null
+        val updated = tasks.computeIfPresent(taskId) { _, taskInfo ->
+            oldStreamId = taskInfo.streamId
             taskInfo.copy(streamId = newStreamId)
+        }
+        if (updated != null) {
+            logger.debug("Updated stream ID for task {} from {} to {}", taskId, oldStreamId, newStreamId)
         }
     }
 
