@@ -184,4 +184,25 @@ class LlmRetryDecisionConsistencyTest {
         assertThat(LlmRetryDecision.isRateLimit(first)).isFalse()
     }
 
+    /**
+     * Google GenAI reports a rejected penalty as its own exception, which Spring AI wraps in a
+     * plain RuntimeException. Replaying it never succeeds: the field has to be stripped first.
+     */
+    @Test
+    fun `a rejected request parameter is not retried`() {
+        val e = RuntimeException(
+            "Failed to generate content",
+            RuntimeException("400 . Penalty is not enabled for models/gemini-2.5-flash"),
+        )
+        assertThat(retried(e))
+            .describedAs("the same request is rejected again, so it must reach the strip-and-retry")
+            .isFalse()
+    }
+
+    @Test
+    fun `an unclassified runtime failure is still retried`() {
+        val e = RuntimeException("Failed to generate content", RuntimeException("503 . The model is overloaded"))
+        assertThat(retried(e)).isTrue()
+    }
+
 }
