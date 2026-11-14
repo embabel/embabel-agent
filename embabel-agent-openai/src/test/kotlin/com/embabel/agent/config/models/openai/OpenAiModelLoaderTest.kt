@@ -699,9 +699,9 @@ class OpenAiModelLoaderTest {
 
             assertEquals(
                 setOf(
-                    "gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro",
-                    "gpt-5.4", "gpt-5.4-mini",
-                    "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+                    OpenAiModels.GPT_5_PRO, OpenAiModels.GPT_52_PRO, OpenAiModels.GPT_54_PRO, OpenAiModels.GPT_55_PRO,
+                    OpenAiModels.GPT_54, OpenAiModels.GPT_54_MINI,
+                    OpenAiModels.GPT_56_SOL, OpenAiModels.GPT_56_TERRA, OpenAiModels.GPT_56_LUNA,
                     OpenAiModels.GPT_6_ASTRA, OpenAiModels.GPT_61_SOL, OpenAiModels.GPT_61_TERRA, OpenAiModels.GPT_6_SOL, OpenAiModels.GPT_6_LUNA,
                 ),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
