@@ -18,6 +18,7 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.core.hitl.AwaitableResponseException
+import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.hitl.confirm
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -805,7 +806,9 @@ class ToolTest {
 
             val tool = Tool.fromInstance(ConfirmingTools()).first()
 
-            assertThrows<AwaitableResponseException> { tool.call("{}") }
+            val exception = assertThrows<AwaitableResponseException> { tool.call("{}") }
+            val request = exception.awaitable as ConfirmationRequest<*>
+            assertEquals("all records", request.payload)
         }
 
         @Test

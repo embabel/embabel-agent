@@ -63,10 +63,14 @@ internal sealed class MethodTool(
             val result = invokeMethod(args, context)
             convertResult(result)
         } catch (e: Exception) {
+            // Control flow signals must propagate - they are not errors.
+            // Check the exception itself first, so a signal's own cause cannot hide it.
+            if (e is ToolControlFlowSignal) {
+                throw e
+            }
+
             // Unwrap InvocationTargetException to get the actual cause
             val actualCause = e.cause ?: e
-
-            // Control flow signals must propagate - they are not errors
             if (actualCause is ToolControlFlowSignal) {
                 throw actualCause
             }
