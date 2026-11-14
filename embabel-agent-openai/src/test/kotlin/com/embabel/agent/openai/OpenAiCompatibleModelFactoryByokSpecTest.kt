@@ -21,8 +21,11 @@ import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.byok.ByokFactory
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
+import kotlin.reflect.full.memberProperties
+import kotlin.reflect.jvm.isAccessible
 
 class OpenAiCompatibleModelFactoryByokSpecTest {
 
@@ -44,6 +47,16 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
     @Test
     fun `gemini returns ByokFactory`() {
         assertInstanceOf(ByokFactory::class.java, OpenAiCompatibleModelFactory.gemini("key"))
+    }
+
+    @Test
+    fun `gemini validates keys against gemini-3_5-flash-lite, not a model Google shuts down`() {
+        val validationModel = OpenAiCompatibleModelFactory.ByokSpec::class.memberProperties
+            .single { it.name == "validationModel" }
+            .apply { isAccessible = true }
+            .get(OpenAiCompatibleModelFactory.gemini("key"))
+
+        assertEquals(GoogleGenAiModels.GEMINI_3_5_FLASH_LITE, validationModel)
     }
 
     @Test
