@@ -176,6 +176,30 @@ class AnthropicModelFactoryClientLifecycleTest {
     }
 
     @Test
+    fun `closing a service releases both clients exactly once`() {
+        val factory = RecordingFactory()
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as AutoCloseable
+
+        service.close()
+        service.close()
+        factory.close()
+
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `failed validation closes both probe clients`() {
+        val factory = RecordingFactory()
+        every { factory.sync.messages() } throws IllegalStateException("probe failed")
+
+        assertThrows<InvalidApiKeyException> { factory.buildValidated() }
+
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
     fun `createAnthropicClientAsync returns a non-null client`() {
         val factory = object : AnthropicModelFactory(apiKey = "test-key", baseUrl = "https://gateway.example.com") {
             fun async(): AnthropicClientAsync = createAnthropicClientAsync()

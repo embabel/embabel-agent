@@ -39,9 +39,11 @@ import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
+import java.lang.ref.Cleaner
 import java.time.Duration
 import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Builds Anthropic [LlmService] instances from a raw API key.
@@ -91,6 +93,14 @@ open class AnthropicModelFactory(
         const val VALIDATION_MODEL = AnthropicModels.CLAUDE_HAIKU_4_5
 
         private val READ_TIMEOUT: Duration = Duration.ofMillis(600_000)
+        private val cleaner = Cleaner.create()
+        private val cleanupLogger = LoggerFactory.getLogger(AnthropicModelFactory::class.java)
+
+        private fun closeClientSafely(closeClient: Runnable) {
+            runCatching { closeClient.run() }.onFailure {
+                cleanupLogger.warn("Could not close an Anthropic client: {}", it.message)
+            }
+        }
     }
 
     /**
@@ -134,22 +144,41 @@ open class AnthropicModelFactory(
     }
 
     /* Every client this factory built, closed with it: Spring calls [close] when the context shuts down. */
-    private val clients = CopyOnWriteArrayList<() -> Unit>()
+    private val clients = CopyOnWriteArrayList<Runnable>()
 
     /** A sync client, kept to be closed with this factory. */
-    protected fun syncClient(): AnthropicClient = createAnthropicClient().also { c -> clients += { c.close() } }
+    protected fun syncClient(): AnthropicClient = createAnthropicClient().also { c -> clients += Runnable { c.close() } }
 
     /** An async client, kept to be closed with this factory. */
-    protected fun asyncClient(): AnthropicClientAsync = createAnthropicClientAsync().also { c -> clients += { c.close() } }
+    protected fun asyncClient(): AnthropicClientAsync =
+        createAnthropicClientAsync().also { c -> clients += Runnable { c.close() } }
 
     /** Close every client this factory built. */
+    @Synchronized
     override fun close() {
-        clients.forEach { closeClient -> runCatching(closeClient).onFailure { logger.warn("Could not close an Anthropic client: {}", it.message) } }
+        clients.forEach { closeClient -> closeClientSafely(closeClient) }
         clients.clear()
+    }
+
+    private class ClientCleanup(
+        private val sync: AnthropicClient,
+        private val async: AnthropicClientAsync,
+        private val clients: MutableList<Runnable>,
+    ) : Runnable {
+        private val closed = AtomicBoolean()
+
+        override fun run() {
+            if (closed.compareAndSet(false, true)) {
+                closeClientSafely(Runnable { async.close() })
+                closeClientSafely(Runnable { sync.close() })
+                clients.remove(this)
+            }
+        }
     }
 
     /**
      * Builds an [LlmService] for the given Anthropic model.
+     * The returned service owns both SDK clients and can be closed when it is no longer in use.
      *
      * Spring AI 2.0 dropped the spring-retry `RetryTemplate` parameter on the chat model
      * builder. The [retryTemplate] param is kept here so existing call sites compile, but
@@ -166,6 +195,7 @@ open class AnthropicModelFactory(
      * know it for this model.
      */
     @JvmOverloads
+    @Synchronized
     fun build(
         model: String,
         @Suppress("UNUSED_PARAMETER")
@@ -174,15 +204,31 @@ open class AnthropicModelFactory(
         pricingModel: PricingModel? = null,
         knowledgeCutoffDate: LocalDate? = null,
     ): LlmService<*> {
-        val chatModel = AnthropicChatModel.builder()
-            .options(AnthropicChatOptions.builder().model(model).build())
-            .anthropicClient(syncClient())
-            .anthropicClientAsync(asyncClient())
-            .toolCallingManager(
-                ToolCallingManager.builder().observationRegistry(observationRegistry).build()
-            )
-            .observationRegistry(observationRegistry)
-            .build()
+        val sync = createAnthropicClient()
+        val async = try {
+            createAnthropicClientAsync()
+        } catch (failure: Throwable) {
+            closeClientSafely(Runnable { sync.close() })
+            throw failure
+        }
+        val cleanup = ClientCleanup(sync, async, clients)
+        val chatModel = try {
+            AnthropicChatModel.builder()
+                .options(AnthropicChatOptions.builder().model(model).build())
+                .anthropicClient(sync)
+                .anthropicClientAsync(async)
+                .toolCallingManager(
+                    ToolCallingManager.builder().observationRegistry(observationRegistry).build()
+                )
+                .observationRegistry(observationRegistry)
+                .build()
+        } catch (failure: Throwable) {
+            cleanup.run()
+            throw failure
+        }
+        // Senders, streamers and service copies can outlive the original service.
+        val cleanable = cleaner.register(chatModel, cleanup)
+        clients += cleanup
 
         return SpringAiLlmService(
             name = model,
@@ -194,6 +240,7 @@ open class AnthropicModelFactory(
             thinkingSupported = true,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             promptTokensExcludeCache = true,
+            ownedResources = AutoCloseable { cleanable.clean() },
         )
     }
 
@@ -233,7 +280,9 @@ open class AnthropicModelFactory(
         requireUsableApiKey(apiKey)
         val probe = build(model)
         try {
-            probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
+            (probe as AutoCloseable).use {
+                probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
+            }
         } catch (e: Exception) {
             // The message is the text of the provider's exception. The exception itself is passed
             // as the cause, and the HTTP status code of the response as the status code. Nothing

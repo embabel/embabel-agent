@@ -25,6 +25,7 @@ import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -543,6 +544,25 @@ class RoleResolutionTest {
                 }
             }
             assertEquals(listOf("sk-ben", "sk-rod"), built)
+        }
+
+        @Test
+        fun `shutdown closes cached credential services`() {
+            val service = mockk<LlmService<*>>(
+                relaxed = true,
+                moreInterfaces = arrayOf(AutoCloseable::class),
+            )
+            val mp = provider(factories = listOf(CredentialLlmServiceFactory { _, _ -> service }))
+            ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential("anthropic", "sk-test")),
+            ) {
+                assertSame(service, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
+            }
+
+            mp.close()
+            mp.close()
+
+            verify(exactly = 1) { (service as AutoCloseable).close() }
         }
 
         @Test

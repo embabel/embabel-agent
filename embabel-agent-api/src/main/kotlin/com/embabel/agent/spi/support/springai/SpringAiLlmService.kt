@@ -62,6 +62,7 @@ import java.time.LocalDate
  *        Defaults to no-op; Anthropic wires [com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor].
  * @param promptTokensExcludeCache Whether the chat model reports prompt-cache reads and writes
  *        on top of Spring AI's promptTokens (Anthropic) rather than within it (OpenAI).
+ * @param ownedResources Resources owned by the chat model, shared by copies of this service.
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(
@@ -82,7 +83,12 @@ data class SpringAiLlmService @JvmOverloads constructor(
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
     val promptTokensExcludeCache: Boolean = false,
-) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
+    private val ownedResources: AutoCloseable? = null,
+) : LlmService<SpringAiLlmService>, AiModel<ChatModel>, AutoCloseable {
+
+    override fun close() {
+        ownedResources?.close()
+    }
 
     /**
      * The underlying Spring AI ChatModel.

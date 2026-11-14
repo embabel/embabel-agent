@@ -294,6 +294,12 @@ requests. The SDK also retries other failures it treats as temporary, such as a 
 On success it returns a production `LlmService`; on failure it throws `InvalidApiKeyException`.
 The probe and the returned service are built with `llm`, so an OpenAI key gets each catalog model on the transport the catalog declares, GPT-6 included.
 
+Anthropic services built directly or returned by `detectProvider` implement `AutoCloseable`.
+If your application manages one of these services, close it after its last use, including any active streams.
+Copies created with service withers share the same clients.
+The platform closes cached Anthropic credential services on shutdown when you use the BYOK starter's role resolution.
+Clients from evicted Anthropic services are reclaimed once their chat model is unreachable.
+
 A **blank** key is treated as absent and rejected before any network call, also with
 `InvalidApiKeyException`. This matters more than it sounds: Docker Compose passes
 `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}`, so in a container the variable is routinely
