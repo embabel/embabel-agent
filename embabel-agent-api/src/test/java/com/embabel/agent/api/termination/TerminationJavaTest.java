@@ -15,11 +15,13 @@
  */
 package com.embabel.agent.api.termination;
 
+import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.common.TerminationScope;
 import com.embabel.agent.api.common.TerminationSignal;
 import com.embabel.agent.api.tool.TerminateActionException;
 import com.embabel.agent.api.tool.TerminateAgentException;
 import com.embabel.agent.api.tool.TerminationException;
+import com.embabel.agent.api.tool.Tool;
 import com.embabel.agent.api.tool.ToolControlFlowSignal;
 import org.junit.jupiter.api.Test;
 
@@ -94,6 +96,53 @@ class TerminationJavaTest {
             }
         }
         assertEquals(2, caughtCount);
+    }
+
+    static class PrerequisiteTools {
+        @LlmTool(description = "Validate critical prerequisites")
+        public String validatePrerequisites() {
+            throw new TerminateAgentException("Missing required permissions");
+        }
+    }
+
+    static class ServiceTools {
+        @LlmTool(description = "Call an external service")
+        public String callService() {
+            throw new TerminateActionException("Service unavailable");
+        }
+    }
+
+    static class CheckedPrerequisiteTools {
+        @LlmTool(description = "Validate prerequisites after a failed check")
+        public String validatePrerequisites() {
+            var exception = new TerminateAgentException("Missing required permissions");
+            exception.initCause(new IllegalStateException("Token expired"));
+            throw exception;
+        }
+    }
+
+    @Test
+    void terminateAgentExceptionPropagatesFromLlmToolMethod() {
+        var tool = Tool.fromInstance(new PrerequisiteTools()).get(0);
+
+        var exception = assertThrows(TerminateAgentException.class, () -> tool.call("{}"));
+        assertEquals("Missing required permissions", exception.getReason());
+    }
+
+    @Test
+    void terminateActionExceptionPropagatesFromLlmToolMethod() {
+        var tool = Tool.fromInstance(new ServiceTools()).get(0);
+
+        var exception = assertThrows(TerminateActionException.class, () -> tool.call("{}"));
+        assertEquals("Service unavailable", exception.getReason());
+    }
+
+    @Test
+    void terminateAgentExceptionWithACausePropagatesFromLlmToolMethod() {
+        var tool = Tool.fromInstance(new CheckedPrerequisiteTools()).get(0);
+
+        var exception = assertThrows(TerminateAgentException.class, () -> tool.call("{}"));
+        assertEquals("Token expired", exception.getCause().getMessage());
     }
 
     // Note: terminateAgent/terminateAction methods are now on AgentProcess interface.
