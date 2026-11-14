@@ -367,6 +367,8 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
             .temperature(options.temperature)
             .topP(options.topP)
             .topK(options.topK)
+            .presencePenalty(options.presencePenalty)
+            .frequencyPenalty(options.frequencyPenalty)
             .maxOutputTokens(options.maxTokens ?: DEFAULT_MAX_OUTPUT_TOKENS)
             .applyThinking(options.thinking)
             .build()

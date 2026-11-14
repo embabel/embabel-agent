@@ -22,6 +22,7 @@ import com.embabel.agent.core.NonRetryable
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Retryable
 import com.embabel.agent.spi.support.LlmDataBindingProperties
+import com.embabel.agent.spi.support.springai.UnsupportedRequestParameterRetry
 import com.embabel.common.ai.model.TransportFailureDiagnostics
 import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
@@ -88,9 +89,19 @@ internal object LlmRetryDecision {
             is ClassCastException,
                 -> false
 
-            else -> true
+            else -> !isRejectedRequestParameter(t)
         }
     }
+
+    /**
+     * A provider that rejects a request field answers the same way every time, so replaying the
+     * unchanged request only burns the back off. `InstrumentedChatModel` strips the field and
+     * retries once, and it can only do that after this template has let the failure through.
+     * Native SDKs need this: Google GenAI reports `400 . Penalty is not enabled` as its own
+     * `ClientException`, which Spring AI wraps in a plain `RuntimeException`.
+     */
+    private fun isRejectedRequestParameter(t: Throwable): Boolean =
+        UnsupportedRequestParameterRetry.extractUnsupportedParameters(t).isNotEmpty()
 
     /** A [Retryable] or [NonRetryable] marker anywhere in the cause chain overrides every other rule. */
     private fun marker(t: Throwable): Boolean? {
