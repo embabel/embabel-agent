@@ -84,6 +84,8 @@ include::architecture/page.adoc[]
 include::troubleshooting/page.adoc[]
 include::migrating/page.adoc[]
 
+include::upgrading/page.adoc[]
+
 include::api-evolution/page.adoc[]
 
 include::asynch-mode/page.adoc[]
