@@ -367,6 +367,34 @@ class AbstractContainerSkillScriptExecutionEngineTest {
         }
     }
 
+    @Test
+    fun `buildContainerCommand relabels mounts privately for SELinux hosts`() {
+        val root = Files.createTempDirectory("container-command-test-selinux-")
+        val engine = TestContainerEngine(root.toString(), "/work")
+        try {
+            val command = engine.buildContainerCommand(
+                command = listOf("bash", "/script/test.sh"),
+                scriptDir = root.resolve("script"),
+                inputDir = root.resolve("input"),
+                outputDir = root.resolve("output"),
+                launcherFailureFile = root.resolve("output/.embabel-launcher-failed-test"),
+                containerIdFile = root.resolve("container.cid"),
+                containerInstanceName = "test-container",
+            )
+            val mounts = command.zipWithNext().filter { it.first == "-v" }.map { it.second }
+            assertEquals(
+                listOf(
+                    "${root.resolve("script")}:/script:ro,Z",
+                    "${root.resolve("input")}:/input:ro,Z",
+                    "${root.resolve("output")}:/output:rw,Z",
+                ),
+                mounts,
+            )
+        } finally {
+            root.toFile().deleteRecursively()
+        }
+    }
+
     private open class TestContainerEngine(
         root: String,
         workDir: String,
