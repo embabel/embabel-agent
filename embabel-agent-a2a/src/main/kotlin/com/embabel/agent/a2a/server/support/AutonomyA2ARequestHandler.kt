@@ -50,10 +50,12 @@ class AutonomyA2ARequestHandler(
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
 
     override fun handleJsonRpcStream(request: StreamingJSONRPCRequest<*>): SseEmitter {
+        // StreamingJSONRPCRequest is sealed: these are the only streaming requests
         return when (request) {
+            // message/stream: runs an agent and streams the task's events as they happen
             is SendStreamingMessageRequest -> handleMessageStream(request)
+            // tasks/resubscribe: replays an existing task's events, then streams the ones still to come
             is TaskResubscriptionRequest -> handleTaskResubscribe(request)
-            else -> throw UnsupportedOperationException("Method ${request.method} is not supported for streaming")
         }
     }
 
