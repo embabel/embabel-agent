@@ -20,6 +20,8 @@ import com.anthropic.client.AnthropicClientAsync
 import com.anthropic.errors.AnthropicServiceException
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.byok.BLANK_API_KEY_MESSAGE
@@ -30,6 +32,7 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -178,7 +181,7 @@ class AnthropicModelFactoryClientLifecycleTest {
     @Test
     fun `closing a service releases both clients exactly once`() {
         val factory = RecordingFactory()
-        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as AutoCloseable
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_5_5) as AutoCloseable
 
         service.close()
         service.close()
@@ -186,6 +189,45 @@ class AnthropicModelFactoryClientLifecycleTest {
 
         verify(exactly = 1) { factory.sync.close() }
         verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `factory and both service copies share cleanup`() {
+        val factory = RecordingFactory()
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_5_5) as SpringAiLlmService
+        val copy = service.withKnowledgeCutoffDate(LocalDate.of(2026, 1, 1))
+
+        factory.close()
+        copy.close()
+        service.close()
+
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `a service copy can close the shared clients`() {
+        val factory = RecordingFactory()
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_5_5) as SpringAiLlmService
+
+        service.copy().close()
+
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `failed async client construction closes the sync client`() {
+        val sync = mockk<AnthropicClient>(relaxed = true)
+        val factory = object : AnthropicModelFactory(apiKey = "test-key") {
+            override fun createAnthropicClient(): AnthropicClient = sync
+            override fun createAnthropicClientAsync(): AnthropicClientAsync = error("async client failed")
+        }
+
+        assertThrows<IllegalStateException> { factory.build(AnthropicModels.CLAUDE_HAIKU_5_5) }
+        factory.close()
+
+        verify(exactly = 1) { sync.close() }
     }
 
     @Test
@@ -259,7 +301,7 @@ class AnthropicModelFactoryBuildValidatedTest {
     }
 
     @Test
-    fun `buildValidated returns LlmService on 200`() {
+    fun `successful validation closes the probe clients and returns a usable service`() {
         server.createContext("/v1/messages") { exchange ->
             exchange.requestBody.use { it.readBytes() }
             val body = """
@@ -268,7 +310,7 @@ class AnthropicModelFactoryBuildValidatedTest {
                   "type": "message",
                   "role": "assistant",
                   "content": [{"type": "text", "text": "Hi"}],
-                  "model": "${AnthropicModels.CLAUDE_HAIKU_4_5}",
+                  "model": "${AnthropicModelFactory.VALIDATION_MODEL}",
                   "stop_reason": "end_turn",
                   "stop_sequence": null,
                   "usage": {"input_tokens": 5, "output_tokens": 2}
@@ -280,9 +322,27 @@ class AnthropicModelFactoryBuildValidatedTest {
         }
         server.start()
 
-        val service = factory().buildValidated()
-        assertNotNull(service)
-        assertEquals(AnthropicModels.PROVIDER, service.provider)
+        val syncClients = mutableListOf<AnthropicClient>()
+        val asyncClients = mutableListOf<AnthropicClientAsync>()
+        val factory = object : AnthropicModelFactory(apiKey = "test-key", baseUrl = "http://localhost:$port") {
+            override fun createAnthropicClient() =
+                spyk(super.createAnthropicClient()).also(syncClients::add)
+
+            override fun createAnthropicClientAsync() =
+                spyk(super.createAnthropicClientAsync()).also(asyncClients::add)
+        }
+
+        factory.use {
+            val service = it.buildValidated()
+            assertEquals(AnthropicModels.PROVIDER, service.provider)
+            assertEquals(2, syncClients.size)
+            assertEquals(2, asyncClients.size)
+            verify(exactly = 1) { syncClients[0].close() }
+            verify(exactly = 1) { asyncClients[0].close() }
+            verify(exactly = 0) { syncClients[1].close() }
+            verify(exactly = 0) { asyncClients[1].close() }
+            service.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
+        }
     }
 
     @Test

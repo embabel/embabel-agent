@@ -23,7 +23,9 @@ import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -36,8 +38,14 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.core.Ordered
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit.SECONDS
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Roles resolving against whichever provider is active, rather than against a fixed model name.
@@ -564,6 +572,102 @@ class RoleResolutionTest {
 
             verify(exactly = 1) { (service as AutoCloseable).close() }
         }
+
+        @Test
+        fun `concurrent credential builds close the unused service`() {
+            val builds = AtomicInteger()
+            val first = closeableService()
+            val second = closeableService()
+            val firstStarted = CountDownLatch(1)
+            val releaseFirst = CountDownLatch(1)
+            val mp = provider(factories = listOf(CredentialLlmServiceFactory { _, _ ->
+                if (builds.getAndIncrement() == 0) {
+                    firstStarted.countDown()
+                    check(releaseFirst.await(10, SECONDS))
+                    first
+                } else {
+                    second
+                }
+            }))
+            Executors.newSingleThreadExecutor().use { executor ->
+                val pending = executor.submit<LlmService<*>> { resolveCredential(mp, "sk-test") }
+                try {
+                    assertTrue(firstStarted.await(10, SECONDS))
+                    assertSame(second, resolveCredential(mp, "sk-test"))
+                } finally {
+                    releaseFirst.countDown()
+                }
+                assertSame(second, pending.get(10, SECONDS))
+                verify(exactly = 1) { (first as AutoCloseable).close() }
+                verify(exactly = 0) { (second as AutoCloseable).close() }
+            }
+            mp.close()
+        }
+
+        @Test
+        fun `shutdown closes a credential service that finishes building afterward`() {
+            val service = closeableService()
+            val started = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            val mp = provider(factories = listOf(CredentialLlmServiceFactory { _, _ ->
+                started.countDown()
+                check(release.await(10, SECONDS))
+                service
+            }))
+            Executors.newSingleThreadExecutor().use { executor ->
+                val pending = executor.submit<LlmService<*>> { resolveCredential(mp, "sk-test") }
+                try {
+                    assertTrue(started.await(10, SECONDS))
+                    mp.close()
+                } finally {
+                    release.countDown()
+                }
+                val failure = assertThrows<ExecutionException> { pending.get(10, SECONDS) }
+                assertTrue(failure.cause is IllegalStateException)
+                verify(exactly = 1) { (service as AutoCloseable).close() }
+            }
+        }
+
+        @Test
+        fun `a sender can still use its model after the service is evicted`() {
+            val chatModel = mockk<ChatModel>()
+            val cleanup = mockk<Runnable>(relaxed = true)
+            val expected = IllegalStateException("model called")
+            every { chatModel.call(any<Prompt>()) } throws expected
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = "gpt-4.1-mini",
+                    credentialServiceCacheSize = 1,
+                ),
+                factories = listOf(CredentialLlmServiceFactory { credential, _ ->
+                    if (credential.apiKey == "sk-first") {
+                        SpringAiLlmService("claude-haiku-4-5", "anthropic", chatModel)
+                            .also { it.registerChatModelCleanup(cleanup) }
+                    } else {
+                        closeableService()
+                    }
+                }),
+            )
+            val sender = resolveCredential(mp, "sk-first").createMessageSender(LlmOptions())
+            resolveCredential(mp, "sk-second")
+
+            assertSame(expected, assertThrows<IllegalStateException> {
+                sender.call(listOf(UserMessage("Hi")), emptyList())
+            })
+            verify(exactly = 0) { cleanup.run() }
+            mp.close()
+        }
+
+        private fun closeableService(): LlmService<*> =
+            mockk(relaxed = true, moreInterfaces = arrayOf(AutoCloseable::class))
+
+        private fun resolveCredential(mp: ConfigurableModelProvider, key: String): LlmService<*> =
+            ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential("anthropic", key)),
+            ) {
+                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            }
 
         @Test
         fun `the cache is bounded by configuration, and evicted entries rebuild`() {

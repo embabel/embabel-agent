@@ -195,7 +195,7 @@ object StreamingCapabilityDetector {
  * strongly retains every ChatModel ever probed. This keeps identity lookup and lets a
  * per-request BYOK model be collected.
  */
-private class IdentityWeakMap<K : Any, V : Any> {
+internal class IdentityWeakMap<K : Any, V : Any> {
     private val queue = ReferenceQueue<K>()
     private val map = ConcurrentHashMap<Key<K>, V>()
 
