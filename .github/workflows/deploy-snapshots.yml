@@ -57,7 +57,7 @@ jobs:
           - embabel/impromptu
           - embabel/flicker
           - embabel/embabel-agent-rag-graph
-          - embabel/embabel-rag-pgvector
+          - embabel/embabel-agent-rag-store
           - embabel/embabel-chat-store
           - embabel/embabel-air
           - embabel/modernizer
