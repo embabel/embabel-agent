@@ -77,6 +77,19 @@ class OpenAiModelsConfigRoutingTest {
         )
     }
 
+    @Test
+    fun `a model transport can be overridden for application compatibility`() {
+        val properties = OpenAiProperties().apply {
+            apiFormatOverrides = mapOf("gpt-5-pro" to OpenAiApiFormat.CHAT_COMPLETIONS)
+        }
+
+        assertInstanceOf(
+            OpenAiChatModel::class.java,
+            registeredLlms(properties = properties)["proModel"]?.chatModel,
+            "An application must be able to retain streaming when a model supports both transports",
+        )
+    }
+
     /**
      * The transport switch sits next to the converter switch in `createOpenAiLlm`, and both read
      * the same model definition. Keeping this assertion alongside the transport one pins that
@@ -139,6 +152,7 @@ class OpenAiModelsConfigRoutingTest {
     /** Runs the real bean-registration path and returns the LLM services it registered. */
     private fun registeredLlms(
         modelLoader: OpenAiModelLoader = inMemoryLoader(catalog),
+        properties: OpenAiProperties = OpenAiProperties(),
     ): Map<String, SpringAiLlmService> {
         val registered = mutableMapOf<String, Any>()
         val beanFactory = mockk<ConfigurableBeanFactory>()
@@ -153,7 +167,7 @@ class OpenAiModelsConfigRoutingTest {
             envEmbeddingsPath = null,
             observationRegistry = ObjectProviders.empty(),
             restClientBuilder = ObjectProviders.empty(),
-            properties = OpenAiProperties(),
+            properties = properties,
             llmOptionsProperties = LlmOptionsProperties(),
             configurableBeanFactory = beanFactory,
             modelLoader = modelLoader,
