@@ -24,6 +24,13 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- GHSA-xxph-c9ww-hj94: override the Guava versions pulled in by Jinjava and JavaParser. -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>33.7.2-jre</version>
+            </dependency>
+
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-systemone</artifactId>
