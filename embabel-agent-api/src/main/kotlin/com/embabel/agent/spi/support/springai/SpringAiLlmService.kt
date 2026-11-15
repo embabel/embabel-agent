@@ -65,6 +65,8 @@ import java.time.LocalDate
  *        Defaults to no-op; Anthropic wires [com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor].
  * @param promptTokensExcludeCache Whether the chat model reports prompt-cache reads and writes
  *        on top of Spring AI's promptTokens (Anthropic) rather than within it (OpenAI).
+ * @param thinkingTokenReader Reads the thinking a chat model reports apart from its completion. Defaults to
+ *        [SpringAiThinkingTokenReader.NONE]; both Gemini modules wire one.
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(
@@ -85,6 +87,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
     val promptTokensExcludeCache: Boolean = false,
+    val thinkingTokenReader: SpringAiThinkingTokenReader = SpringAiThinkingTokenReader.NONE,
 ) : LlmService<SpringAiLlmService>, AiModel<ChatModel>, AutoCloseable {
 
     companion object {
@@ -128,6 +131,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             nativeSupport = nativeSupport,
             llmMetadata = this,
             promptTokensExcludeCache = promptTokensExcludeCache,
+            thinkingTokenReader = thinkingTokenReader,
         )
     }
 
@@ -137,6 +141,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             chatOptions = convertOptions(options),
             toolResponseContentAdapter = toolResponseContentAdapter,
             promptTokensExcludeCache = promptTokensExcludeCache,
+            thinkingTokenReader = thinkingTokenReader,
         )
     }
 

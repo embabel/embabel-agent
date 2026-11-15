@@ -29,6 +29,7 @@ import com.embabel.agent.config.models.openai.OpenAiResponsesChatModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
+import com.embabel.agent.spi.support.springai.SpringAiThinkingTokenReader
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
@@ -552,6 +553,8 @@ open class OpenAiCompatibleModelFactory(
      * request's `reasoning_effort`. It defaults to OpenAI's own endpoint only, because not every
      * OpenAI-compatible server accepts the field; a provider whose server does - LM Studio, Docker
      * Model Runner - passes true, so a caller can turn a local thinking model's reasoning down.
+     *
+     * [thinkingTokenReader] reads the thinking a provider leaves out of `completion_tokens`, as Gemini does.
      */
     @JvmOverloads
     fun openAiCompatibleLlm(
@@ -563,6 +566,7 @@ open class OpenAiCompatibleModelFactory(
         @Suppress("UNUSED_PARAMETER")
         retryTemplate: RetryTemplate? = null,
         forwardsReasoningEffort: Boolean = provider.equals(OpenAiModels.PROVIDER, ignoreCase = true),
+        thinkingTokenReader: SpringAiThinkingTokenReader = SpringAiThinkingTokenReader.NONE,
     ): LlmService<*> {
         return SpringAiLlmService(
             name = model,
@@ -577,6 +581,7 @@ open class OpenAiCompatibleModelFactory(
             ),
             pricingModel = pricingModel,
             knowledgeCutoffDate = knowledgeCutoffDate,
+            thinkingTokenReader = thinkingTokenReader,
         )
     }
 

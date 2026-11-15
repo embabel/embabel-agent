@@ -56,6 +56,7 @@ internal class SpringAiLlmMessageSender(
     private val nativeSupport: NativeSupport? = null,
     private val llmMetadata: LlmMetadata? = null,
     private val promptTokensExcludeCache: Boolean = false,
+    private val thinkingTokenReader: SpringAiThinkingTokenReader = SpringAiThinkingTokenReader.NONE,
 ) : RequestAwareLlmMessageSender {
 
     private val logger = loggerFor<SpringAiLlmMessageSender>()
@@ -127,7 +128,7 @@ internal class SpringAiLlmMessageSender(
                 "ChatResponse has no generations (model returned no content blocks)")
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
-        val usage = response.metadata?.usage?.toEmbabelUsage(promptTokensExcludeCache)
+        val usage = response.metadata?.usage?.let { it.toEmbabelUsage(promptTokensExcludeCache, thinkingTokenReader.read(it)) }
 
         val thinkingBlocks = nativeThinkingExtractor.extract(response) // [B] reasoning generation
 

@@ -18,6 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.core.Budget
 import com.embabel.agent.core.EarlyTerminationPolicy
+import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.LlmService
@@ -30,10 +31,13 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.time.Duration
+import java.time.Instant
 
 /**
  * Unit tests for parent/child AgentProcess cost and token aggregation.
@@ -223,6 +227,52 @@ class AgentProcessCostAggregationTest {
                 "BUG: parent.usage().totalTokens must include children. " +
                         "Expected 1800, got ${parent.usage().totalTokens}."
             )
+        }
+    }
+
+    /** Thinking, the part of each completion a provider reports as such, adds up like the other tokens. */
+    @Nested
+    inner class ThinkingTokenAggregation {
+
+        private fun family(ownThinking: Int?, vararg childThinking: Int?): SimpleAgentProcess {
+            val services = dummyPlatformServices()
+            val root = SimpleAgentProcess(
+                id = "root", parentId = null,
+                agent = SimpleTestAgent, processOptions = ProcessOptions(),
+                blackboard = InMemoryBlackboard(), platformServices = services,
+                plannerFactory = DefaultPlannerFactory,
+            )
+            root.recordLlmInvocation(
+                LlmInvocation(
+                    mockLlmMetadata("root-llm"),
+                    Usage(10, 20, null, thinkingTokens = ownThinking),
+                    timestamp = Instant.now(),
+                    runningTime = Duration.ZERO,
+                )
+            )
+            services.agentProcessRepository.save(root)
+            childThinking.forEachIndexed { i, thinking ->
+                services.agentProcessRepository.save(
+                    FixedCostAgentProcess(
+                        id = "child-$i", parentId = "root", platformServices = services,
+                        fixedCost = 0.0, fixedUsage = Usage(100, 200, null, thinkingTokens = thinking),
+                    )
+                )
+            }
+            return root
+        }
+
+        @Test
+        fun `parent thinking tokens are its own plus each child's`() {
+            val usage = family(5, 30, null, 70).usage()
+
+            assertEquals(5 + 30 + 70, usage.thinkingTokens)
+            assertEquals(20 + 3 * 200, usage.completionTokens)
+        }
+
+        @Test
+        fun `no thinking anywhere leaves the parent with none`() {
+            assertNull(family(null, null, null).usage().thinkingTokens)
         }
     }
 
