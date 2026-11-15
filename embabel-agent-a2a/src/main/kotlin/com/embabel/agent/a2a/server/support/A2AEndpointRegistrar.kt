@@ -92,14 +92,14 @@ class A2AEndpointRegistrar(
             .methods(RequestMethod.GET)
             .produces(MediaType.APPLICATION_JSON_VALUE)
             .build()
-        val achwf = AgentCardHandlerWebFacade(agentCardHandler)
+        val agentCardHandlerWebFacade = AgentCardHandlerWebFacade(agentCardHandler)
         requestMappingHandlerMapping.registerMapping(
             agentCardGetMapping,
-            achwf,
-            achwf::class.java.getMethod("agentCard", ServletRequest::class.java),
+            agentCardHandlerWebFacade,
+            agentCardHandlerWebFacade::class.java.getMethod("agentCard", ServletRequest::class.java),
         )
 
-        val jsonRpcPostMethod = achwf.javaClass.getMethod(
+        val jsonRpcPostMethod = agentCardHandlerWebFacade.javaClass.getMethod(
             "handleJsonRpc",
             String::class.java,
         )
@@ -110,11 +110,16 @@ class A2AEndpointRegistrar(
             .build()
         requestMappingHandlerMapping.registerMapping(
             jsonRpcPostMapping,
-            achwf,
+            agentCardHandlerWebFacade,
             jsonRpcPostMethod,
         )
     }
 }
+
+/**
+ * Name of the JSON-RPC request and response member that holds the id
+ */
+private const val ID = "id"
 
 private class AgentCardHandlerWebFacade(
     val agentCardHandler: AgentCardHandler,
@@ -145,34 +150,42 @@ private class AgentCardHandlerWebFacade(
             val request = readTree(body)
             requestId = idOf(request)
             if (request.path("jsonrpc").asText() != JSONRPCRequest.JSONRPC_VERSION) {
-                throw InvalidRequestError("The jsonrpc member must be \"${JSONRPCRequest.JSONRPC_VERSION}\"")
+                throw InvalidRequestError("A JSON-RPC request must have \"jsonrpc\": \"${JSONRPCRequest.JSONRPC_VERSION}\"")
             }
             val method = request.get("method")?.takeIf { it.isTextual }?.asText()
-                ?: throw InvalidRequestError("A JSON-RPC request must have a string method")
+                ?: throw InvalidRequestError("A JSON-RPC request must have a string \"method\"")
             logger.info("Received JSON-RPC request: method='{}', id='{}'", method, requestId)
             when (method) {
+                // message/stream: runs an agent and answers with a stream of the task's events
                 SendStreamingMessageRequest.METHOD ->
                     agentCardHandler.handleJsonRpcStream(read(request, SendStreamingMessageRequest::class.java))
 
+                // tasks/resubscribe: answers with a stream of an existing task's events, past and future
                 TaskResubscriptionRequest.METHOD ->
                     agentCardHandler.handleJsonRpcStream(read(request, TaskResubscriptionRequest::class.java))
 
+                // message/send: runs an agent and answers with the finished task
                 SendMessageRequest.METHOD ->
                     jsonResponse(agentCardHandler.handleJsonRpc(read(request, SendMessageRequest::class.java)), requestId)
 
+                // tasks/get: answers with the current state of a task
                 GetTaskRequest.METHOD ->
                     jsonResponse(agentCardHandler.handleJsonRpc(read(request, GetTaskRequest::class.java)), requestId)
 
+                // tasks/cancel: answers whether a task could be canceled
                 CancelTaskRequest.METHOD ->
                     jsonResponse(agentCardHandler.handleJsonRpc(read(request, CancelTaskRequest::class.java)), requestId)
 
-                // The agent card declares no push notifications and no authenticated extended card
+                // tasks/pushNotificationConfig/*: the agent card declares no push notifications
                 SetTaskPushNotificationConfigRequest.METHOD,
                 GetTaskPushNotificationConfigRequest.METHOD,
                 ListTaskPushNotificationConfigRequest.METHOD,
                 DeleteTaskPushNotificationConfigRequest.METHOD -> throw PushNotificationNotSupportedError()
 
+                // agent/getAuthenticatedExtendedCard: the agent card declares no authenticated extended card
                 GetAuthenticatedExtendedCardRequest.METHOD -> throw AuthenticatedExtendedCardNotConfiguredError()
+
+                // Any other method is not an A2A method
                 else -> throw MethodNotFoundError()
             }
         } catch (e: JSONRPCError) {
@@ -197,27 +210,33 @@ private class AgentCardHandlerWebFacade(
      * @return the id as sent, or null if the request has none
      */
     private fun idOf(request: JsonNode): JsonNode? {
-        val id = request.get("id")
+        val id = request.get(ID)
         return when {
             id == null || id.isNull -> null
             id.isTextual || id.isNumber -> id
-            else -> throw InvalidRequestError("A JSON-RPC id must be a string, a number or null")
+            // An object, an array or a boolean
+            else -> throw InvalidRequestError("A JSON-RPC request must have a string, number or null \"id\"")
         }
     }
 
     /**
-     * The A2A SDK reads only string and 32-bit integer ids, so any other number is read as a string,
-     * and a null id as no id. The response is still written with the id as sent.
+     * Reads the request as the given A2A SDK request type.
+     * The SDK reads only string ids and integer ids that fit in an Int, so any other number is read as a string.
+     * The SDK rejects a null id, so a request with a null id is read as a request without an id.
+     * Neither change reaches the client: [jsonResponse] answers with the id as sent.
      */
     private fun <T> read(request: ObjectNode, type: Class<T>): T =
         try {
-            val id = request.get("id")
-            val readable = when {
+            // get returns null when the request has no id member, and a NullNode when the id is JSON null
+            val id = request.get(ID)
+            val sdkReadableRequest = when {
                 id == null || id.isTextual || (id.isIntegralNumber && id.canConvertToInt()) -> request
-                id.isNull -> request.deepCopy().without("id")
-                else -> request.deepCopy().put("id", id.asText())
+                id.isNull -> request.deepCopy().without(ID)
+                else -> request.deepCopy().put(ID, id.asText())
             }
-            Utils.OBJECT_MAPPER.treeToValue(readable, type)
+            // A malformed request fails with one of the two exceptions caught below;
+            // handleJsonRpc answers any other failure with an internal error
+            Utils.OBJECT_MAPPER.treeToValue(sdkReadableRequest, type)
         } catch (e: JsonProcessingException) {
             throw InvalidParamsError(e.originalMessage)
         } catch (e: IllegalArgumentException) {
@@ -232,7 +251,7 @@ private class AgentCardHandlerWebFacade(
     private fun jsonResponse(response: JSONRPCResponse<*>, requestId: JsonNode?): ResponseEntity<String> {
         val json = Utils.OBJECT_MAPPER.valueToTree<ObjectNode>(response)
         // JSON-RPC 2.0 requires the id member: the id as sent, or null when the request id could not be read
-        json.set<JsonNode>("id", requestId ?: NullNode.instance)
+        json.set<JsonNode>(ID, requestId ?: NullNode.instance)
         return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_JSON)
             .body(Utils.OBJECT_MAPPER.writeValueAsString(json))
