@@ -86,7 +86,7 @@ class AutonomyA2ARequestHandlerTest {
 
         @Test
         fun `returns internal error with the request id when the agent fails`() {
-            every { autonomy.chooseAndRunAgent(any(), any()) } throws IllegalStateException("boom")
+            every { autonomy.chooseAndRunAgent(any(), any()) } throws boom()
 
             val response = handler.handleJsonRpc(sendMessage("task-1", "hello"))
 
@@ -109,7 +109,7 @@ class AutonomyA2ARequestHandlerTest {
 
         @Test
         fun `failed task can be read back with tasks get`() {
-            every { autonomy.chooseAndRunAgent(any(), any()) } throws IllegalStateException("boom")
+            every { autonomy.chooseAndRunAgent(any(), any()) } throws boom()
             handler.handleJsonRpc(sendMessage("task-1", "hello"))
 
             val response = handler.handleJsonRpc(GetTaskRequest("req-2", TaskQueryParams("task-1")))
@@ -157,7 +157,7 @@ class AutonomyA2ARequestHandlerTest {
 
         @Test
         fun `error status update is final`() {
-            every { autonomy.chooseAndRunAgent(any(), any()) } throws IllegalStateException("boom")
+            every { autonomy.chooseAndRunAgent(any(), any()) } throws boom()
 
             handler.handleJsonRpcStream(SendStreamingMessageRequest("req-1", params("task-1", "hello")))
 
@@ -203,6 +203,9 @@ class AutonomyA2ARequestHandlerTest {
             return statusUpdates(taskId)
         }
     }
+
+    /** A deliberate agent failure, without stack frames: the handler's ERROR log stays one line. */
+    private fun boom() = IllegalStateException("boom").apply { stackTrace = emptyArray() }
 
     private fun execution(output: Any): AgentProcessExecution =
         mockk<AgentProcessExecution> { every { this@mockk.output } returns output }

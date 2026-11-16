@@ -19,15 +19,18 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.agent.spi.support.streaming.IdentityWeakMap
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
+import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
+import java.lang.ref.Cleaner
 import java.time.LocalDate
 import kotlin.jvm.internal.DefaultConstructorMarker
 
@@ -83,7 +86,24 @@ data class SpringAiLlmService @JvmOverloads constructor(
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
     val promptTokensExcludeCache: Boolean = false,
-) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
+) : LlmService<SpringAiLlmService>, AiModel<ChatModel>, AutoCloseable {
+
+    /**
+     * Registers cleanup for a newly built chat model. The action must not retain the model.
+     * Copies, senders and streamers keep using the same model after the service is discarded.
+     */
+    @ApiStatus.Internal
+    fun registerChatModelCleanup(cleanup: Runnable) {
+        modelCleanups[chatModel] = cleaner.register(chatModel, cleanup)
+    }
+
+    /**
+     * Releases resources registered for this model immediately, including for other service
+     * instances that share it. Call after active calls and streams have finished or been cancelled.
+     */
+    override fun close() {
+        modelCleanups[chatModel]?.clean()
+    }
 
     /**
      * Binary compatibility: the synthetic constructor that Kotlin callers compiled before
@@ -186,6 +206,8 @@ data class SpringAiLlmService @JvmOverloads constructor(
         copy(optionsConverter = converter)
 
     companion object {
+        private val cleaner = Cleaner.create()
+        private val modelCleanups = IdentityWeakMap<ChatModel, Cleaner.Cleanable>()
 
         /**
          * Binary compatibility: the `copy$default` that Kotlin callers compiled before

@@ -114,6 +114,9 @@ fun interface RoleResolver {
  *
  * The platform caches what this returns, per (provider, key, model), so an implementation should
  * build rather than maintain a cache of its own.
+ * Return a service owned by the platform. If it implements [AutoCloseable], the platform closes
+ * it on shutdown while cached, or if a concurrent build wins the cache entry. An evicted service
+ * can still be in use and must manage any resources it holds beyond the cache's lifetime.
  */
 fun interface CredentialLlmServiceFactory {
 

@@ -306,6 +306,28 @@ NOTE: This applies to the BYOK path only. Provider autoconfiguration documents i
 required (see <<reference.environment_setup>>) and still fails at startup when one is missing —
 putting a provider starter on the classpath is a statement that the deployment has that key.
 
+===== Closing Anthropic services
+
+`AnthropicModelFactory.build()` and `buildValidated()` return a service that implements `AutoCloseable`.
+This also applies when `detectProvider` selects Anthropic.
+The factory builds an Embabel `SpringAiLlmService` around a Spring AI `AnthropicChatModel`.
+That chat model uses two Anthropic SDK clients, one for synchronous requests and one for asynchronous requests.
+Closing the service releases both clients immediately.
+Let active calls finish and let streams complete or cancel their subscriptions before closing the service.
+
+A copy such as `service.withKnowledgeCutoffDate(LocalDate.of(2026, 1, 1))` uses the same chat model and clients.
+Closing either service releases the shared clients, so finish using both instances before closing either one.
+
+`buildValidated()` closes its temporary probe service whether the probe succeeds or fails.
+On success, the returned service has its own clients.
+Closing a factory closes the clients it still tracks.
+Spring closes a managed factory on application context shutdown.
+
+With the BYOK starter's role resolution, the platform closes cached credential services on shutdown and closes an unused service if another request already cached one for the same key and model.
+Cache eviction only removes the cached reference. A caller can still use an evicted service, sender, or streamer that holds the chat model.
+Once the chat model is eligible for garbage collection, a cleaner can close its clients.
+This automatic cleanup can happen later.
+
 ===== Auto-detecting the provider
 
 Use this when a user pastes a key without specifying a provider — for example, a sign-up flow

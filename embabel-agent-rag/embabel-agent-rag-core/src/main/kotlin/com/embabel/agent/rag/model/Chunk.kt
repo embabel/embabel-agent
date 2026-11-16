@@ -80,7 +80,20 @@ interface Chunk : Source, HierarchicalContentElement {
             return path
         }
 
-    override val uri: String? get() = metadata["url"] as? String
+    /**
+     * The URL of this chunk's content. It is the first of these that is set:
+     * - `metadata["url"]`, which an application can set itself;
+     * - [ChunkStructure.leafSectionUrl], which the chunker sets when the chunk comes from one leaf section;
+     * - [ChunkStructure.containerSectionUrl], which the chunker sets when the chunk combines several
+     *   leaf sections. When those leaves are direct children of the document, the container is the
+     *   document, so this is the document's URL.
+     *
+     * Returns null when none of them is set.
+     */
+    override val uri: String?
+        get() = metadata["url"] as? String
+            ?: structure.leafSectionUrl
+            ?: structure.containerSectionUrl
 
     override fun embeddableValue(): String = text
 

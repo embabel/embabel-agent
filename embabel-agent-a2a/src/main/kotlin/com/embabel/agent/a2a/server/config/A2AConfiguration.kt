@@ -36,12 +36,12 @@ class A2AConfiguration {
     fun defaultAgentCardHandler(
         agentPlatform: AgentPlatform,
         a2aMessageHandler: AutonomyA2ARequestHandler,
-    ): AgentCardHandler {
-        return EmbabelServerGoalsAgentCardHandler(
-            path = "a2a",
-            agentPlatform = agentPlatform,
-            a2ARequestHandler = a2aMessageHandler,
-            goalFilter = { true },
-        )
-    }
+        properties: A2AConfigurationProperties,
+    ): AgentCardHandler = EmbabelServerGoalsAgentCardHandler(
+        path = "a2a",
+        agentPlatform = agentPlatform,
+        a2ARequestHandler = a2aMessageHandler,
+        goalFilter = { true },
+        preferredTransport = properties.server.preferredTransport,
+    )
 }
