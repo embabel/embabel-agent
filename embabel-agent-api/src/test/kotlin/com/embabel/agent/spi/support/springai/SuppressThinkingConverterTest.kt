@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.converter.BeanOutputConverter
 import tools.jackson.module.kotlin.jacksonObjectMapper
 
@@ -197,6 +198,27 @@ class SuppressThinkingConverterTest {
         }
 
         @Test
+        fun `text before the object is not removed from values`() {
+            val result = converter.convert("""Sure! {"name": "Sure! Rex"}""")
+            // Expected: "Sure! Rex". Before this change "Sure! " was removed everywhere, giving "Rex"
+            assertEquals("Sure! Rex", result.name)
+        }
+
+        @Test
+        fun `a period before the object is not removed from values`() {
+            val result = converter.convert(""".{"name": "Rex Jr."}""")
+            // Expected: "Rex Jr.". Before this change the "." was removed everywhere, giving "Rex Jr"
+            assertEquals("Rex Jr.", result.name)
+        }
+
+        @Test
+        fun `text on both sides of the object is not removed from values`() {
+            val result = converter.convert("""<think>I am thinking</think> {"name": "Sir Rex"}.""")
+            // Expected: "Sir Rex". Before this change the space was removed everywhere, giving "SirRex"
+            assertEquals("Sir Rex", result.name)
+        }
+
+        @Test
         fun `a filtering converter keeps the space in values`() {
             val filtering = SuppressThinkingConverter(
                 FilteringJacksonOutputConverter<Dog>(
@@ -208,6 +230,54 @@ class SuppressThinkingConverterTest {
             val result = filtering.convert("""<think>I am thinking</think> {"name": "Sir Rex"}""")
             // Expected: "Sir Rex", the same as with JacksonOutputConverter
             assertEquals("Sir Rex", result.name)
+        }
+    }
+
+    /**
+     * These run through [FilteringJacksonOutputConverter], the delegate that `ChatClientLlmOperations` wraps.
+     */
+    @Nested
+    inner class WithFilteringConverter {
+
+        private val converter = SuppressThinkingConverter(
+            FilteringJacksonOutputConverter<Dog>(
+                clazz = Dog::class.java,
+                objectMapper = jacksonObjectMapper(),
+                fieldFilter = { true },
+            ),
+        )
+
+        @Test
+        fun `the object is parsed with think blocks, prose and fences around it`() {
+            val rex = """{"name": "Rex"}"""
+            val outputs = listOf(
+                rex,
+                "<think>I am thinking</think>\n$rex",
+                "I am thinking\n$rex",
+                "Based on my research, I found one match.\n\n```json\n$rex\n```",
+                "```\n$rex\n```",
+                "$rex\n\nLet me know if you need anything else.",
+                "```json\n{\n  \"name\": \"Rex\"\n}\n```",
+                "<think>weighing the options</think>\nHere is the answer.\n```json\n$rex\n```\nHope that helps.",
+                "<think>First thinking block</think>\n//THINKING: Second thinking block\n$rex",
+                "<think>a</think>$rex<think>a</think>",
+                "<think>x } y</think>$rex<think>x } y</think>",
+                "<think>a</think>$rex<think>b</think>",
+            )
+            outputs.forEach { output ->
+                assertEquals("Rex", converter.convert(output).name, "LLM output: $output")
+            }
+        }
+
+        @Test
+        fun `output that is already valid is not changed`() {
+            // Expected: "Sir Rex". The trailing space is valid JSON, so nothing is removed
+            assertEquals("Sir Rex", converter.convert("""{"name": "Sir Rex"} """).name)
+        }
+
+        @Test
+        fun `output with no object is a parse error`() {
+            assertThrows<RuntimeException> { converter.convert("I could not find anything relevant.") }
         }
     }
 
@@ -232,6 +302,30 @@ class SuppressThinkingConverterTest {
             // Expected: every copy of the block is removed, as before this change
             assertEquals("Hello  world ", stringWithoutThinkBlocks("Hello <think>a</think> world <think>a</think>"))
             assertEquals("Answer one", stringWithoutThinkBlocks("<think></think>Answer one<think></think>"))
+        }
+
+        @Test
+        fun `block at the end`() {
+            assertEquals("Answer ", stringWithoutThinkBlocks("Answer <think>x</think>"))
+        }
+
+        @Test
+        fun `multi-line block`() {
+            assertEquals("\nAnswer", stringWithoutThinkBlocks("<think>\nline 1\nline 2\n</think>\nAnswer"))
+        }
+
+        @Test
+        fun `unclosed block is left as it is`() {
+            val input = "<think>never closed\nAnswer"
+            assertEquals(input, stringWithoutThinkBlocks(input))
+        }
+
+        @Test
+        fun `text around a JSON object is kept`() {
+            // A String answer is not parsed, so there is no object to extract: only <think> blocks
+            // are removed. "Sure. " and the final "." are part of the answer and stay.
+            val input = """Sure. {"name": "Rex Jr."}."""
+            assertEquals(input, stringWithoutThinkBlocks(input))
         }
 
         @Test
