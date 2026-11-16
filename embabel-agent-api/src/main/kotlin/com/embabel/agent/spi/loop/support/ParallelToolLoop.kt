@@ -188,6 +188,9 @@ internal class ParallelToolLoop(
                 is ParallelToolResult.Success ->
                     addToolResultToHistory(result.toolCall, result.result, result.resultContent, state)
 
+                is ParallelToolResult.ShortCircuited ->
+                    addToolResultToHistory(result.toolCall, result.result, result.resultContent, state)
+
                 is ParallelToolResult.Error ->
                     addToolResultToHistory(result.toolCall, Tool.Result.error(result.message), "Error: ${result.message}", state)
 
@@ -205,7 +208,8 @@ internal class ParallelToolLoop(
         // 5. Check for signal set by tools or transformers
         checkForActionTerminationSignal()
 
-        // 6. Apply injection strategy once (using last successful result's context)
+        // 6. Apply injection strategy once (using last successful result's context).
+        // Short-circuited calls never ran, so they do not count, as in DefaultToolLoop.
         val lastSuccess = results.filterIsInstance<ParallelToolResult.Success>().lastOrNull()
         if (lastSuccess != null) {
             applyInjectionStrategy(lastSuccess.toolCall, lastSuccess.resultContent, state)
@@ -232,7 +236,7 @@ internal class ParallelToolLoop(
         return try {
             when (val disposition = decideToolCall(toolCall, tool, history, iteration)) {
                 is ToolCallDisposition.ShortCircuit ->
-                    ParallelToolResult.Success(toolCall, disposition.result, disposition.result.contentForLlm())
+                    ParallelToolResult.ShortCircuited(toolCall, disposition.result, disposition.result.contentForLlm())
 
                 is ToolCallDisposition.Proceed -> {
                     val (result, resultContent) = executeToolCall(tool, disposition.toolCall)
@@ -280,6 +284,13 @@ internal class ParallelToolLoop(
         abstract val toolCall: ToolCall
 
         data class Success(
+            override val toolCall: ToolCall,
+            val result: Tool.Result,
+            val resultContent: String,
+        ) : ParallelToolResult()
+
+        /** A transformer answered for the tool, so nothing ran. Reaches the history but not the injection strategy. */
+        data class ShortCircuited(
             override val toolCall: ToolCall,
             val result: Tool.Result,
             val resultContent: String,
