@@ -212,7 +212,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     embeddingRoleResolvers: List<EmbeddingRoleResolver> = emptyList(),
     private val credentialEmbeddingServiceFactories: List<CredentialEmbeddingServiceFactory> = emptyList(),
     private val localModelCatalogs: List<LocalModelCatalog> = emptyList(),
-) : ModelProvider {
+) : ModelProvider, AutoCloseable {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
 
@@ -235,6 +235,24 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, LlmService<*>>) =
                 size > properties.credentialServiceCacheSize
         }.let { Collections.synchronizedMap(it) }
+
+    private var credentialLlmServicesClosed = false
+
+    override fun close() {
+        val services = synchronized(credentialLlmServices) {
+            credentialLlmServicesClosed = true
+            credentialLlmServices.values.toList().also { credentialLlmServices.clear() }
+        }
+        services.forEach(::closeCredentialLlmService)
+    }
+
+    private fun closeCredentialLlmService(service: LlmService<*>) {
+        if (service is AutoCloseable) {
+            runCatching { service.close() }.onFailure {
+                logger.warn("Could not close credential LLM service '{}'", service.name, it)
+            }
+        }
+    }
 
     private val configurableEmbeddingRoleResolver =
         ConfigurableEmbeddingRoleResolver(properties) { defaultEmbeddingProviderName() }
@@ -1083,22 +1101,23 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             )
             return null
         }
-        // Read then put rather than computeIfAbsent: building a service can validate the key over
-        // the network, and computeIfAbsent would hold the map's lock for the duration. A race here
-        // costs one redundant build, never a wrong service.
-        //
-        // Concretely. Two requests for the same user arrive together, both resolving "cheapest"
-        // under the same key, and neither finds a cached entry. With computeIfAbsent, the first
-        // holds the map's lock across a network round trip to validate the key, and the second
-        // blocks on it - as does every unrelated lookup for every other user, because it is one
-        // map. Reading first, both build a service, both put, and the second put wins. The key
-        // and model are identical, so the two services are interchangeable; the loser is dropped
-        // and the cost is one wasted validation call.
+        // Build outside the lock because a factory can validate the key over the network.
+        // If another request already cached a service, close the unused build.
         val key = CredentialModelKey.of(credential, model)
-        val llmService = credentialLlmServices[key]
+        val llmService = synchronized(credentialLlmServices) {
+            check(!credentialLlmServicesClosed) { "Credential LLM services are closed" }
+            credentialLlmServices[key]
+        }
             ?: credentialLlmServiceFactories
                 .firstNotNullOfOrNull { it.createLlmService(credential, model) }
-                ?.also { credentialLlmServices[key] = it }
+                ?.let { built ->
+                    val chosen = synchronized(credentialLlmServices) {
+                        if (credentialLlmServicesClosed) null
+                        else credentialLlmServices.getOrPut(key) { built }
+                    }
+                    if (chosen !== built) closeCredentialLlmService(built)
+                    checkNotNull(chosen) { "Credential LLM services are closed" }
+                }
         if (llmService == null) {
             logger.warn(
                 """Nothing built a service for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver for it, and check that the module speaking its wire protocol is on the classpath""",
