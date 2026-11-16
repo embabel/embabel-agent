@@ -1729,3 +1729,53 @@ If no constant carries a description, the annotation has no effect and the bare 
 NOTE: `@EnumAsOneOf` trades the native structured-output path for per-constant descriptions.
 The `oneOf` keyword is rejected by OpenAI strict mode, so Embabel falls back to the prompt-based schema path for any call whose output type contains a `@EnumAsOneOf` field.
 The `@JsonPropertyDescription` text on each constant is still sent to the model through the prompt schema on all providers, including Google GenAI, Anthropic, and OpenAI-compatible endpoints.
+
+`SchemaGeneratorCustomizer` beans (see <<reference.llms.schema-generator-customizer>>) are applied after `@EnumAsOneOf` handling, so a custom definition from them cannot replace the `oneOf` schema of an `@EnumAsOneOf` enum.
+They can still define the schema of any other enum.
+
+[[reference.llms.schema-generator-customizer]]
+===== Customizing the JSON Schema Generator
+
+Embabel generates the JSON Schema for structured output with https://github.com/victools/jsonschema-generator[victools].
+Some types are not described correctly by the default configuration, for example collections and optional values of other JVM languages, or custom value types.
+To change how such a type is described, declare a `SchemaGeneratorCustomizer` bean.
+It receives the victools `SchemaGeneratorConfigBuilder` for every structured-output call, streaming or not, so it can add victools modules, custom definitions or other settings:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Bean
+fun tagsAsArray() = SchemaGeneratorCustomizer { builder ->
+    builder.forTypesInGeneral().withCustomDefinitionProvider(
+        CustomDefinitionProviderV2 { javaType, context ->
+            if (javaType.erasedType == Tags::class.java) {
+                CustomDefinition(context.generatorConfig.createObjectNode().put("type", "array"))
+            } else {
+                null
+            }
+        }
+    )
+}
+----
+
+Java::
++
+[source,java]
+----
+@Bean
+SchemaGeneratorCustomizer tagsAsArray() {
+    return builder -> builder.forTypesInGeneral()
+            .withCustomDefinitionProvider((javaType, context) -> javaType.getErasedType() == Tags.class
+                    ? new CustomDefinition(context.getGeneratorConfig().createObjectNode().put("type", "array"))
+                    : null);
+}
+----
+====
+
+- Customizers are applied in bean order (`@Order`), after Embabel's own configuration, including `@EnumAsOneOf` handling.
+- For custom definitions, victools uses the first provider that returns a definition for a type, so a definition from an earlier customizer takes precedence over one from a later customizer.
+- Native structured output uses the customized schema. In the `DEFAULT` mode, a shape it does not support still falls back to the prompt-based schema, as described under Limitations above.
+- Tool input schemas are not affected.
