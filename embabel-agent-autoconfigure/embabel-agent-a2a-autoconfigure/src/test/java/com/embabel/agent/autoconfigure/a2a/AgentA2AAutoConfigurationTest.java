@@ -24,6 +24,7 @@ import com.embabel.common.util.EmbabelObjectMapperHolder;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.event.AgenticEventListener;
 import com.embabel.agent.core.AgentPlatform;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -58,7 +59,8 @@ class AgentA2AAutoConfigurationTest {
                              mock(Autonomy.class),
                              mock(AgenticEventListener.class),
                              mock(A2AStreamingHandler.class),
-                             mock(TaskStateManager.class)))
+                             mock(TaskStateManager.class),
+                             ObservationRegistry.NOOP))
            .withBean(RequestMappingHandlerMapping.class, () -> mock(RequestMappingHandlerMapping.class))
            .withBean(EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault);
 

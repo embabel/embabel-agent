@@ -236,10 +236,11 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
             // When useWorkdir is false, the workdir is handled by the shell wrapper
             // appended after the image (Podman path).
 
-            // Script, input, and output mounts
-            addAll(listOf("-v", "${scriptDir.absolutePathString()}:/script:ro"))
-            addAll(listOf("-v", "${inputDir.absolutePathString()}:/input:ro"))
-            addAll(listOf("-v", "${outputDir.absolutePathString()}:/output:rw"))
+            // Script, input, and output mounts. Z relabels these per-execution temp dirs
+            // privately so SELinux-enforcing hosts allow access; ignored where SELinux is off.
+            addAll(listOf("-v", "${scriptDir.absolutePathString()}:/script:ro,Z"))
+            addAll(listOf("-v", "${inputDir.absolutePathString()}:/input:ro,Z"))
+            addAll(listOf("-v", "${outputDir.absolutePathString()}:/output:rw,Z"))
 
             // Environment
             for ((key, value) in environment) {

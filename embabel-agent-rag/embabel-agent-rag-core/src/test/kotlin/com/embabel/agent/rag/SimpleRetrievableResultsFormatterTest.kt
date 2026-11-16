@@ -16,6 +16,7 @@
 package com.embabel.agent.rag
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.ChunkStructure
 import com.embabel.agent.rag.model.SimpleNamedEntityData
 import com.embabel.agent.rag.service.SimilarityResults
 import com.embabel.agent.rag.service.SimpleRetrievableResultsFormatter
@@ -64,6 +65,21 @@ class SimpleRetrievableResultsFormatterTest {
         val output = SimpleRetrievableResultsFormatter.formatResults(results)
         assertTrue(output.contains("url: https://example.com/page"))
         assertTrue(output.contains("0.95 - foo"))
+    }
+
+    @Test
+    fun `a chunk with only a leaf section URL shows that URL as its url header`() {
+        val chunk = Chunk(
+            id = "c1",
+            text = "foo",
+            parentId = "section-1",
+            metadata = mapOf(ChunkStructure.LEAF_SECTION_URL to "https://example.com/page#section"),
+        )
+        val results = SimilarityResults.fromList(listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9)))
+
+        val output = SimpleRetrievableResultsFormatter.formatResults(results)
+
+        assertTrue(output.contains("url: https://example.com/page#section"), "Should show the section URL: Have \n$output")
     }
 
     @Test
