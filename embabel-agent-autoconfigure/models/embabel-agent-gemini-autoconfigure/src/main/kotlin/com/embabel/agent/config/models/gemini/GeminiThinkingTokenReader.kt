@@ -19,11 +19,26 @@ import com.embabel.agent.spi.support.springai.SpringAiThinkingTokenReader
 import org.springframework.ai.chat.metadata.Usage
 
 /**
- * Gemini's OpenAI-compatible endpoint leaves thinking out of `completion_tokens` and sends no
- * `reasoning_tokens` detail, but counts it in `total_tokens`. The thinking is what the total holds
- * beyond the prompt and the completion. Should the endpoint start counting thinking in the
- * completion, the gap closes and nothing is counted twice. Built-in Google tools, whose prompt
- * tokens the total would also hold, are not reachable through this endpoint.
+ * Reads Gemini's thinking tokens from its OpenAI-compatible endpoint.
+ *
+ * What the endpoint reports:
+ * - `prompt_tokens`: the input.
+ * - `completion_tokens`: the visible answer only, without the thinking.
+ * - `total_tokens`: input + answer + thinking.
+ * - no `reasoning_tokens` field.
+ *
+ * So the thinking is the gap:
+ *
+ *     thinking = total_tokens - prompt_tokens - completion_tokens
+ *
+ * Example from a real `gemini-3.8-flash` call (`GeminiThinkingCostIT`):
+ * prompt 60, completion 1, total 233, so thinking = 233 - 60 - 1 = 172.
+ *
+ * Safety:
+ * - If the endpoint ever counts thinking in `completion_tokens`, the gap becomes 0,
+ *   so we return `null` and nothing is counted twice.
+ * - Built-in Google tools would also add tokens to the total, but this endpoint
+ *   cannot reach them, so the gap is only thinking.
  */
 object GeminiThinkingTokenReader : SpringAiThinkingTokenReader {
 
