@@ -687,9 +687,9 @@ class OpenAiModelLoaderTest {
         /**
          * Pins the catalog contract the routing depends on: the `*-pro` models, GPT-5.4 and
          * GPT-5.4 Mini, and the GPT-5.6 tiers ask for the Responses API, and every other model keeps
-         * the Chat Completions path it has today. A model added to the wrong bucket is a production
-         * outage — either a 404 on every call, or a working model silently rerouted onto an adapter
-         * it was never exercised against.
+         * the Chat Completions path it has today. A model added to the wrong bucket either returns a
+         * 404 because its endpoint is unsupported or loses transport-specific capabilities such as
+         * streaming when it is routed through the Responses adapter.
          */
         @Test
         fun `shipped catalog routes required models to Responses`() {

@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
@@ -80,7 +81,7 @@ class OpenAiModelsConfigRoutingTest {
     @Test
     fun `a model transport can be overridden for application compatibility`() {
         val properties = OpenAiProperties().apply {
-            apiFormatOverrides = mapOf("gpt-5-pro" to OpenAiApiFormat.CHAT_COMPLETIONS)
+            apiFormatOverrides = mapOf(OpenAiModels.GPT_5_PRO to OpenAiApiFormat.CHAT_COMPLETIONS)
         }
 
         assertInstanceOf(
