@@ -83,9 +83,13 @@ class ThinkingPromptRunnerTest {
             }
 
             // thinking() throws UnsupportedOperationException, as documented for a runner that is not a ThinkingPromptRunner
-            assertThrows<UnsupportedOperationException> {
+            val failure = assertThrows<UnsupportedOperationException> {
                 runner.thinking()
             }
+            // The message names the one check, the type, and not the deprecated supportsThinking()
+            val message = failure.message.orEmpty()
+            assertTrue(message.contains("ThinkingPromptRunner"), message)
+            assertFalse(message.contains("supportsThinking"), message)
         }
 
         @Test
@@ -102,6 +106,19 @@ class ThinkingPromptRunnerTest {
             // The documented check skips it, because it is not a ThinkingPromptRunner.
             // To be found by that check, the runner must implement ThinkingPromptRunner.
             assertFalse(runner is ThinkingPromptRunner)
+        }
+    }
+
+    @Nested
+    inner class SupportsThinkingOnTheRunner {
+
+        @Test
+        fun `is deprecated in favour of checking for ThinkingPromptRunner`() {
+            val deprecated = PromptRunner::class.java.getMethod("supportsThinking").getAnnotation(Deprecated::class.java)
+
+            // The type is the one check, so the method points callers to it
+            requireNotNull(deprecated) { "PromptRunner.supportsThinking() should be deprecated" }
+            assertTrue(deprecated.message.contains("ThinkingPromptRunner"), deprecated.message)
         }
     }
 
@@ -126,6 +143,23 @@ class ThinkingPromptRunnerTest {
             // Being a ThinkingPromptRunner does not override what the selected model reports
             assertFalse(runner.supportsThinking())
             verify { delegate.supportsThinking() }
+        }
+
+        @Test
+        fun `runs thinking even when the selected model reports no thinking support`() {
+            // Providers such as DeepSeek and Mistral report false, yet their models reason.
+            // Extraction is prompt based, so thinking() does not consult supportsThinking().
+            every { delegate.supportsThinking() } returns false
+            val expected = ThinkingResponse(result = "answer", thinkingBlocks = emptyList())
+            every {
+                delegate.createObjectWithThinking(any<List<Message>>(), String::class.java)
+            } returns expected
+            val runner: PromptRunner = DelegatingStreamingPromptRunner(delegate)
+
+            val response = (runner as ThinkingPromptRunner).thinking().createObject("question", String::class.java)
+
+            assertEquals(expected, response)
+            verify(exactly = 0) { delegate.supportsThinking() }
         }
 
         @Test

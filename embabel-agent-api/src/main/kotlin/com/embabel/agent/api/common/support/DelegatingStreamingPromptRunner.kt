@@ -232,6 +232,9 @@ internal data class DelegatingStreamingPromptRunner(
 
     // The model is chosen per call, so ask the delegate what the selected model supports
     // instead of using the ThinkingPromptRunner default of true
+    @Deprecated(
+        message = "Not a gate: thinking() does not consult it. Check `runner is ThinkingPromptRunner` before calling thinking().",
+    )
     override fun supportsThinking(): Boolean =
         delegate.supportsThinking()
 

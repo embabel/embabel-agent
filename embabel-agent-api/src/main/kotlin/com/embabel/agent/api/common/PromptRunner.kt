@@ -451,14 +451,18 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     }
 
     /**
-     * Check if thinking extraction is supported by this runner and the model it uses.
+     * What the provider integration reports about thinking for the selected model.
      *
-     * Thinking extraction returns the blocks of reasoning (like `<think>...</think>`) from an
-     * LLM response together with the result. This default answers false. [ThinkingPromptRunner]
-     * overrides it, and the runner returned by `Ai` answers what the selected model supports.
+     * This is not a gate, and [thinking] does not consult it. Thinking extraction is prompt
+     * based, so it works on any [ThinkingPromptRunner] whatever this returns. The value is set
+     * per provider factory, not per model, so it is false for some models that do reason, such
+     * as DeepSeek's and Mistral's.
      *
-     * @return true if [thinking] can be called, false if thinking is not available
+     * @return what the provider reports, or false for a runner that is not a [ThinkingPromptRunner]
      */
+    @Deprecated(
+        message = "Not a gate: thinking() does not consult it. Check `runner is ThinkingPromptRunner` before calling thinking().",
+    )
     fun supportsThinking(): Boolean = false
 
     /**
@@ -476,7 +480,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
             """
             Thinking not supported by this PromptRunner implementation.
             A runner that supports thinking implements ThinkingPromptRunner. Before calling thinking(),
-            check that the runner is a ThinkingPromptRunner and that supportsThinking() returns true.
+            check that the runner is a ThinkingPromptRunner.
             """.trimIndent()
         )
     }
