@@ -50,8 +50,10 @@ fun interface AwaitDecider {
  * Tool decorator that always requires confirmation before executing the delegate.
  *
  * When called, this tool throws [AwaitableResponseException] with a [ConfirmationRequest].
- * The framework handles the pause, the UX presents the confirmation, and if accepted,
- * the tool is re-invoked (this time the confirmation is already satisfied via blackboard state).
+ * The framework handles the pause and the UX presents the confirmation. This tool does not
+ * itself check for an accepted confirmation, so every call pauses again. If the delegate
+ * should run once the user has confirmed, use
+ * [com.embabel.agent.api.tool.hitl.ConfirmationGuardedTool] instead.
  *
  * @param delegate The tool to wrap
  * @param messageProvider Function to generate the confirmation message from input

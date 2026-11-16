@@ -27,7 +27,7 @@ import org.springframework.core.Ordered
  *   models:
  *     roles:
  *       cheapest:
- *         openai:    { model: gpt-4.1-nano }
+ *         openai:    { model: gpt-6-luna }
  *         anthropic: { model: claude-haiku-4-5, temperature: 0.3 }
  * ```
  *
@@ -96,7 +96,7 @@ class ConfigurableRoleResolver(
      *     roles:
      *       cheapest:
      *         openai:
-     *           model: gpt-4.1-nano
+     *           model: gpt-6-luna
      *         anthropic:
      *           model: claude-haiku-4-5
      *           temperature: 0.0

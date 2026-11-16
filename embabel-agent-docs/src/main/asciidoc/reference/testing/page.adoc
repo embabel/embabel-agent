@@ -876,7 +876,7 @@ These tests are located in the autoconfiguration modules for each LLM provider a
 
 |LLMGeminiGuardRailsIntegrationIT
 |Tests Gemini integration with guardrails, verifying guardrail functionality with structured output for Google's Gemini models
-|Gemini (gemini-2.5-flash)
+|Gemini (gemini-3.8-flash)
 |===
 
 ====== Test Structure

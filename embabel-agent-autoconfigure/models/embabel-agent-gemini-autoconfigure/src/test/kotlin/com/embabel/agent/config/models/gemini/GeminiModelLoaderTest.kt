@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.gemini
 
+import com.embabel.agent.api.models.GeminiModels
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.springframework.core.io.DefaultResourceLoader
@@ -82,7 +83,8 @@ class GeminiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 9 expected Gemini models`() {
+    @Suppress("DEPRECATION")
+    fun `should load all 11 expected Gemini models`() {
         // Arrange
         val loader = GeminiModelLoader()
 
@@ -90,19 +92,23 @@ class GeminiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(9, result.models.size, "Should load exactly 9 Gemini models")
+        assertEquals(11, result.models.size, "Should load exactly 11 Gemini models")
 
-        val expectedModels = listOf(
-            "gemini_3_5_flash", "gemini_3_1_flash_lite",
-            "gemini_3_1_pro_preview", "gemini_3_1_pro_preview_customtools",
-            "gemini_3_1_flash_lite_preview", "gemini_3_flash_preview", "gemini_25_pro", "gemini_25_flash",
-            "gemini_25_flash_lite"
+        val expectedModelIds = listOf(
+            GeminiModels.GEMINI_3_8_FLASH,
+            GeminiModels.GEMINI_3_5_FLASH_LITE,
+            GeminiModels.GEMINI_3_5_FLASH,
+            GeminiModels.GEMINI_3_1_FLASH_LITE,
+            GeminiModels.GEMINI_3_1_PRO_PREVIEW,
+            GeminiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
+            GeminiModels.GEMINI_3_1_FLASH_LITE_PREVIEW,
+            GeminiModels.GEMINI_3_FLASH_PREVIEW,
+            GeminiModels.GEMINI_2_5_PRO,
+            GeminiModels.GEMINI_2_5_FLASH,
+            GeminiModels.GEMINI_2_5_FLASH_LITE,
         )
 
-        expectedModels.forEach { expectedName ->
-            assertTrue(result.models.any { it.name == expectedName },
-                "Should have model: $expectedName")
-        }
+        assertEquals(expectedModelIds.toSet(), result.models.map { it.modelId }.toSet())
     }
 
     @Test

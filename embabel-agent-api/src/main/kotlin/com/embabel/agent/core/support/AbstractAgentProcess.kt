@@ -202,15 +202,8 @@ abstract class AbstractAgentProcess(
      * LLM token usage aggregated across the whole subtree.
      * Nulls from children with no invocations are coerced to 0.
      */
-    override fun usage(): Usage {
-        val own = ownUsage()
-        val children = childProcesses()
-        return Usage(
-            (own.promptTokens ?: 0) + children.sumOf { it.usage().promptTokens ?: 0 },
-            (own.completionTokens ?: 0) + children.sumOf { it.usage().completionTokens ?: 0 },
-            null,
-        )
-    }
+    override fun usage(): Usage =
+        childProcesses().fold(ownUsage()) { total, child -> total + child.usage() }
 
     /**
      * Distinct LLMs used anywhere in the subtree, sorted by name.

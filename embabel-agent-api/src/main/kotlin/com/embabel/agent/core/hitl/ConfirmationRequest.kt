@@ -25,7 +25,7 @@ import java.util.*
  * Request confirmation from the user before promoting
  * an object to the blackboard. Rejection will hold back a flow.
  */
-class ConfirmationRequest<P : Any> @JvmOverloads constructor(
+open class ConfirmationRequest<P : Any> @JvmOverloads constructor(
     payload: P,
     val message: String,
     persistent: Boolean = false,

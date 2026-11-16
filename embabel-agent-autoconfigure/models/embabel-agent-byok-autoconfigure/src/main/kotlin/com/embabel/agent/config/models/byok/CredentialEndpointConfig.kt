@@ -148,7 +148,7 @@ class CredentialEndpointConfig @Autowired constructor(
                     apiKey = credential.apiKey,
                     timeouts = openAiTimeouts.forProvider(it.provider),
                 )
-                    .openAiCompatibleLlm(
+                    .llm(
                         model = model,
                         pricingModel = it.pricingModel,
                         provider = it.provider,

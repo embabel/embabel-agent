@@ -236,6 +236,37 @@ prompt while a thinking budget is active causes Anthropic's API to return a
 `reasoning_extraction` refusal (ToS enforcement). Use native thinking (no tags in prompt) _or_
 prompt-extracted tags (no budget). Both together is not supported.
 
+==== Reasoning Effort
+
+`LlmOptions.withReasoningEffort` sets how hard a reasoning model thinks, with one setting for every provider.
+The levels are `NONE`, `LOW`, `MEDIUM`, `HIGH`, `XHIGH` and `MAX`:
+
+[source,kotlin]
+----
+LlmOptions.withModel("claude-sonnet-5-5").withReasoningEffort(ReasoningEffort.LOW)
+----
+
+Set it for a role in configuration, for example `embabel.models.roles.best.anthropic.reasoning-effort=low`.
+A caller that chooses its own thinking, such as `withoutThinking()` or a token budget, does not inherit the role's effort; a caller's own effort always applies.
+Extraction-only thinking, such as `Thinking.withExtraction()` or `PromptRunner.thinking()`, chooses neither, so it inherits the role's effort.
+So does thinking configured or stored as `enabled: false` with `extract-thinking: true` and no token budget.
+Every `LlmOptions` JSON now includes `"reasoningEffort":null`, so readers that reject unknown JSON properties need this version before reading it.
+To turn thinking off and still extract, add `opt-out: true`.
+
+[cols="1,3"]
+|===
+| Provider | What is sent
+
+| OpenAI
+| `reasoning.effort` on the Responses API. On Chat Completions, `reasoning_effort` is sent only to OpenAI's own endpoint and to compatible providers that opt in. A model rejects a level it does not offer. `withOpenAiReasoningEffort` takes precedence when both are set.
+
+| Anthropic
+| `LOW` to `MAX` as `output_config.effort`, with thinking left at the model's default unless the caller set thinking. The effort takes precedence over the effort a `Thinking.withTokenBudget` budget maps to. Embabel omits effort for models that do not support the parameter; Anthropic rejects a level the model does not offer. See https://platform.claude.com/docs/en/build-with-claude/effort[Anthropic's effort levels]. `NONE` disables thinking on models whose catalog entry declares `thinking.can_be_disabled: true` in `anthropic-models.yml`, and fails with `UnsupportedOperationException` on any other model.
+
+| Others
+| Ignored.
+|===
+
 ==== Provider Notes
 
 Embabel exposes thinking through a provider-neutral API (`PromptRunner.thinking()` /

@@ -95,6 +95,34 @@ class LuceneContentElementPersistenceTest {
     }
 
     @Test
+    fun `a chunk loaded after restart has the stored container section URL as its uri`() {
+        val service1 = LuceneSearchOperations(name = "persist-test", embeddingService = null, indexPath = tempDir)
+        val document = MaterializedDocument(
+            id = "root-1",
+            uri = "test://persistence",
+            title = "Test Document",
+            children = listOf(
+                LeafSection(
+                    id = "leaf-1",
+                    uri = "test://persistence#leaf",
+                    title = "Test Leaf",
+                    text = "Some content for testing persistence",
+                    parentId = "root-1",
+                )
+            ),
+        )
+        val chunkId = service1.writeAndChunkDocument(document).single()
+        service1.close()
+
+        val service2 = LuceneSearchOperations(name = "persist-test", embeddingService = null, indexPath = tempDir)
+        service2.loadExistingChunksFromDisk()
+        val chunk = service2.findById(chunkId) as Chunk
+
+        assertEquals("test://persistence", chunk.uri)
+        service2.close()
+    }
+
+    @Test
     fun `document root should survive restart`() {
         val indexPath = tempDir
 

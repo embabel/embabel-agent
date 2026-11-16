@@ -171,7 +171,7 @@ class CredentialEndpointConfigTest {
             OpenAiModels.PROVIDER to OpenAiModels.GPT_41_MINI,
             DeepSeekModels.PROVIDER to DeepSeekModels.DEEPSEEK_V4_FLASH,
             MistralAiModels.PROVIDER to MistralAiModels.MINISTRAL_8B,
-            GoogleGenAiModels.PROVIDER to GoogleGenAiModels.GEMINI_2_5_FLASH,
+            GoogleGenAiModels.PROVIDER to GoogleGenAiModels.GEMINI_3_5_FLASH_LITE,
             AtlasCloudModels.PROVIDER to AtlasCloudModels.QWEN3_5_FLASH,
         )
         contextRunner.run { context ->

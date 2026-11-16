@@ -69,7 +69,7 @@ data class ConfigurableModelProviderProperties(
      *   models:
      *     roles:
      *       cheapest:
-     *         openai:    { model: gpt-4.1-nano }
+     *         openai:    { model: gpt-6-luna }
      *         anthropic: { model: claude-haiku-4-5 }
      * ```
      *

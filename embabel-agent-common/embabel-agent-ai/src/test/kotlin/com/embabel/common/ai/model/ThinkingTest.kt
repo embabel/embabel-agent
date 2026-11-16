@@ -73,6 +73,12 @@ class ThinkingTest {
             assertFalse(thinking.injectSystemPrompt)
             assertTrue(thinking.extractThinking)
         }
+
+        @Test
+        fun `an opt-out stays an opt-out through extraction and withInjectSystemPrompt`() {
+            assertTrue(Thinking.NONE.applyExtraction().withInjectSystemPrompt(false).disabled)
+            assertFalse(Thinking.withExtraction().withInjectSystemPrompt(false).disabled)
+        }
     }
 
     @Nested
