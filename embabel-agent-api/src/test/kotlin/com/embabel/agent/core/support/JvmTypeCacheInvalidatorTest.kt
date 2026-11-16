@@ -41,6 +41,7 @@ class JvmTypeCacheInvalidatorTest {
         // Populate cache again
         type.children(listOf("com.embabel.agent"))
 
+        // Inspect the backing cache directly because calling children() after shutdown would repopulate it.
         val cache = ReflectionTestUtils.getField(JvmType::class.java, "childrenCache") as Map<*, *>
         assertFalse(cache.isEmpty())
 

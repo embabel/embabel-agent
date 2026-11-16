@@ -70,6 +70,8 @@ class ShellEnvironmentPostProcessorTest {
         logger.setLevel(Level.OFF);
     }
 
+    // Columns: Spring interactive, Embabel interactive, Embabel close, Spring close,
+    // expected interactive, expected close. "null" leaves the corresponding property unset.
     @ParameterizedTest
     @CsvSource(value = {
             "null,null,null,null,true,true",
