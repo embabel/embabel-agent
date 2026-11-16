@@ -7,7 +7,7 @@ It applies to code that implements the model SPI: a custom `LlmService`, a `Role
 These things do not change:
 
 - **YAML configuration.** The keys under `embabel.models`, such as `default-llm`, `default-embedding-model`, `llms`, `roles`, `embedding-services` and `embedding-roles`, have the same names and the same meaning.
-- **Calling code.** `Ai`, `PromptRunner`, `ModelProvider` and `EmbeddingService.embed` have the same methods. Code that only calls them compiles and behaves as before.
+- **Calling code.** `Ai`, `PromptRunner`, `ModelProvider` and `EmbeddingService.embed` have the same methods. Code that only calls them compiles and behaves as before. Code that calls a `ServiceSelector`, such as `ai.decisions().named(...)`, must be recompiled; see <<reference.upgrading.service-selector>>.
 - **`CredentialEndpointResolver`.** A BYOK application that only registers `CredentialEndpointResolver` beans needs no change.
 
 If your application uses none of the types in the table below, there is nothing to migrate.
@@ -243,6 +243,14 @@ val streamer = (service as? StreamingChatCompletion)
 
 Code compiled against 1.5.x that calls `createMessageStreamer` on an `LlmService` fails with `NoSuchMethodError` on 2.0 until it is changed and recompiled.
 Code that streams through `PromptRunner` needs no change.
+
+[[reference.upgrading.service-selector]]
+==== Recompile code that calls `ServiceSelector`
+
+`ServiceSelector`, which `Ai.decisions()` and `Ai.classifications()` return, shipped in 1.5.4.
+Its type parameter is now bounded by `ModelCapability` instead of `ModelMetadata`.
+The source of calling code does not change, but the compiled return type of `defaultService()`, `named(name)` and `byRole(role)` does.
+Code compiled against 1.5.x that calls one of them, such as `ai.decisions().named("fast")`, fails with `NoSuchMethodError` on 2.0 until it is recompiled.
 
 ==== Role resolvers that return a user's key
 

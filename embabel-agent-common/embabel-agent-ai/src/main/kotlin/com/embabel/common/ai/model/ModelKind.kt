@@ -28,9 +28,11 @@ import org.jetbrains.annotations.ApiStatus
  * once as a constant and always refer to that constant. The platform ships two: `LlmService.KIND`
  * for chat and [EmbeddingService.KIND].
  *
- * The platform's model provider selects only those two kinds. A new kind, such as the one below,
- * also needs code that selects models of that kind. Until that exists, a resolver that holds the
- * new kind, or a model platform that builds only new kinds, is reported at startup and never asked.
+ * The platform's model provider selects only those two kinds. To select models of a new kind, such
+ * as the one below, build a [ModelRegistry] with a family for its capability interface
+ * ([ModelRegistry.Builder.family]); no new registry type is needed. The model provider does not
+ * consult that registry, so a resolver that holds the new kind, or a model platform that builds only
+ * new kinds, is reported at startup and never asked.
  *
  * ```kotlin
  * interface RerankingService : ModelCapability {
