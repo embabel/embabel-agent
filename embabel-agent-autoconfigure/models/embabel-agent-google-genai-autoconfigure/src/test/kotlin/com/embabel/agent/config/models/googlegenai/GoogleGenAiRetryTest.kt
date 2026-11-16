@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.googlegenai
 
+import com.google.genai.errors.ClientException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -74,6 +75,22 @@ class GoogleGenAiRetryTest {
         assertEquals(
             1, attemptsBeforeGivingUp(NonTransientAiException("400 - Invalid model: no-such-model")),
             "a 400 is deterministic, so it must fail on the first attempt",
+        )
+    }
+
+    /**
+     * Gemini rejects the penalties with a 400 that Spring AI wraps in a plain RuntimeException.
+     * Replaying it would spend every attempt before `InstrumentedChatModel` can strip them.
+     */
+    @Test
+    fun `a rejected penalty is not retried`() {
+        val rejection = RuntimeException(
+            "Failed to generate content",
+            ClientException(400, "", "Penalty is not enabled for models/gemini-2.5-flash"),
+        )
+        assertEquals(
+            1, attemptsBeforeGivingUp(rejection),
+            "the same request is rejected again, so it must fail on the first attempt",
         )
     }
 }

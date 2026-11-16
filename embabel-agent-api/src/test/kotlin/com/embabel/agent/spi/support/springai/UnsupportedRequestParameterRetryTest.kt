@@ -59,6 +59,13 @@ class UnsupportedRequestParameterRetryTest {
         }
 
         @Test
+        fun `maps Gemini Penalty is not enabled to both penalty fields`() {
+            val error = RuntimeException("400 . Penalty is not enabled for models/gemini-2.5-flash")
+            assertThat(UnsupportedRequestParameterRetry.extractUnsupportedParameters(error))
+                .containsExactly("presencePenalty", "frequencyPenalty")
+        }
+
+        @Test
         fun `returns null for unrelated errors`() {
             val param = UnsupportedRequestParameterRetry.extractUnsupportedParameter(
                 RuntimeException("rate limit exceeded")
