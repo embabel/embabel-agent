@@ -165,6 +165,13 @@ container. Finish all writes before publishing: background processes are not
 frozen, and path checks plus transfer do not form a filesystem snapshot. Publication
 is not a new access boundary within a container already accessible to model code.
 
+`copyTo` accepts a file destination or an existing directory. Directory sources
+copy their contents into the destination. Relative container paths resolve from
+the container root, as with `docker cp`. Copies have a shared 30-second budget
+for lock waiting, directory creation, transfer, and output draining. A failed
+directory creation stops the copy and reports the Docker error. Container startup
+reads pull progress from stderr separately from the container ID on stdout.
+
 ## Application scope and capacity
 
 Use a scratch tool/session per conversation or job when workspaces must be isolated.
@@ -175,6 +182,17 @@ marked as truncated while the pipes continue draining. `captureOutput=false`
 returns empty streams while still delivering stdout callbacks. Callback delivery
 uses a 64-line queue; if a callback cannot keep up or one line exceeds 65,536
 characters, execution fails or times out rather than retaining unbounded lines.
+These output and callback bounds also apply to `DockerExecutor` and `ProcessExecutor`.
+`SandboxConfig.createExecutor()` applies `runtimeEnv` and `extraHosts` to Docker.
+Runtime environment values override propagated and mapped host values, and
+request environment values override runtime values. Closed sessions release
+capacity on the next creation; paused sessions continue counting against limits.
+
+Scratch command timeouts return `Tool.Result.Error` with a reminder to check for
+side effects before retrying. The native tool loop sends this error back to the
+model. The Spring AI adapter raises `ToolExecutionException`, so application retry
+policies may retry the interaction. An error result does not guarantee rollback
+or termination of the command inside the container.
 
 Saving artifacts is a side effect that happens before the final model response.
 If an application retries the whole interaction, files can be published again.
@@ -194,10 +212,16 @@ mvn -pl embabel-agent-sandbox -am -Dtest='com.embabel.agent.sandbox.**' -Dsurefi
 
 `ScratchToolTest` uses `ScratchTool.DEFAULT_IMAGE` (`embabel/agent-sandbox:latest`)
 for its Python, Node.js, Java, SQLite, and Graphviz checks.
-Session lifecycle, file-publication, and I/O integration tests use `alpine:latest`.
+Most session lifecycle, file-publication, and I/O integration tests use `alpine:latest`.
+The relative-path copy test also uses the scratch image to exercise its non-root working directory.
 
 `DockerArtifactExporterTest`, `ArtifactTransferTest`, `ScratchPublishToolTest`, and
 `ScratchToolArtifactTest` run without Docker. `DockerArtifactPublishTest` and
 `DockerSessionIoTest` cover real selected-file transfer, lifecycle coordination,
 and large-input/output regressions; they skip when Docker or the test image is
 unavailable. Host process tests and one session-timeout test have Windows exclusions.
+`DockerExecutorTest` checks stdin, output capture, environment precedence, and
+extra hosts. `DockerSessionCopyTest` covers file and directory destinations,
+transfer deadlines, interruption, and session reuse after failure.
+`ProcessExecutionTest` exercises process I/O on Windows as well as Unix systems.
+`DockerSandboxSessionStartTest` checks startup diagnostics without a Docker daemon.

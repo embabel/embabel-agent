@@ -97,6 +97,17 @@ isolated. Close `scratch` and `manager` when that scope ends. Exported files rem
 available after the container closes; the application owns storage, retention,
 download access, and idempotency when interactions are retried.
 
+Command timeouts return `Tool.Result.Error`. A timeout does not guarantee that
+the command stopped inside the container or that it produced no files: check the
+workspace before retrying. The native tool loop returns the error to the model;
+the Spring AI adapter raises `ToolExecutionException`, which application retry
+policies may handle differently.
+
+Stdout and stderr capture are each limited to 1,048,576 characters, with a
+truncation marker when exceeded. Disabling capture still drains output and
+delivers stdout callbacks. These bounds apply to persistent sessions,
+`DockerExecutor`, and `ProcessExecutor`.
+
 Use `ScratchTool` when the model must write commands or code and work across
 several executions. Use the <<reference.agent_skills,skill script engines>> when
 running existing scripts packaged with a skill. Their Docker and Podman engines

@@ -68,10 +68,10 @@ data class SandboxConfig(
      */
     val mapEnv: Map<String, String> = emptyMap(),
     /**
-     * Per-session runtime environment values, injected as `docker run -e K=V`
-     * at container start. Unlike [propagateEnv] and [mapEnv] these are NOT
-     * read from the host process environment — the caller supplies the
-     * literal values at session create time. Use this for short-lived secrets
+     * Runtime environment values, injected as `docker run -e K=V`
+     * at container start for sessions and executors. Unlike [propagateEnv] and [mapEnv],
+     * these are not read from the host process environment: the caller supplies the
+     * literal values in this configuration. Use this for short-lived secrets
      * (session API keys, one-shot tokens) that must not live on the host.
      */
     val runtimeEnv: Map<String, String> = emptyMap(),
@@ -107,7 +107,8 @@ data class SandboxConfig(
             networkEnabled = network,
             memoryLimit = memory,
             cpuLimit = cpus,
-            baseEnvironment = envFromHost + envFromMapping,
+            baseEnvironment = envFromHost + envFromMapping + runtimeEnv,
+            extraHosts = extraHosts,
         )
     }
 }

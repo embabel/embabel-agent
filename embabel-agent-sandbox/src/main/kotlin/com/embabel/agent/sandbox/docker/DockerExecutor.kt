@@ -18,16 +18,13 @@ package com.embabel.agent.sandbox.docker
 import com.embabel.agent.sandbox.ExecutionArtifact
 import com.embabel.agent.sandbox.ExecutionRequest
 import com.embabel.agent.sandbox.ExecutionResult
-import com.embabel.agent.sandbox.SandboxConfig
+import com.embabel.agent.sandbox.process.ProcessExecution
 import com.embabel.agent.sandbox.SandboxedExecutor
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.absolutePathString
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.measureTime
 
 /**
  * Docker-based executor that runs commands inside containers for strong isolation.
@@ -71,8 +68,9 @@ import kotlin.time.measureTime
  * @param workDir working directory inside the container
  * @param mounts additional volume mounts
  * @param readOnlyRootfs whether to mount the root filesystem as read-only
+ * @param extraHosts additional container host-to-IP mappings
  */
-class DockerExecutor(
+class DockerExecutor @JvmOverloads constructor(
     private val image: String,
     private val networkEnabled: Boolean = true,
     private val memoryLimit: String? = "512m",
@@ -82,6 +80,7 @@ class DockerExecutor(
     private val workDir: String? = null,
     private val mounts: List<Mount> = emptyList(),
     private val readOnlyRootfs: Boolean = false,
+    private val extraHosts: Map<String, String> = emptyMap(),
 ) : SandboxedExecutor {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -156,89 +155,27 @@ class DockerExecutor(
             }
 
             val dockerCommand = buildDockerCommand(request, inputDir, outputDir)
-            logger.debug("Executing docker command: {}", dockerCommand.joinToString(" "))
+            logger.debug("Executing in Docker image {}: {}", image, request.command.joinToString(" "))
 
-            val processBuilder = ProcessBuilder(dockerCommand)
-                .redirectErrorStream(false)
-
-            val process = processBuilder.start()
-
-            // Write stdin if provided
-            if (request.stdin != null) {
-                process.outputStream.bufferedWriter().use { it.write(request.stdin) }
-            } else {
-                process.outputStream.close()
-            }
-
-            // Read stdout line-by-line in a background thread so we can
-            // stream progress via the callback while Docker is still running.
-            val outputLines = mutableListOf<String>()
-            val stdoutThread = Thread {
-                try {
-                    process.inputStream.bufferedReader().useLines { lines ->
-                        lines.forEach { rawLine ->
-                            // Strip carriage returns added by Docker's -t (pseudo-TTY) flag.
-                            // Without this, JSON parsing fails on the trailing \r.
-                            val line = rawLine.trimEnd('\r')
-                            outputLines.add(line)
-                            logger.debug("Docker stdout [{}]: {}", outputLines.size, line.take(80))
-                            request.stdoutCallback?.invoke(line)
-                        }
-                    }
-                    logger.info("Docker stdout reader finished: {} lines read", outputLines.size)
-                } catch (e: Exception) {
-                    logger.warn("Docker stdout reader error: {}", e.message)
-                }
-            }.apply { isDaemon = true; start() }
-
-            var stderr = ""
-            val stderrThread = Thread {
-                stderr = process.errorStream.bufferedReader().readText()
-            }.apply { isDaemon = true; start() }
-
-            // Wait with timeout
-            val completed: Boolean
-            val duration = measureTime {
-                completed = process.waitFor(request.timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-            }
-
-            if (!completed) {
-                process.destroyForcibly()
-                stdoutThread.join(1000)
-                stderrThread.join(1000)
-                cleanupDirectory(tempBase)
-                return ExecutionResult.TimedOut(
-                    partialStderr = stderr.takeIf { it.isNotBlank() },
-                    duration = duration,
+            return when (val result = ProcessExecution.run(ProcessBuilder(dockerCommand), request)) {
+                is ExecutionResult.Completed -> result.copy(
+                    stdout = result.stdout.replace("\r\n", "\n").removeSuffix("\n"),
+                    artifacts = collectAndCopyArtifacts(outputDir),
+                    duration = started.elapsedNow(),
                 )
+                is ExecutionResult.TimedOut -> result.copy(duration = started.elapsedNow())
+                is ExecutionResult.Failed -> result.copy(duration = started.elapsedNow())
+                is ExecutionResult.Denied -> result
             }
-
-            stdoutThread.join()
-            stderrThread.join()
-
-            val stdout = outputLines.joinToString("\n")
-            val exitCode = process.exitValue()
-
-            // Collect artifacts before cleanup
-            val artifacts = collectAndCopyArtifacts(outputDir)
-
-            cleanupDirectory(tempBase)
-
-            return ExecutionResult.Completed(
-                exitCode = exitCode,
-                stdout = stdout,
-                stderr = stderr,
-                duration = duration,
-                artifacts = artifacts,
-            )
         } catch (e: Exception) {
             logger.error("Docker execution failed: {}", e.message, e)
-            cleanupDirectory(tempBase)
             return ExecutionResult.Failed(
                 error = "Docker execution failed: ${e.message}",
                 cause = e,
                 duration = started.elapsedNow(),
             )
+        } finally {
+            cleanupDirectory(tempBase)
         }
     }
 
@@ -247,15 +184,15 @@ class DockerExecutor(
         inputDir: Path,
         outputDir: Path,
     ): List<String> {
-        // When streaming stdout (stdoutCallback is set), allocate a pseudo-TTY
-        // to force line-buffered output. Without this, Docker buffers stdout
-        // and lines don't arrive until the process exits.
-        // Note: -t merges stderr into stdout, so stderr will be empty when streaming.
-        val command = if (request.stdoutCallback != null) {
+        // For streaming commands without stdin, retain a pseudo-TTY to encourage line-buffered output.
+        // Note: -t merges stderr into stdout and rejects piped stdin when combined with -i.
+        val command = if (request.stdoutCallback != null && request.stdin == null) {
             mutableListOf("docker", "run", "--rm", "-t")
         } else {
             mutableListOf("docker", "run", "--rm")
         }
+
+        if (request.stdin != null) command.add("-i")
 
         // Resource limits
         memoryLimit?.let { command.addAll(listOf("--memory", it)) }
@@ -265,6 +202,8 @@ class DockerExecutor(
         if (!networkEnabled) {
             command.addAll(listOf("--network", "none"))
         }
+
+        for ((host, ip) in extraHosts) command.addAll(listOf("--add-host", "$host:$ip"))
 
         // Read-only root filesystem
         if (readOnlyRootfs) {
@@ -318,7 +257,7 @@ class DockerExecutor(
 
         val artifactsDir = Files.createTempDirectory("docker-artifacts")
 
-        return Files.list(outputDir)
+        return Files.list(outputDir).use { files -> files
             .filter { Files.isRegularFile(it) }
             .map { file ->
                 val persistentPath = artifactsDir.resolve(file.fileName)
@@ -331,6 +270,7 @@ class DockerExecutor(
                 )
             }
             .toList()
+        }
     }
 
     private fun cleanupDirectory(dir: Path) {

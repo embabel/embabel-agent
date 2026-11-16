@@ -93,6 +93,8 @@ interface SandboxSession : AutoCloseable {
 
     /**
      * Copy a file or directory from inside the session container to the host.
+     * Docker-backed sessions bound the copy, including lock waiting, to 30 seconds.
+     * Relative Docker container paths resolve from the container root.
      *
      * @param containerPath path inside the container
      * @param hostPath destination on the host filesystem
@@ -101,6 +103,9 @@ interface SandboxSession : AutoCloseable {
 
     /**
      * Copy a file or directory from the host into the session container.
+     * A file destination can name a file or an existing directory; a directory source copies its contents.
+     * Docker-backed sessions bound the copy, including lock waiting, to 30 seconds.
+     * Relative Docker container paths resolve from the container root.
      *
      * @param hostPath path on the host filesystem
      * @param containerPath destination inside the container

@@ -213,7 +213,8 @@ data class ExecutionRequest(
     /**
      * Optional callback invoked for each line of stdout as it streams.
      * Enables real-time progress reporting while the command runs.
-     * The full stdout is still captured and returned in [ExecutionResult.Completed].
+     * Runs independently of [captureOutput]. Captured output may be truncated by the executor;
+     * disabling capture still drains both streams and delivers callbacks.
      */
     val stdoutCallback: ((String) -> Unit)? = null,
 )

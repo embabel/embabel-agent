@@ -23,6 +23,7 @@ import com.embabel.agent.sandbox.ArtifactPublication
 import com.embabel.agent.sandbox.PublishedFile
 import com.embabel.agent.sandbox.SandboxConfig
 import com.embabel.agent.sandbox.SandboxSession
+import com.embabel.agent.sandbox.process.ProcessExecution
 import org.slf4j.LoggerFactory
 import java.io.OutputStream
 import java.io.InputStream
@@ -39,6 +40,7 @@ import java.io.IOException
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 
 /**
@@ -135,15 +137,21 @@ class DockerSandboxSession(
 
         cmd.addAll(listOf(config.image, "sleep", "infinity"))
 
-        val process = ProcessBuilder(cmd)
-            .redirectErrorStream(true)
-            .start()
+        // stdout carries only the container id; stderr carries pull progress ("Unable to find image …"),
+        // so the two are read apart (embabel-agent-experimental#46).
+        val process = ProcessBuilder(cmd).start()
+        // A thread of its own, as [execute] uses: a pooled task can sit queued behind other sessions'
+        // starts while Docker blocks on a full stderr pipe.
+        var stderr = ""
+        val stderrThread = Thread { stderr = process.errorStream.bufferedReader().readText().trim() }
+            .apply { isDaemon = true; start() }
         val output = process.inputStream.bufferedReader().readText().trim()
         val exitCode = process.waitFor()
+        stderrThread.join()
 
         if (exitCode != 0) {
             state = SandboxSession.SessionState.CLOSED
-            throw RuntimeException("Failed to start sandbox container: $output")
+            throw RuntimeException("Failed to start sandbox container: ${listOf(stderr, output).filter { it.isNotEmpty() }.joinToString("\n")}")
         }
 
         containerId = output.take(12)
@@ -274,6 +282,7 @@ class DockerSandboxSession(
         private const val MAX_CAPTURED_CHARS = 1_048_576
         private const val MAX_CALLBACK_LINE_CHARS = 65_536
         private const val CALLBACK_QUEUE_SIZE = 64
+        private val COPY_TIMEOUT = 30.seconds
 
         // POSIX sh only: no Python, hashing utility, or temporary container file required.
         val VALIDATE_PUBLISH_SOURCE = """
@@ -480,38 +489,51 @@ class DockerSandboxSession(
         }
     }
 
-    override fun copyFrom(containerPath: String, hostPath: Path) = operationLock.withLock {
-        copyFromContainer(containerPath, hostPath)
+    override fun copyFrom(containerPath: String, hostPath: Path) = withFileTransfer { cid, run ->
+        run(listOf("docker", "cp", "$cid:$containerPath", hostPath.toString()))
     }
 
-    private fun copyFromContainer(containerPath: String, hostPath: Path) {
-        val cid = containerId ?: throw IllegalStateException("No container")
-        val process = ProcessBuilder("docker", "cp", "$cid:$containerPath", hostPath.toString())
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText()
-        if (process.waitFor() != 0) {
-            throw RuntimeException("docker cp failed: $output")
-        }
+    override fun copyTo(hostPath: Path, containerPath: String) = withFileTransfer { cid, run ->
+        require(containerPath.isNotEmpty()) { "Container destination path must not be empty" }
+        // docker cp resolves relative container paths from /, independently of the image WORKDIR.
+        val destination = if (containerPath.startsWith('/')) containerPath else "/$containerPath"
+        val directory = java.nio.file.Files.isDirectory(hostPath)
+        val targetDirectory = if (directory || destination.endsWith('/')) destination
+        else destination.substringBeforeLast('/').ifEmpty { "/" }
+        run(listOf("docker", "exec", cid, "mkdir", "-p", "--", targetDirectory))
+        val source = if (directory) "$hostPath/." else hostPath.toString()
+        run(listOf("docker", "cp", source, "$cid:$destination"))
     }
 
-    override fun copyTo(hostPath: Path, containerPath: String) = operationLock.withLock {
-        copyToContainer(hostPath, containerPath)
-    }
-
-    private fun copyToContainer(hostPath: Path, containerPath: String) {
-        val cid = containerId ?: throw IllegalStateException("No container")
-        // Ensure target directory exists
-        ProcessBuilder("docker", "exec", cid, "mkdir", "-p", containerPath)
-            .redirectErrorStream(true).start().waitFor(5, TimeUnit.SECONDS)
-        // Append /. to copy directory CONTENTS, not the directory itself
-        val source = if (hostPath.toFile().isDirectory) "${hostPath}/." else hostPath.toString()
-        val process = ProcessBuilder("docker", "cp", source, "$cid:$containerPath")
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText()
-        if (process.waitFor() != 0) {
-            throw RuntimeException("docker cp failed: $output")
+    private fun withFileTransfer(action: (String, (List<String>) -> Unit) -> Unit) {
+        val started = TimeSource.Monotonic.markNow()
+        var locked = false
+        try {
+            locked = operationLock.tryLock(COPY_TIMEOUT.inWholeNanoseconds, TimeUnit.NANOSECONDS)
+            if (!locked) throw IOException("File copy timed out waiting for the session")
+            val cid = containerId ?: throw IllegalStateException("No container")
+            action(cid) { command ->
+                when (val result = ProcessExecution.run(ProcessBuilder(command),
+                    ExecutionRequest(command, timeout = COPY_TIMEOUT - started.elapsedNow()))) {
+                    is ExecutionResult.Completed -> if (!result.success) {
+                        throw RuntimeException("Docker file copy failed (exit ${result.exitCode}): ${result.stderr}${result.stdout}")
+                    }
+                    is ExecutionResult.TimedOut -> throw IOException("Docker file copy timed out")
+                    is ExecutionResult.Failed -> {
+                        if (Thread.currentThread().isInterrupted) throw InterruptedException("File copy interrupted")
+                        throw IOException(result.error, result.cause)
+                    }
+                    is ExecutionResult.Denied -> throw IOException(result.reason)
+                }
+            }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw e
+        } finally {
+            if (locked) {
+                lastActiveAt = Instant.now()
+                operationLock.unlock()
+            }
         }
     }
 

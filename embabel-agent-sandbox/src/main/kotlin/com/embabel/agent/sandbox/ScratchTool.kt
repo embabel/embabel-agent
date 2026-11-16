@@ -193,7 +193,10 @@ class ScratchTool @JvmOverloads constructor(
             if (result.artifacts.isEmpty()) Tool.Result.text(text)
             else Tool.Result.withArtifact(text, result.artifacts)
         }
-        is ExecutionResult.TimedOut -> Tool.Result.text("Command timed out after ${timeout.toSeconds()}s")
+        is ExecutionResult.TimedOut -> Tool.Result.error(
+            "Command timed out after ${timeout.toSeconds()}s. Execution may have produced side effects " +
+                "or may still be running in the container. Check existing files before retrying.",
+        )
         is ExecutionResult.Failed -> Tool.Result.error("Command failed: ${result.error}")
         is ExecutionResult.Denied -> Tool.Result.error("Command denied: ${result.reason}")
     }
@@ -239,7 +242,7 @@ class ScratchTool @JvmOverloads constructor(
     private fun wrapIfCode(command: String): String {
         val trimmed = command.trim()
 
-        val pythonIndicators = listOf("import ", "from ", "def ", "class ", "print(", "numpy", "pandas")
+        val pythonIndicators = listOf("import ", "from ", "def ", "class ", "print(")
         if (pythonIndicators.any { trimmed.startsWith(it) }) {
             if (!trimmed.startsWith("python")) {
                 logger.debug("Auto-wrapping as Python script")

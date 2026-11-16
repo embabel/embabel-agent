@@ -18,14 +18,12 @@ package com.embabel.agent.sandbox.process
 import com.embabel.agent.sandbox.ExecutionArtifact
 import com.embabel.agent.sandbox.ExecutionRequest
 import com.embabel.agent.sandbox.ExecutionResult
-import com.embabel.agent.sandbox.SandboxConfig
 import com.embabel.agent.sandbox.SandboxedExecutor
+import com.embabel.agent.sandbox.docker.DockerExecutor
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.TimeUnit
-import kotlin.time.Duration
-import kotlin.time.measureTimedValue
+import kotlin.time.TimeSource
 
 /**
  * Process-based executor that runs commands as subprocesses.
@@ -74,13 +72,14 @@ class ProcessExecutor(
     override fun checkAvailability(): String? = null // Always available
 
     override fun execute(request: ExecutionRequest): ExecutionResult {
+        val started = TimeSource.Monotonic.markNow()
         // Validate input files exist
         for (inputFile in request.inputFiles) {
             if (!Files.exists(inputFile)) {
-                return ExecutionResult.Denied("Input file does not exist: $inputFile")
+                return ExecutionResult.Denied("Input file does not exist: $inputFile", started.elapsedNow())
             }
             if (!Files.isRegularFile(inputFile)) {
-                return ExecutionResult.Denied("Input path is not a file: $inputFile")
+                return ExecutionResult.Denied("Input path is not a file: $inputFile", started.elapsedNow())
             }
         }
 
@@ -98,123 +97,38 @@ class ProcessExecutor(
 
             logger.debug("Executing command: {}", request.command.joinToString(" "))
 
-            val (result, duration) = measureTimedValue {
-                executeProcess(request, inputDir, outputDir)
-            }
-
-            when (result) {
-                is ProcessResult.Completed -> {
-                    val artifacts = collectArtifacts(outputDir)
-                    cleanupDirectory(inputDir)
-                    ExecutionResult.Completed(
-                        exitCode = result.exitCode,
-                        stdout = result.stdout,
-                        stderr = result.stderr,
-                        duration = duration,
-                        artifacts = artifacts,
-                    )
-                }
-
-                is ProcessResult.TimedOut -> {
-                    cleanupDirectory(inputDir)
-                    cleanupDirectory(outputDir)
-                    ExecutionResult.TimedOut(
-                        partialStderr = result.stderr,
-                        duration = duration,
-                    )
-                }
-
-                is ProcessResult.Failed -> {
-                    cleanupDirectory(inputDir)
-                    cleanupDirectory(outputDir)
-                    ExecutionResult.Failed(error = result.error)
-                }
-            }
-        } catch (e: Exception) {
-            logger.error("Unexpected error executing command: {}", e.message, e)
-            cleanupDirectory(inputDir)
-            cleanupDirectory(outputDir)
-            ExecutionResult.Failed(
-                error = "Unexpected error: ${e.message}",
-                cause = e,
-            )
-        }
-    }
-
-    private fun executeProcess(
-        request: ExecutionRequest,
-        inputDir: Path,
-        outputDir: Path,
-    ): ProcessResult {
-        return try {
             val processBuilder = ProcessBuilder(request.command)
-                .redirectErrorStream(false)
-
             request.workingDirectory?.let { processBuilder.directory(it.toFile()) }
-
-            // Set up environment
             val env = processBuilder.environment()
-            if (!inheritEnvironment) {
-                env.clear()
-            }
+            if (!inheritEnvironment) env.clear()
             env.putAll(baseEnvironment)
             env.putAll(request.environment)
             env["INPUT_DIR"] = inputDir.toAbsolutePath().toString()
             env["OUTPUT_DIR"] = outputDir.toAbsolutePath().toString()
-
-            val process = processBuilder.start()
-
-            // Write stdin if provided
-            if (request.stdin != null) {
-                process.outputStream.bufferedWriter().use { writer ->
-                    writer.write(request.stdin)
+            when (val result = ProcessExecution.run(processBuilder, request)) {
+                is ExecutionResult.Completed -> result.copy(
+                    artifacts = collectArtifacts(outputDir), duration = started.elapsedNow(),
+                )
+                is ExecutionResult.TimedOut -> {
+                    cleanupDirectory(outputDir)
+                    result.copy(duration = started.elapsedNow())
                 }
-            } else {
-                process.outputStream.close()
+                is ExecutionResult.Failed -> {
+                    cleanupDirectory(outputDir)
+                    result.copy(duration = started.elapsedNow())
+                }
+                is ExecutionResult.Denied -> result
             }
-
-            // Read stdout and stderr concurrently
-            var stdout = ""
-            var stderr = ""
-
-            val stdoutThread = Thread {
-                stdout = if (request.captureOutput) {
-                    process.inputStream.bufferedReader().readText()
-                } else {
-                    process.inputStream.bufferedReader().use { it.skip(Long.MAX_VALUE) }
-                    ""
-                }
-            }.apply { start() }
-
-            val stderrThread = Thread {
-                stderr = if (request.captureOutput) {
-                    process.errorStream.bufferedReader().readText()
-                } else {
-                    process.errorStream.bufferedReader().use { it.skip(Long.MAX_VALUE) }
-                    ""
-                }
-            }.apply { start() }
-
-            // Wait with timeout
-            val completed = process.waitFor(request.timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-
-            if (!completed) {
-                process.destroyForcibly()
-                stdoutThread.join(1000)
-                stderrThread.join(1000)
-                return ProcessResult.TimedOut(stderr)
-            }
-
-            stdoutThread.join()
-            stderrThread.join()
-
-            ProcessResult.Completed(
-                exitCode = process.exitValue(),
-                stdout = stdout,
-                stderr = stderr,
-            )
         } catch (e: Exception) {
-            ProcessResult.Failed(e.message ?: "Unknown error starting process")
+            logger.error("Unexpected error executing command: {}", e.message, e)
+            cleanupDirectory(outputDir)
+            ExecutionResult.Failed(
+                error = "Unexpected error: ${e.message}",
+                cause = e,
+                duration = started.elapsedNow(),
+            )
+        } finally {
+            cleanupDirectory(inputDir)
         }
     }
 
@@ -223,7 +137,7 @@ class ProcessExecutor(
             return emptyList()
         }
 
-        return Files.list(outputDir)
+        return Files.list(outputDir).use { files -> files
             .filter { Files.isRegularFile(it) }
             .map { file ->
                 ExecutionArtifact.File(
@@ -235,31 +149,17 @@ class ProcessExecutor(
             }
             .toList()
             .sortedBy { it.name }
+        }
     }
 
     private fun cleanupDirectory(dir: Path) {
         try {
-            Files.walk(dir)
-                .sorted(Comparator.reverseOrder())
-                .forEach { Files.deleteIfExists(it) }
+            Files.walk(dir).use { paths ->
+                paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+            }
         } catch (e: Exception) {
             logger.warn("Failed to clean up directory {}: {}", dir, e.message)
         }
     }
 
-    private sealed class ProcessResult {
-        data class Completed(
-            val exitCode: Int,
-            val stdout: String,
-            val stderr: String,
-        ) : ProcessResult()
-
-        data class TimedOut(
-            val stderr: String,
-        ) : ProcessResult()
-
-        data class Failed(
-            val error: String,
-        ) : ProcessResult()
-    }
 }

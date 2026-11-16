@@ -18,6 +18,18 @@ package com.embabel.agent.sandbox
 import com.embabel.agent.api.tool.ArtifactSink
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.api.common.Asyncer
+import com.embabel.agent.api.tool.config.ToolLoopConfiguration
+import com.embabel.agent.spi.loop.*
+import com.embabel.agent.spi.support.springai.SpringToolCallbackAdapter
+import com.embabel.chat.AssistantMessage
+import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.ToolCall
+import com.embabel.chat.ToolResultMessage
+import com.embabel.chat.UserMessage
+import com.embabel.common.util.EmbabelObjectMapperHolder
+import io.mockk.mockk
+import org.springframework.ai.tool.execution.ToolExecutionException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.nio.file.Path
@@ -32,6 +44,64 @@ class ScratchToolArtifactTest {
 
     @Nested
     inner class Results {
+        @Test
+        fun `library names remain shell commands`() {
+            for (command in listOf("numpy --help", "pandas --help")) {
+                var captured: ExecutionRequest? = null
+                tool(completed) { captured = it }.call("""{"command":"$command"}""")
+                assertEquals(listOf("bash", "-s"), captured?.command)
+                assertEquals(command, captured?.stdin)
+            }
+        }
+
+        @Test
+        fun `Python statements are still wrapped`() {
+            var captured: ExecutionRequest? = null
+            tool(completed) { captured = it }.call("""{"command":"import sys; print(sys.version)"}""")
+            assertEquals(listOf("bash", "-s"), captured?.command)
+            assertEquals("python3 -c 'import sys; print(sys.version)'", captured?.stdin)
+        }
+
+        @Test
+        fun `timeout is an error explaining that side effects may already exist`() {
+            val result = tool(ExecutionResult.TimedOut(duration = 5.milliseconds)).call("""{"command":"true"}""")
+            assertIs<Tool.Result.Error>(result)
+            assertContains(result.message, "timed out")
+            assertContains(result.message, "Check existing files before retrying")
+        }
+
+        @Test
+        fun `Spring adapter propagates timeout as a tool execution error`() {
+            var executions = 0
+            val scratch = tool(ExecutionResult.TimedOut(duration = 5.milliseconds)) { executions++ }
+            val failure = assertFailsWith<ToolExecutionException> {
+                SpringToolCallbackAdapter(scratch).call("""{"command":"true"}""")
+            }
+            assertContains(failure.cause!!.message!!, "timed out")
+            assertEquals(1, executions)
+        }
+
+        @Test
+        fun `native loop sends timeout feedback to the model without replaying the command`() {
+            var executions = 0
+            val scratch = tool(ExecutionResult.TimedOut(duration = 5.milliseconds)) { executions++ }
+            val responses = ArrayDeque(listOf(
+                LlmMessageResponse(AssistantMessageWithToolCalls("", listOf(
+                    ToolCall("call_1", scratch.definition.name, """{"command":"true"}"""))), ""),
+                LlmMessageResponse(AssistantMessage("Execution timed out; I will check the files."),
+                    "Execution timed out; I will check the files."),
+            ))
+            val factory = ToolLoopFactory.create(ToolLoopConfiguration(), mockk<Asyncer>(), AutoCorrectionPolicy())
+            val loop = factory.create(LlmMessageSender { _, _ -> responses.removeFirst() },
+                EmbabelObjectMapperHolder.createDefault().get(), ToolInjectionStrategy.NONE, 3, null,
+                emptyList(), emptyList(), emptyList(), ToolCallContext.EMPTY)
+            val result = loop.execute(listOf(UserMessage("Generate a file")), listOf(scratch)) { it }
+            val feedback = result.conversationHistory.filterIsInstance<ToolResultMessage>().single()
+            assertContains(feedback.content, "Error: Command timed out")
+            assertEquals(1, executions)
+            assertEquals("Execution timed out; I will check the files.", result.result)
+        }
+
         @Test
         fun `multiline shell commands containing Python remain shell commands`() {
             var captured: ExecutionRequest? = null

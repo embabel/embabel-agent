@@ -48,6 +48,7 @@ class DockerSandboxSessionManager @JvmOverloads constructor(
 
     private val sessions = ConcurrentHashMap<String, DockerSandboxSession>()
 
+    @Synchronized
     override fun create(
         label: String,
         config: SandboxConfig,
@@ -55,6 +56,7 @@ class DockerSandboxSessionManager @JvmOverloads constructor(
         ttl: Duration,
         metadata: Map<String, String>,
     ): SandboxSession {
+        sessions.entries.removeIf { it.value.state == SandboxSession.SessionState.CLOSED }
         // Enforce limits
         if (maxTotalSessions > 0 && sessions.size >= maxTotalSessions) {
             evictExpired()
@@ -66,7 +68,9 @@ class DockerSandboxSessionManager @JvmOverloads constructor(
         }
 
         if (owner != null && maxSessionsPerOwner > 0) {
-            val ownerCount = sessions.values.count { it.owner == owner }
+            val ownerCount = sessions.values.count {
+                it.owner == owner && it.state != SandboxSession.SessionState.CLOSED
+            }
             if (ownerCount >= maxSessionsPerOwner) {
                 throw IllegalStateException(
                     "Maximum sessions per owner ($maxSessionsPerOwner) reached for '$owner'."

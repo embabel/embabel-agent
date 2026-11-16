@@ -24,6 +24,9 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -135,6 +138,49 @@ class DockerSandboxSessionManagerTest {
         assertThrows<IllegalStateException> {
             manager.create(label = "s6", config = config, owner = "user6")
         }
+    }
+
+    @Test
+    fun `closing directly releases the owner quota without a get or eviction`() {
+        repeat(3) { manager.create(label = "closed-$it", config = config, owner = "alice").close() }
+        val session = manager.create(label = "replacement", config = config, owner = "alice")
+        assertEquals(listOf(session), manager.list("alice"))
+    }
+
+    @Test
+    fun `closing directly releases total capacity`() {
+        manager.closeAll()
+        manager = DockerSandboxSessionManager(maxSessionsPerOwner = 0, maxTotalSessions = 1)
+        manager.create(label = "closed", config = config).close()
+        assertNotNull(manager.create(label = "replacement", config = config))
+    }
+
+    @Test
+    fun `paused sessions still count against owner limits`() {
+        repeat(3) { manager.create(label = "paused-$it", config = config, owner = "alice").pause() }
+        assertThrows<IllegalStateException> { manager.create(label = "overflow", config = config, owner = "alice") }
+    }
+
+    @Test
+    fun `concurrent creation cannot exceed the owner quota`() {
+        manager.closeAll()
+        manager = DockerSandboxSessionManager(maxSessionsPerOwner = 1, maxTotalSessions = 5)
+        val start = CountDownLatch(1)
+        val workers = Executors.newFixedThreadPool(2)
+        try {
+            val attempts = (1..2).map { index -> workers.submit<Boolean> {
+                start.await()
+                try {
+                    manager.create(label = "concurrent-$index", config = config, owner = "alice")
+                    true
+                } catch (_: IllegalStateException) {
+                    false
+                }
+            } }
+            start.countDown()
+            assertEquals(1, attempts.count { it.get(30, TimeUnit.SECONDS) })
+            assertEquals(1, manager.list("alice").size)
+        } finally { workers.shutdownNow() }
     }
 
     @Test
