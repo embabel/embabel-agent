@@ -78,6 +78,8 @@ class A2AStreamingHandler(
         // Register task if taskId is provided
         if (taskId != null && contextId != null) {
             taskStateManager.registerTask(taskId, contextId, streamId)
+            // streamIds is a plain set, changed only under the task's lock: the stream joins between two
+            // published events, never while publishTaskEvent is sending to or closing the task's streams
             subscribersOf(taskId).let { subscribers ->
                 subscribers.lock.withLock { subscribers.streamIds.add(streamId) }
             }
@@ -141,6 +143,8 @@ class A2AStreamingHandler(
                 sendStreamEvent(streamId, event)
             }
             if (!taskStateManager.isTaskActive(taskId)) {
+                // closeStream ends each client's SSE response. clear() then forgets the closed streams, so a thread
+                // that still holds these subscribers after they are removed below finds no stream to send to
                 subscribers.streamIds.forEach(::closeStream)
                 subscribers.streamIds.clear()
                 taskSubscribers.remove(taskId, subscribers)

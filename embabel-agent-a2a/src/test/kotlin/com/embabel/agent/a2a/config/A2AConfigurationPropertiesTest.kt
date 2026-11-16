@@ -49,6 +49,40 @@ class A2AConfigurationPropertiesTest {
         }
     }
 
+    @Nested
+    inner class ClientTimeouts {
+
+        private fun client(context: org.springframework.context.ApplicationContext) =
+            context.getBean(A2AConfigurationProperties::class.java).client
+
+        @Test
+        fun `read timeout defaults to five minutes, long enough for a whole remote agent run`() {
+            contextRunner.run { context ->
+                assertEquals(300L, client(context).timeoutSeconds)
+            }
+        }
+
+        @Test
+        fun `connect timeout defaults to ten seconds`() {
+            contextRunner.run { context ->
+                assertEquals(10L, client(context).connectTimeoutSeconds)
+            }
+        }
+
+        @Test
+        fun `both are bound from the client properties`() {
+            contextRunner
+                .withPropertyValues(
+                    "embabel.agent.platform.a2a.client.timeout-seconds=120",
+                    "embabel.agent.platform.a2a.client.connect-timeout-seconds=3",
+                )
+                .run { context ->
+                    assertEquals(120L, client(context).timeoutSeconds)
+                    assertEquals(3L, client(context).connectTimeoutSeconds)
+                }
+        }
+    }
+
     @EnableConfigurationProperties(A2AConfigurationProperties::class)
     class PropertiesConfiguration
 }
