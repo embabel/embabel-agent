@@ -21,26 +21,20 @@ import com.embabel.agent.api.common.PromptRunner
  * A [PromptRunner] that can run prompts with thinking extraction.
  *
  * A runner offers thinking by implementing this interface. The compiler then requires it to
- * implement [thinking]. [PromptRunner]'s own defaults answer false from [supportsThinking] and
- * throw [UnsupportedOperationException] from [thinking].
+ * implement [thinking]. [PromptRunner]'s own default [thinking] throws
+ * [UnsupportedOperationException].
  *
- * Thinking has two questions, and each has its own check:
- * - Does this runner implement thinking operations? The type answers: `is ThinkingPromptRunner`.
- * - Does the selected model produce reasoning? [supportsThinking] answers. It is data about the
- *   model, so it is a method rather than a type.
- *
- * [supportsThinking] defaults to true here. An implementation whose model is chosen per call
- * overrides it to report what the selected model supports. The runner returned by `Ai`
- * overrides it in this way.
- *
- * The runner returned by `Ai` is always a ThinkingPromptRunner, so for that runner the type check
- * is optional: checking [supportsThinking] and then calling [thinking] works. Check the type when
- * the runner may come from somewhere else.
+ * The type is the one check: `is ThinkingPromptRunner`. Extraction is prompt based, so it works
+ * whatever the selected model is. When the model returned no reasoning,
+ * [com.embabel.common.core.thinking.ThinkingResponse.thinkingBlocks] is empty. The runner returned
+ * by `Ai` on the platform is always a ThinkingPromptRunner. In unit tests, `FakeOperationContext`
+ * returns a `FakePromptRunner`, which is not one. Check the type when the runner may come from
+ * somewhere else.
  *
  * Usage (Kotlin):
  * ```kotlin
  * val runner = context.ai().withDefaultLlm()
- * if (runner is ThinkingPromptRunner && runner.supportsThinking()) {
+ * if (runner is ThinkingPromptRunner) {
  *     val response = runner.thinking().createObject("What is 2 + 2?", Answer::class.java)
  *     val answer = response.result
  *     val reasoning = response.thinkingBlocks
@@ -50,19 +44,20 @@ import com.embabel.agent.api.common.PromptRunner
  * Usage (Java):
  * ```java
  * PromptRunner runner = context.ai().withDefaultLlm();
- * if (runner instanceof ThinkingPromptRunner thinkingRunner && thinkingRunner.supportsThinking()) {
+ * if (runner instanceof ThinkingPromptRunner thinkingRunner) {
  *     ThinkingResponse<Answer> response = thinkingRunner.thinking().createObject("What is 2 + 2?", Answer.class);
  * }
  * ```
- *
- * @see com.embabel.agent.api.common.streaming.StreamingPromptRunner the same pattern for streaming
  */
 interface ThinkingPromptRunner : PromptRunner {
 
     /**
-     * A ThinkingPromptRunner supports thinking unless it overrides this.
-     * Overrides the [PromptRunner] default of false.
+     * True unless an implementation reports what its provider says. Overrides the [PromptRunner]
+     * default of false.
      */
+    @Deprecated(
+        message = "Not a gate: thinking() does not consult it. Check `runner is ThinkingPromptRunner` before calling thinking().",
+    )
     override fun supportsThinking(): Boolean = true
 
     /**

@@ -27,12 +27,13 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 
 ==== Checking for Thinking Support
 
-Thinking support asks two questions, and each has its own check:
+The type is the one check: a runner that implements thinking is a `ThinkingPromptRunner`, and the compiler requires every `ThinkingPromptRunner` to implement `thinking()`.
+Extraction is prompt based, so it works whatever the selected model is.
+When the model returned no reasoning, `ThinkingResponse.thinkingBlocks` is empty.
 
-- Does the runner implement thinking operations? The type answers: the runner is a `ThinkingPromptRunner`, and the compiler requires every `ThinkingPromptRunner` to implement `thinking()`.
-- Does the selected model produce reasoning? `supportsThinking()` on the runner answers with what the selected model reports. This is data about the model, so it is a method, not a type.
-
-Check both before you call `thinking()` when the runner may come from somewhere other than `Ai`:
+The runner returned by `Ai` on the platform is always a `ThinkingPromptRunner`.
+In unit tests, `FakeOperationContext` returns a `FakePromptRunner`, which is not one.
+Check the type before you call `thinking()` when the runner may come from somewhere else:
 
 [tabs]
 ====
@@ -41,7 +42,7 @@ Java::
 [source,java]
 ----
 PromptRunner runner = context.ai().withDefaultLlm();
-if (runner instanceof ThinkingPromptRunner thinkingRunner && thinkingRunner.supportsThinking()) {
+if (runner instanceof ThinkingPromptRunner thinkingRunner) {
     ThinkingResponse<Answer> response = thinkingRunner.thinking().createObject("What is 2 + 2?", Answer.class);
 }
 ----
@@ -51,7 +52,7 @@ Kotlin::
 [source,kotlin]
 ----
 val runner = context.ai().withDefaultLlm()
-if (runner is ThinkingPromptRunner && runner.supportsThinking()) {
+if (runner is ThinkingPromptRunner) {
     val response = runner.thinking().createObject("What is 2 + 2?", Answer::class.java)
     val answer = response.result
     val reasoning = response.thinkingBlocks
@@ -59,25 +60,10 @@ if (runner is ThinkingPromptRunner && runner.supportsThinking()) {
 ----
 ====
 
-This is the same pattern as `StreamingPromptRunner` and `supportsStreaming()` for streaming.
-
-The runner returned by `Ai` is always a `ThinkingPromptRunner`, so for that runner the type check is optional:
-
-[source,kotlin]
-----
-val runner = context.ai().withDefaultLlm()
-if (runner.supportsThinking()) {
-    val response = runner.thinking().createObject("What is 2 + 2?", Answer::class.java)
-}
-----
-
-NOTE: `PromptRunner`'s default `thinking()` throws `UnsupportedOperationException`, even when `supportsThinking()` returns true.
-Earlier versions' default threw `IllegalArgumentException` when thinking was not enabled in the runner's `LlmOptions`, and `IllegalStateException` when it was.
-Code that caught either of those exceptions from `thinking()` must catch `UnsupportedOperationException` instead.
-A custom runner that overrides `thinking()` still works when `thinking()` is called on it, but a caller that checks for `ThinkingPromptRunner` skips it, so implement `ThinkingPromptRunner` as well.
-The runner returned by `Ai` already implemented `thinking()`, so its behaviour has not changed.
-The empty marker interface `ThinkingCapability` has been removed; check for `ThinkingPromptRunner` instead.
-
+`PromptRunner.supportsThinking()` is deprecated.
+It reports what the provider integration says, is set per provider rather than per model, and `thinking()` does not consult it.
+It is false for some models that do reason, such as DeepSeek's and Mistral's, so do not use it to decide whether to call `thinking()`.
+See <<reference.upgrading>> for the changes to `thinking()` in 2.0.
 
 ==== Example: Handling Objects and Thinking Blocks
 
@@ -88,7 +74,7 @@ Java::
 [source,java]
 ----
 // Configure the PromptRunner with an LLM and optional tools
-PromptRunner runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
+PromptRunner runner = ai.withDefaultLlm()
                         .withToolObject(Tooling.class);
 
 String prompt = """
@@ -120,7 +106,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Configure the PromptRunner with an LLM and optional tools
-val runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
+val runner = ai.withDefaultLlm()
                 .withToolObject(Tooling::class.java)
 
 val prompt = """
@@ -213,14 +199,14 @@ Java::
 ----
 // Only return the "analysis" reasoning block; model is guided to use that tag
 ThinkingResponse<MonthItem> response = ai
-        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
+        .withLlm(LlmOptions.withDefaultLlm()
                 .withThinking(Thinking.withIncludedTags("analysis")))
         .thinking()
         .createObject(prompt, MonthItem.class);
 
 // Drop "scratchpad" blocks, keep all others
 ThinkingResponse<MonthItem> response2 = ai
-        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
+        .withLlm(LlmOptions.withDefaultLlm()
                 .withThinking(Thinking.withExcludedTags("scratchpad")))
         .thinking()
         .createObject(prompt, MonthItem.class);
@@ -232,14 +218,14 @@ Kotlin::
 ----
 // Only return the "analysis" reasoning block; model is guided to use that tag
 val response = ai
-        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
+        .withLlm(LlmOptions.withDefaultLlm()
             .withThinking(Thinking.withIncludedTags("analysis")))
         .thinking()
         .createObject(prompt, MonthItem::class.java)
 
 // Drop "scratchpad" blocks, keep all others
 val response2 = ai
-        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
+        .withLlm(LlmOptions.withDefaultLlm()
             .withThinking(Thinking.withExcludedTags("scratchpad")))
         .thinking()
         .createObject(prompt, MonthItem::class.java)

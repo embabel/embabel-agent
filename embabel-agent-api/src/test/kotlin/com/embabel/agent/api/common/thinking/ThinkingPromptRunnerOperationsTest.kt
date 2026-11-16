@@ -63,7 +63,7 @@ class ThinkingPromptRunnerOperationsTest {
     )
 
     @Test
-    fun `withThinking should create ThinkingPromptRunnerOperationsImpl when ChatClientLlmOperations available`() {
+    fun `thinking should create ThinkingPromptRunnerOperationsImpl when ChatClientLlmOperations available`() {
         // Given: Mock OperationContextPromptRunner with ChatClientLlmOperations
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
@@ -168,7 +168,7 @@ class ThinkingPromptRunnerOperationsTest {
      * UnsupportedOperationException from thinking().
      */
     @Test
-    fun `StreamingPromptRunner should throw exception when withThinking called`() {
+    fun `StreamingPromptRunner should throw exception when thinking called`() {
         // Given: Real StreamingPromptRunner implementation (no mocks)
         val testStreamingRunner = object : com.embabel.agent.api.common.streaming.StreamingPromptRunner {
             override val llm: com.embabel.common.ai.model.LlmOptions? = null
@@ -281,7 +281,7 @@ class ThinkingPromptRunnerOperationsTest {
     }
 
     @Test
-    fun `FakePromptRunner should throw exception when withThinking called`() {
+    fun `FakePromptRunner should throw exception when thinking called`() {
         // Given: Real FakePromptRunner implementation (testing framework runner)
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
         val fakeRunner = com.embabel.agent.test.unit.FakePromptRunner(
