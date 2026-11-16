@@ -58,13 +58,11 @@ class ModelRegistryJavaTest {
     }
 
     @Test
-    void builderFamilySpecSourceAndSelectorsWorkFromJava() {
+    void builderFamilySourceAndSelectorsWorkFromJava() {
         Drawer sketch = new Drawer();
         DrawingSource source = new DrawingSource();
-        // The two-argument FamilySpec constructor uses the default advice text.
-        ModelRegistry.FamilySpec drawingFamily = new ModelRegistry.FamilySpec("drawing", "TestBuilder");
         ModelRegistry<Drawing> registry = ModelRegistry.<Drawing>builder()
-                .family(Drawing.class, drawingFamily)
+                .family(Drawing.class, "drawing")
                 .register("sketch", sketch)
                 .source(source)
                 .role(Drawing.class, "served-role", "served")

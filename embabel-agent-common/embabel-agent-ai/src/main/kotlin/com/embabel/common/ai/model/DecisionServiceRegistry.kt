@@ -51,7 +51,6 @@ import java.util.Collections
 class DecisionServiceRegistry private constructor(
     private val registry: ModelRegistry<ClassificationService>,
     private val snapshots: List<ClassificationServiceMetadata>,
-    private val candidates: List<String>,
     private val capabilities: Map<String, DecisionCapabilities>,
     observationRegistry: ObservationRegistry,
 ) {
@@ -126,7 +125,6 @@ class DecisionServiceRegistry private constructor(
             .family(DecisionService::class.java, DECISION_FAMILY)
             .family(ClassificationService::class.java, CLASSIFICATION_FAMILY)
             .describeWith { it.type.toString() }
-        private val candidates = mutableListOf<String>()
         private var observationRegistry: ObservationRegistry = ObservationRegistry.NOOP
 
         /**
@@ -184,10 +182,7 @@ class DecisionServiceRegistry private constructor(
          * @param name the registration name of the candidate
          * @return this builder
          */
-        fun defaultCandidate(name: String): Builder = apply {
-            models.defaultCandidate(name)
-            candidates += name
-        }
+        fun defaultCandidate(name: String): Builder = apply { models.defaultCandidate(name) }
 
         /**
          * Adds a provider for model names no registered service holds. Providers are asked in the
@@ -225,7 +220,6 @@ class DecisionServiceRegistry private constructor(
             val decisionRegistry = DecisionServiceRegistry(
                 registry = registry,
                 snapshots = java.util.List.copyOf(services.values.map { it.metadata() }),
-                candidates = java.util.List.copyOf(candidates.distinct()),
                 capabilities = capabilitiesOf(services),
                 observationRegistry = observationRegistry,
             )
@@ -283,7 +277,7 @@ class DecisionServiceRegistry private constructor(
             registry.roles(DecisionService::class.java),
             registry.describeDefault(ClassificationService::class.java),
             registry.roles(ClassificationService::class.java),
-            candidates,
+            registry.defaultCandidates,
         )
     }
 
@@ -298,11 +292,16 @@ class DecisionServiceRegistry private constructor(
     companion object {
         private val logger = LoggerFactory.getLogger(DecisionServiceRegistry::class.java)
 
-        private const val BUILDER = "DecisionServiceRegistry.Builder"
+        // Messages name this builder and the properties DecisionServiceRegistryAutoConfiguration binds.
+        private val FACADE = ModelRegistry.Facade(
+            builderName = "DecisionServiceRegistry.Builder",
+            propertyPrefix = "embabel.models",
+        )
 
         private val DECISION_FAMILY = ModelRegistry.FamilySpec(
             label = "decision",
-            builderName = BUILDER,
+            typeName = DecisionService::class.java.simpleName,
+            facade = FACADE,
             bindAdvice = { name, typeName ->
                 "Name a $typeName, or bind '$name' with classificationRole or classificationDefault."
             },
@@ -312,7 +311,11 @@ class DecisionServiceRegistry private constructor(
         // Every registered service and every provider model is a classification service, so no
         // binding or selection in this family can name a model of the wrong kind. It keeps the
         // default advice, which is never shown.
-        private val CLASSIFICATION_FAMILY = ModelRegistry.FamilySpec(label = "classification", builderName = BUILDER)
+        private val CLASSIFICATION_FAMILY = ModelRegistry.FamilySpec(
+            label = "classification",
+            typeName = ClassificationService::class.java.simpleName,
+            facade = FACADE,
+        )
 
         private val EMPTY: DecisionServiceRegistry by lazy { Builder().build(log = false) }
 

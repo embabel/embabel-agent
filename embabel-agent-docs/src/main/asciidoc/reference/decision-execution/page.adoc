@@ -208,15 +208,17 @@ Pass a service built at run time, such as a per-user service, to `using(service)
 ===== Other model kinds
 
 `DecisionServiceRegistry` uses `ModelRegistry`, which is not specific to decisions.
-A `ModelRegistry` groups registered models into families. Each family is a capability interface that extends `ModelCapability`, declared with `family(type, spec)`.
+A `ModelRegistry` groups registered models into families. Each family is a capability interface that extends `ModelCapability`, declared with `family(type, label)`.
+The label names the family in messages.
 A model is in every family whose interface it implements.
 Each family has a default and role bindings that resolve as described above, and `select(type)` returns its `ServiceSelector`.
 A `ModelSource` creates models by name on first lookup. The decision registry wraps each `DecisionModelProvider` in a `ModelSource`.
+A family asks only the sources whose declared `type` has its capability, so declare one source per capability.
 
 [source,kotlin]
 ----
 val registry = ModelRegistry.builder<ImageService>()
-    .family(ImageService::class.java, ModelRegistry.FamilySpec("image", "MyImageRegistry.Builder"))
+    .family(ImageService::class.java, "image")
     .register("sketch", sketchModel)
     .register("photo", photoModel)
     .defaultFor(ImageService::class.java, "photo")

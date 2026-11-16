@@ -21,7 +21,10 @@ import org.jetbrains.annotations.ApiStatus
  * Models a [ModelRegistry] creates on demand, by name, instead of having them registered up front.
  *
  * Every model a source returns is an instance of [type]. The registry uses that to decide which
- * families the source's models can serve, without creating them.
+ * families the source's models can serve, without creating them. A family asks only the sources
+ * whose [type] has its capability, so a model is judged by the declared type, not by the instance.
+ * Declare one source per capability, with the narrowest type all of its models have: a source that
+ * declares a broader type is not asked by the narrower family, even for a model that would fit it.
  *
  * @param M the kind of model the registry holds
  */

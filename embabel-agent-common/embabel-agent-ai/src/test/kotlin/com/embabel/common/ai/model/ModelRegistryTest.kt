@@ -47,12 +47,14 @@ class ModelRegistryTest {
         override fun animate(prompt: String) = ByteArray(0)
     }
 
-    private val drawingFamily = ModelRegistry.FamilySpec("drawing", "TestBuilder")
-    private val animationFamily = ModelRegistry.FamilySpec("animation", "TestBuilder")
+    /** A drawing model that cannot animate. It is final, so no subclass can add animation. */
+    private class Sketcher : Drawing {
+        override fun draw(prompt: String) = ByteArray(0)
+    }
 
     private fun builder() = ModelRegistry.builder<Drawing>()
-        .family(Drawing::class.java, drawingFamily)
-        .family(Animation::class.java, animationFamily)
+        .family(Drawing::class.java, "drawing")
+        .family(Animation::class.java, "animation")
 
     @Test
     fun `the only registered model of a kind is that kind's default`() {
@@ -96,14 +98,45 @@ class ModelRegistryTest {
     }
 
     @Test
-    fun `an unbound role fails and names the configuration property to set`() {
+    fun `an unbound role fails and names the builder method that binds it, and no property`() {
         val registry = builder().register("sketch", Drawer()).build()
 
         val failure = assertThrows<ServiceSelectionException> {
             registry.select(Drawing::class.java).byRole("cheapest")
         }
         assertEquals(Reason.UNKNOWN_ROLE, failure.reason)
-        assertTrue(failure.message.orEmpty().contains("embabel.models.drawing.roles.cheapest"), failure.message)
+        val message = failure.message.orEmpty()
+        assertTrue(message.contains("ModelRegistry.Builder.role(Drawing, \"cheapest\", name)"), message)
+        // Nothing binds properties to a registry built in code, so the message names none.
+        assertFalse(message.contains("embabel.models"), message)
+    }
+
+    @Test
+    fun `a family with no default names the builder method that sets one, and no property`() {
+        val registry = builder().register("sketch", Drawer()).register("pencil", Drawer()).build()
+
+        val failure = assertThrows<ServiceSelectionException> {
+            registry.select(Drawing::class.java).defaultService()
+        }
+        assertEquals(Reason.AMBIGUOUS_DEFAULT, failure.reason)
+        val message = failure.message.orEmpty()
+        assertTrue(message.contains("ModelRegistry.Builder.defaultFor(Drawing, name)"), message)
+        // The decision facade's method and property names do not leak into a registry built in code.
+        assertFalse(message.contains("drawingDefault"), message)
+        assertFalse(message.contains("embabel.models"), message)
+    }
+
+    @Test
+    fun `an unknown name names the builder method that registers a model`() {
+        val registry = builder().register("sketch", Drawer()).build()
+
+        val failure = assertThrows<ServiceSelectionException> {
+            registry.select(Drawing::class.java).named("missing")
+        }
+        assertEquals(Reason.UNKNOWN_NAME, failure.reason)
+        val message = failure.message.orEmpty()
+        assertTrue(message.contains("ModelRegistry.Builder.register(name, model)"), message)
+        assertFalse(message.contains("in configuration"), message)
     }
 
     @Test
@@ -111,7 +144,9 @@ class ModelRegistryTest {
         val failure = assertThrows<IllegalArgumentException> {
             builder().register("sketch", Drawer()).defaultFor(Animation::class.java, "sketch").build()
         }
-        assertTrue(failure.message.orEmpty().contains("embabel.models.animation.default"), failure.message)
+        val message = failure.message.orEmpty()
+        assertTrue(message.contains("animation default names service 'sketch'"), message)
+        assertFalse(message.contains("embabel.models"), message)
     }
 
     @Test
@@ -142,10 +177,31 @@ class ModelRegistryTest {
 
     @Test
     fun `selecting a source model by name from a family its type does not fit fails with wrong capability`() {
-        val registry = builder().source(CountingSource()).build()
+        val source = CountingSource()
+        val registry = builder().source(source).build()
 
         val failure = assertThrows<ServiceSelectionException> {
             registry.select(Animation::class.java).named("served")
+        }
+        assertEquals(Reason.WRONG_CAPABILITY, failure.reason)
+        // The source's declared type rules the model out, so the source is not asked to create it.
+        assertEquals(0, source.created)
+    }
+
+    @Test
+    fun `a source whose declared type cannot animate is never asked by the animation family`() {
+        // The source's models are final Sketchers, which cannot animate. Creating one throws.
+        val source = object : ModelSource<Drawing> {
+            override val provider = "broken"
+            override val type = Sketcher::class.java
+            override fun modelNames() = listOf("sketch")
+            override fun modelNamed(name: String): Drawing = throw IllegalStateException("provider is down")
+        }
+        val registry = builder().source(source).build()
+
+        // The failure is the selection error, not the source's exception, because no model is created.
+        val failure = assertThrows<ServiceSelectionException> {
+            registry.select(Animation::class.java).named("sketch")
         }
         assertEquals(Reason.WRONG_CAPABILITY, failure.reason)
     }
@@ -163,7 +219,7 @@ class ModelRegistryTest {
 
     @Test
     fun `declaring a second family for the same capability interface fails`() {
-        assertThrows<IllegalArgumentException> { builder().family(Drawing::class.java, drawingFamily) }
+        assertThrows<IllegalArgumentException> { builder().family(Drawing::class.java, "drawing") }
     }
 
     @Test
@@ -190,7 +246,9 @@ class ModelRegistryTest {
                 .defaultFor(Drawing::class.java, "motion")
                 .build()
         }
-        assertTrue(failure.message.orEmpty().contains("embabel.models.drawing.default"), failure.message)
+        val message = failure.message.orEmpty()
+        assertTrue(message.contains("drawing default is set to more than one service: [sketch, motion]"), message)
+        assertFalse(message.contains("embabel.models"), message)
     }
 
     @Test

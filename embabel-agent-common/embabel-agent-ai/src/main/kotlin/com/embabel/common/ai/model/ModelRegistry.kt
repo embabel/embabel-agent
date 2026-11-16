@@ -27,7 +27,8 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * A family is one capability interface. A model belongs to every family whose interface it
  * implements, so a model that can do two things is selectable from both families. Supporting a new
- * kind of model means declaring a family for its capability interface, not writing a registry.
+ * kind of model means declaring a family for its capability interface with [Builder.family], not
+ * writing a registry. Selection errors then tell the caller which [Builder] method to call.
  *
  * The registry is an immutable snapshot taken when [Builder.build] runs. Instances are safe to share
  * between threads.
@@ -44,7 +45,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Usage, with a made-up `ImageService` capability and two registered models:
  * ```kotlin
  * val registry = ModelRegistry.builder<ImageService>()
- *     .family(ImageService::class.java, ModelRegistry.FamilySpec("image", "MyImageRegistry.Builder"))
+ *     .family(ImageService::class.java, "image")
  *     .register("sketch", sketchModel)
  *     .register("photo", photoModel)
  *     .defaultFor(ImageService::class.java, "photo")
@@ -63,6 +64,8 @@ class ModelRegistry<M : ModelCapability> private constructor(
     private val families: Map<Class<*>, Family>,
     private val sources: List<ModelSource<M>>,
     private val describe: (M) -> String,
+    /** The default candidates, in the order they were offered, for summary logs. */
+    internal val defaultCandidates: List<String>,
 ) {
 
     // Kept per source, so a model one family cannot use never hides the name from a family that can.
@@ -103,33 +106,59 @@ class ModelRegistry<M : ModelCapability> private constructor(
         requireNotNull(families[type]) { "No family is declared for ${type.name}" }
 
     /**
-     * Fixed text and property names for one family.
+     * The text one family's messages use. A family declared with [Builder.family] gets advice that
+     * names [Builder]'s own methods and no property, because nothing binds properties to a registry
+     * built in code. A facade over the registry passes a [Facade] so its messages name its own builder
+     * and the properties its configuration binds.
      *
-     * @param label the family's name in messages and properties, such as `decision`
-     * @param builderName the builder named in messages that tell a plain Java caller what to call,
-     * such as `DecisionServiceRegistry.Builder`. The messages tell the caller to call
-     * `register(name, model)`, `<label>Default(name)` and `<label>Role(role, name)` on it, so name a
-     * builder that has those methods.
+     * @param label the family's name in messages, such as `decision`
+     * @param typeName the simple name of the family's capability interface
+     * @param facade the builder and properties that set this family up, or null for [Builder]
      * @param bindAdvice the advice ending a message about a default or role that names a model of the
      * wrong kind. It is given the model's name and the family type's simple name.
      * @param selectAdvice the advice in a message about selecting a model of the wrong kind by name.
      * It is given the family type's simple name.
      */
-    @ApiStatus.Experimental
-    class FamilySpec @JvmOverloads constructor(
+    internal class FamilySpec(
         val label: String,
-        val builderName: String,
-        internal val bindAdvice: (name: String, typeName: String) -> String = { _, typeName -> "Name a $typeName." },
-        internal val selectAdvice: (typeName: String) -> String = { typeName ->
-            "Register a $typeName under that name."
-        },
+        private val typeName: String,
+        private val facade: Facade? = null,
+        val bindAdvice: (name: String, typeName: String) -> String = { _, typeName -> "Name a $typeName." },
+        val selectAdvice: (typeName: String) -> String = { typeName -> "Register a $typeName under that name." },
     ) {
-        internal val title: String = label.replaceFirstChar { it.uppercase() }
-        internal val defaultProperty: String = "embabel.models.$label.default"
+        val title: String = label.replaceFirstChar { it.uppercase() }
 
-        /** Builds the configuration property for one role of this family. */
-        internal fun roleProperty(role: String): String = "embabel.models.$label.roles.$role"
+        /** The property that sets this family's default, or null when no configuration binds one. */
+        val defaultProperty: String? = facade?.let { "${it.propertyPrefix}.$label.default" }
+
+        /** The property that binds [role] in this family, or null when no configuration binds one. */
+        fun roleProperty(role: String): String? = facade?.let { "${it.propertyPrefix}.$label.roles.$role" }
+
+        /** How to set this family's default. */
+        fun defaultAdvice(): String = facade?.let {
+            "Set $defaultProperty=<name>, or call ${it.builderName}.${label}Default(name) in plain Java."
+        } ?: "Call ModelRegistry.Builder.defaultFor($typeName, name)."
+
+        /** How to bind [role] in this family. */
+        fun roleAdvice(role: String): String = facade?.let {
+            "Bind the role with ${roleProperty(role)}=<name>, or call ${it.builderName}.${label}Role(\"$role\", name) in plain Java."
+        } ?: "Call ModelRegistry.Builder.role($typeName, \"$role\", name)."
+
+        /** How to register a model under a name. */
+        fun registerAdvice(): String = facade?.let {
+            "Register a service under that name in configuration or with ${it.builderName}.register(name, service), or select one of the listed names."
+        } ?: "Register a model under that name with ModelRegistry.Builder.register(name, model), or select one of the listed names."
     }
+
+    /**
+     * A facade builder over the registry and the properties its configuration binds.
+     *
+     * @param builderName the facade's builder, such as `DecisionServiceRegistry.Builder`. Messages tell
+     * the caller to call `register(name, service)`, `<label>Default(name)` and
+     * `<label>Role(role, name)` on it, so name a builder that has those methods.
+     * @param propertyPrefix the prefix of the family properties, such as `embabel.models`
+     */
+    internal class Facade(val builderName: String, val propertyPrefix: String)
 
     /**
      * Collects registrations, families, defaults, roles, candidates and sources, and validates them in
@@ -146,8 +175,15 @@ class ModelRegistry<M : ModelCapability> private constructor(
         /** Registers [model] under [name]. */
         fun register(name: String, model: M): Builder<M> = apply { registrations += Registration(name, model) }
 
-        /** Declares a family for the capability interface [type]. */
-        fun family(type: Class<out M>, spec: FamilySpec): Builder<M> = apply {
+        /**
+         * Declares a family for the capability interface [type].
+         *
+         * @param label the family's name in messages, such as `image`
+         */
+        fun family(type: Class<out M>, label: String): Builder<M> = family(type, FamilySpec(label, type.simpleName))
+
+        /** Declares a family whose messages use [spec], for a facade that names its own builder. */
+        internal fun family(type: Class<out M>, spec: FamilySpec): Builder<M> = apply {
             require(type !in declared) { "a family is already declared for ${type.name}" }
             declared[type] = DeclaredFamily(type, spec)
         }
@@ -191,6 +227,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
                 families = families.associateBy { it.type }.mapValues { (_, family) -> family.withDefault(candidateNames) },
                 sources = sources,
                 describe = describe,
+                defaultCandidates = java.util.List.copyOf(candidateNames),
             )
         }
 
@@ -244,14 +281,13 @@ class ModelRegistry<M : ModelCapability> private constructor(
         ): Family {
             val spec = declared.spec
             val type = declared.type
+            val defaultBinding = "${spec.label} default${inParentheses(spec.defaultProperty)}"
             val explicitDefault = declared.defaults.distinct().let { distinct ->
-                require(distinct.size <= 1) {
-                    "${spec.label} default (${spec.defaultProperty}) is set to more than one service: $distinct"
-                }
+                require(distinct.size <= 1) { "$defaultBinding is set to more than one service: $distinct" }
                 distinct.firstOrNull()
             }
             explicitDefault?.let { name ->
-                require(name.isNotBlank()) { "${spec.label} default (${spec.defaultProperty}) must not be blank" }
+                require(name.isNotBlank()) { "$defaultBinding must not be blank" }
                 requireEligible("${spec.label} default", spec.defaultProperty, name, declared, models, sourceModels)
             }
             val roles = LinkedHashMap<String, String>()
@@ -259,9 +295,10 @@ class ModelRegistry<M : ModelCapability> private constructor(
                 require(role.isNotBlank()) { "${spec.label} role name must not be blank" }
                 val binding = "${spec.label} role '$role'"
                 val property = spec.roleProperty(role)
-                require(name.isNotBlank()) { "$binding ($property) must name a service" }
+                require(name.isNotBlank()) { "$binding${inParentheses(property)} must name a service" }
+                // Binding a role twice is allowed only when both bindings name the same model.
                 roles[role]?.let { bound ->
-                    require(bound == name) { "$binding ($property) is bound to both '$bound' and '$name'" }
+                    require(bound == name) { "$binding${inParentheses(property)} is bound to both '$bound' and '$name'" }
                 }
                 requireEligible(binding, property, name, declared, models, sourceModels)
                 roles[role] = name
@@ -283,7 +320,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
          */
         private fun requireEligible(
             binding: String,
-            property: String,
+            property: String?,
             name: String,
             declared: DeclaredFamily,
             models: Map<String, M>,
@@ -291,24 +328,28 @@ class ModelRegistry<M : ModelCapability> private constructor(
         ) {
             val spec = declared.spec
             val type = declared.type
+            val where = inParentheses(property?.let { "property $it" })
             // A name no registered model holds is valid when a source of a fitting type serves it.
             if (name !in models && name in sourceModels.value.namesFitting(type)) return
             // A name a source serves reaches here only when that source's models lack the family's capability.
             if (name !in models) {
                 sourceModels.value.typeServing(name)?.let { sourceType ->
                     throw IllegalArgumentException(
-                        "$binding names provider model '$name' (property $property), which is a ${sourceType.simpleName} without ${spec.label} support. ${spec.bindAdvice(name, type.simpleName)}",
+                        "$binding names provider model '$name'$where, which is a ${sourceType.simpleName} without ${spec.label} support. ${spec.bindAdvice(name, type.simpleName)}",
                     )
                 }
             }
             // Here the name is either registered or served by no source.
             val model = requireNotNull(models[name]) {
-                "$binding names unknown service '$name' (property $property). Registered services: ${models.keys.toList()}. Provider models: ${sourceModels.value.describeFitting(type)}."
+                "$binding names unknown service '$name'$where. Registered services: ${models.keys.toList()}. Provider models: ${sourceModels.value.describeFitting(type)}."
             }
             require(type.isInstance(model)) {
-                "$binding names service '$name' (property $property), which is a ${describe(model)} service without ${spec.label} support. ${spec.bindAdvice(name, type.simpleName)}"
+                "$binding names service '$name'$where, which is a ${describe(model)} service without ${spec.label} support. ${spec.bindAdvice(name, type.simpleName)}"
             }
         }
+
+        /** Returns ` (text)`, or nothing when [text] is null. */
+        private fun inParentheses(text: String?): String = text?.let { " ($it)" } ?: ""
 
         private data class Registration<M>(val name: String, val model: M)
 
@@ -418,7 +459,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
             is DefaultState.Resolved -> lookup(state.name)
             is DefaultState.Unresolved -> throw ServiceSelectionException(
                 state.reason,
-                "${state.detail} ${family.context()} Set ${spec.defaultProperty}=<name>, or call ${spec.builderName}.${spec.label}Default(name) in plain Java.",
+                "${state.detail} ${family.context()} ${spec.defaultAdvice()}",
             )
         }
 
@@ -426,7 +467,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
             // A registered model wins over a source model of the same name.
             val model = models[name] ?: sourceModel(name) ?: throw unfittingSourceModel(name) ?: ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
-                "No ${spec.label} service is registered under the name '$name'. ${family.context()} Register a service under that name in configuration or with ${spec.builderName}.register(name, service), or select one of the listed names.",
+                "No ${spec.label} service is registered under the name '$name'. ${family.context()} ${spec.registerAdvice()}",
             )
             // A registered model can have any capability, so check that this one fits the family.
             return requireFits(name, model)
@@ -448,7 +489,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
         override fun byRole(role: String): S {
             val name = family.roles[role] ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_ROLE,
-                "No ${spec.label} service is bound to the role '$role'. ${family.context()} Bind the role with ${spec.roleProperty(role)}=<name>, or call ${spec.builderName}.${spec.label}Role(\"$role\", name) in plain Java.",
+                "No ${spec.label} service is bound to the role '$role'. ${family.context()} ${spec.roleAdvice(role)}",
             )
             return lookup(name)
         }
