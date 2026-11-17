@@ -16,22 +16,6 @@ models:
       usd_per1m_input_tokens: 1.5
       usd_per1m_output_tokens: 7.5
 
-  - name: "ministral-3b-2410"
-    model_id: "ministral-3b-2410"
-    display_name: "Ministral 3B"
-    max_tokens: 131072
-    pricing_model:
-      usd_per1m_input_tokens: 0.04
-      usd_per1m_output_tokens: 0.04
-
-  - name: "ministral-8b-2410"
-    model_id: "ministral-8b-2410"
-    display_name: "Ministral 8B"
-    max_tokens: 131072
-    pricing_model:
-      usd_per1m_input_tokens: 0.1
-      usd_per1m_output_tokens: 0.1
-
   - name: "codestral-2508"
     model_id: "codestral-2508"
     display_name: "Codestral"

@@ -170,7 +170,7 @@ class CredentialEndpointConfigTest {
             AnthropicModels.PROVIDER to AnthropicModels.CLAUDE_HAIKU_4_5,
             OpenAiModels.PROVIDER to OpenAiModels.GPT_41_MINI,
             DeepSeekModels.PROVIDER to DeepSeekModels.DEEPSEEK_V4_FLASH,
-            MistralAiModels.PROVIDER to MistralAiModels.MINISTRAL_8B,
+            MistralAiModels.PROVIDER to MistralAiModels.MINISTRAL_3_8B,
             GoogleGenAiModels.PROVIDER to GoogleGenAiModels.GEMINI_2_5_FLASH,
             AtlasCloudModels.PROVIDER to AtlasCloudModels.QWEN3_5_FLASH,
         )
@@ -234,7 +234,7 @@ class CredentialEndpointConfigTest {
             assertThat(build(factories, "OPENAI", OpenAiModels.GPT_41_MINI)).isNotNull()
             assertThat(build(factories, "anthropic", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
             assertThat(build(factories, "ANTHROPIC", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
-            assertThat(build(factories, "mistral ai", MistralAiModels.MINISTRAL_8B)).isNotNull()
+            assertThat(build(factories, "mistral ai", MistralAiModels.MINISTRAL_3_8B)).isNotNull()
             assertThat(build(factories, "deepseek", DeepSeekModels.DEEPSEEK_V4_FLASH)).isNotNull()
         }
     }
@@ -244,7 +244,7 @@ class CredentialEndpointConfigTest {
         // A credential carries whatever the application stored. If that spelling reached the built
         // service, cost and metadata lookups would key on two names for one provider.
         contextRunner.run { context ->
-            val service = build(factoriesIn(context), "MISTRAL AI", MistralAiModels.MINISTRAL_8B)
+            val service = build(factoriesIn(context), "MISTRAL AI", MistralAiModels.MINISTRAL_3_8B)
 
             assertThat(service?.provider).isEqualTo(MistralAiModels.PROVIDER)
         }

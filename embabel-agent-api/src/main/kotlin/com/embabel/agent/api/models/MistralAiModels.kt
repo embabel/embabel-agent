@@ -39,8 +39,16 @@ class MistralAiModels {
         )
         const val MISTRAL_SMALL_32 = "mistral-small-2506"
 
+        @Deprecated(
+            message = "ministral-8b-2410 (Ministral 8B) was retired by Mistral on 2025-12-31 and is routed to ministral-8b-2512. Use MINISTRAL_3_8B.",
+            replaceWith = ReplaceWith("MINISTRAL_3_8B")
+        )
         const val MINISTRAL_8B = "ministral-8b-2410"
 
+        @Deprecated(
+            message = "ministral-3b-2410 (Ministral 3B) was retired by Mistral on 2025-12-31 and is routed to ministral-3b-2512. Use MINISTRAL_3_3B.",
+            replaceWith = ReplaceWith("MINISTRAL_3_3B")
+        )
         const val MINISTRAL_3B = "ministral-3b-2410"
 
         const val CODESTRAL = "codestral-2508"

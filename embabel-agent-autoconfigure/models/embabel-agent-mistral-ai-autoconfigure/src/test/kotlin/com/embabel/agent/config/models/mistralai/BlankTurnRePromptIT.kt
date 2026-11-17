@@ -32,7 +32,7 @@ import org.springframework.context.ApplicationContext
     matches = ".+",
     disabledReason = "Integration test requires MISTRAL_API_KEY and makes a real call to api.mistral.ai",
 )
-class BlankTurnRePromptIT : BlankTurnRePromptTestSupport(MistralAiModels.MINISTRAL_8B) {
+class BlankTurnRePromptIT : BlankTurnRePromptTestSupport(MistralAiModels.MINISTRAL_3_8B) {
 
     override fun withContext(check: (ApplicationContext) -> Unit) {
         ApplicationContextRunner()

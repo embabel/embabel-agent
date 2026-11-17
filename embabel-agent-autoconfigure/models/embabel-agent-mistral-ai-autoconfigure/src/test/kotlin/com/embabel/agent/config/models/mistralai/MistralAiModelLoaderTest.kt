@@ -65,7 +65,7 @@ class MistralAiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 9 expected Mistral AI models`() {
+    fun `should load all 7 expected Mistral AI models`() {
 
         // Arrange
         val loader = MistralAiModelLoader()
@@ -74,14 +74,13 @@ class MistralAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(9, result.models.size, "Should load exactly 9 Mistral AI models")
+        assertEquals(7, result.models.size, "Should load exactly 7 Mistral AI models")
 
         val expectedModels = listOf(
             "mistral-medium-2604", "codestral-2508",
             "mistral-large-2512", "mistral-small-2603",
             "ministral-14b-2512",
-            "ministral-8b-2512", "ministral-3b-2512", "ministral-3b-2410",
-            "ministral-8b-2410"
+            "ministral-8b-2512", "ministral-3b-2512"
         )
         expectedModels.forEach { expectedName ->
             assertTrue(result.models.any { it.name == expectedName }, "Should have model: $expectedName")
@@ -92,7 +91,8 @@ class MistralAiModelLoaderTest {
     fun `should not list model ids retired by Mistral`() {
         val retired = setOf(
             "mistral-medium-2505", "mistral-medium-2508", "mistral-small-2506", "open-mistral-nemo-2407",
-            "magistral-medium-2509", "magistral-small-2509", "devstral-2512"
+            "magistral-medium-2509", "magistral-small-2509", "devstral-2512",
+            "ministral-8b-2410", "ministral-3b-2410"
         )
 
         val loaded = MistralAiModelLoader().loadAutoConfigMetadata().models.map { it.modelId }
