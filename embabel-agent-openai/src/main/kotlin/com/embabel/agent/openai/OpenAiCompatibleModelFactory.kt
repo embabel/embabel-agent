@@ -214,12 +214,12 @@ open class OpenAiCompatibleModelFactory(
 
         /**
          * Returns a [ByokSpec] for Mistral AI (OpenAI-compatible endpoint).
-         * Validates against [MistralAiModels.MINISTRAL_8B] by default.
+         * Validates against [MistralAiModels.MINISTRAL_3_8B] by default.
          *
          * Note: uses the OpenAI wire protocol, not the native Spring AI Mistral client.
          */
         fun mistral(apiKey: String): ByokSpec =
-            ByokSpec(MISTRAL.baseUrl, apiKey, MistralAiModels.MINISTRAL_8B, MISTRAL.provider)
+            ByokSpec(MISTRAL.baseUrl, apiKey, MistralAiModels.MINISTRAL_3_8B, MISTRAL.provider)
 
         /**
          * Returns a [ByokSpec] for Google Gemini (OpenAI-compatible endpoint).
