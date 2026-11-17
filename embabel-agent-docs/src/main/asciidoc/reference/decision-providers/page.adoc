@@ -126,8 +126,7 @@ The checks run in this order:
 |===
 
 A failed capability check throws `UnsupportedDecisionException` and the executor is not called.
-A spec that exceeds `maxQuestions` is rejected whole.
-The framework never splits it into smaller calls.
+The framework never splits a spec into smaller calls.
 A preflight exception reaches the caller unchanged.
 When `nativeInputKinds` leaves out `json`, a JSON input reaches the executor as its compact text.
 A response that does not answer the call's spec becomes an `INVALID_RESPONSE` failure for every question.
@@ -151,14 +150,16 @@ In Kotlin, `DecisionService(metadata, capabilities, executor)` takes a block wit
 |===
 
 Defaults are filled in before the option keys are checked.
-When the call has a `DecisionOptions.TIMEOUT`, the executor gets a call whose timeout is the time left since the ask began.
+A `DecisionOptions.TIMEOUT` of zero or less throws `UnsupportedDecisionException`.
+Otherwise the executor gets a call whose timeout is what is left after the checks and the preflight.
 With no time left, every question fails as `UNAVAILABLE` and the executor is not called.
 
 ==== Calls and options
 
 `DecisionCall` holds the input, the spec and the options for one call.
 `ask(call)` sends it to a service.
-The input is a `TextDecisionInput` or a `JsonDecisionInput`.
+The framework defines `TextDecisionInput` and `JsonDecisionInput`.
+A service can list other input kinds in `nativeInputKinds`.
 `requiringNativeJson()` asks for a JSON input to reach the model as JSON.
 It throws `IllegalArgumentException` for any other input.
 A `DecisionOption<T>` is a typed key with a namespaced id, such as `openai.prompt-cache-key`.
@@ -192,7 +193,6 @@ How a service treats a call depends on how it was made:
 |Sent as text
 |===
 
-An option the service does not support is rejected before the provider is called.
 No option is dropped silently.
 Option values stay out of request JSON, logs and observations.
 `DecisionCall.toString()` shows the input kind, question names and option ids.
