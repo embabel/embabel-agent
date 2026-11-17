@@ -727,14 +727,14 @@ private object AnswerRules {
         refused: Collection<String>,
     ): Set<String> {
         if (refused.isEmpty()) return emptySet()
+        val wanted = refused.toSet()
         val unknown = refused.filterNot(answersByName::containsKey)
         require(unknown.isEmpty()) { "A refused question needs an answer in the response. Unknown: ${unknown.size}" }
-        val notInconclusive = answers.filter { it.name in refused && !isInconclusive(it) }
+        val notInconclusive = answers.filter { it.name in wanted && !isInconclusive(it) }
         require(notInconclusive.isEmpty()) {
             "A refused question's answer must be the inconclusive outcome of its kind. " +
                 "Not inconclusive: ${notInconclusive.joinToString { "'${it.name}'" }}"
         }
-        val wanted = refused.toSet()
         return java.util.Collections.unmodifiableSet(answers.mapTo(LinkedHashSet()) { it.name }.apply { retainAll(wanted) })
     }
 

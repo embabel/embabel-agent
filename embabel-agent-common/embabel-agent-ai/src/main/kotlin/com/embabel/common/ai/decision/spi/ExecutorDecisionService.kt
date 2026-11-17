@@ -46,7 +46,13 @@ import java.time.Duration
  * runs, the call is checked against the capabilities in a fixed order: question kinds, question
  * count, option and level counts, input kind, then call options. A failed check throws
  * [UnsupportedDecisionException] and the executor is never called. After it runs, a response that
- * doesn't answer the call's spec is replaced by an invalid-response failure.
+ * doesn't answer the call's spec is replaced by an invalid-response failure that keeps any token
+ * usage the executor reported.
+ *
+ * The option check compares ids against the capabilities, and then compares types too. The service
+ * knows the typed keys of its own defaults and of [DecisionOptions.TIMEOUT]. A call key that shares
+ * an id with one of those keys but has a different type is rejected, and so is a call that sets two
+ * keys with the same id and different types. Otherwise such a value would be skipped without a word.
  *
  * A service can also carry default option values, which fill in any option the call leaves
  * unset, and a preflight check of the provider's own that runs after the capability checks. When
@@ -56,8 +62,9 @@ import java.time.Duration
  * @param preflight runs on the call the executor would get, and stops the ask by throwing
  * @param defaults option values used when the call sets no value of its own for that option
  * @param nanoTime the clock used to measure the timeout budget, which tests replace
- * @throws IllegalArgumentException if a default's option isn't listed in the capabilities, or its
- * value isn't an instance of the option's type
+ * @throws IllegalArgumentException if a default's option isn't listed in the capabilities, its
+ * value isn't an instance of the option's type, or its key shares an id with another known key and
+ * has a different type
  */
 internal class ExecutorDecisionService(
     private val metadata: DecisionServiceMetadata,
@@ -80,7 +87,16 @@ internal class ExecutorDecisionService(
                 "Default option '${key.id}' needs a value of type ${key.type.name}, but got ${value.javaClass.name}"
             }
         }
+        val clashing = clashingIds(defaults.keys + DecisionOptions.TIMEOUT)
+        require(clashing.isEmpty()) {
+            "Decision service '${metadata.name}' has default options whose ids are used with more than one type: " +
+                clashing.joinToString { "'$it'" }
+        }
     }
+
+    // The typed keys this service knows, by id: its defaults' keys and the framework timeout.
+    private val knownKeys: Map<String, DecisionOption<*>> =
+        (defaults.keys + DecisionOptions.TIMEOUT).associateBy { it.id }
 
     override val name: String get() = metadata.name
 
@@ -109,9 +125,16 @@ internal class ExecutorDecisionService(
         try {
             response.requireMatches(call.spec)
         } catch (e: IllegalArgumentException) {
-            return DecisionResponse.failed(call.spec, FailureReason.INVALID_RESPONSE)
+            return invalidResponse(call, response)
         }
         return response
+    }
+
+    /** Returns an invalid-response failure for the call that keeps the usage the executor reported. */
+    private fun invalidResponse(call: DecisionCall, response: DecisionResponse): DecisionResponse {
+        val failed = DecisionResponse.failed(call.spec, FailureReason.INVALID_RESPONSE)
+        val usage = response.usage ?: return failed
+        return DecisionResponse.create(failed.requestFailure, failed.answers, usage)
     }
 
     override fun askQuestionSet(request: DecisionRequest): DecisionResponse = askCall(DecisionCall.of(request))
@@ -190,10 +213,27 @@ internal class ExecutorDecisionService(
                     "Ask without them, or use a service that lists them in its capabilities",
             )
         }
+
+        val mistyped = call.optionKeys.filter { key -> knownKeys[key.id].let { it != null && it.type != key.type } }
+            .map { it.id } + clashingIds(call.optionKeys)
+        if (mistyped.isNotEmpty()) {
+            reject(
+                "the call sets options with a type that differs from the one this service uses for that id: " +
+                    "${mistyped.distinct().joinToString { "'$it'" }}. Use the service's own option keys",
+            )
+        }
         return accepted
     }
 
-    /** Adds each default whose option the call doesn't set. An option counts as set when its id matches. */
+    /** Returns the ids that appear on more than one of the given keys, which means with more than one type. */
+    private fun clashingIds(keys: Collection<DecisionOption<*>>): List<String> =
+        keys.groupBy { it.id }.filterValues { it.size > 1 }.keys.toList()
+
+    /**
+     * Adds each default whose option the call doesn't set. An option counts as set when its id
+     * matches. When a call key has a default's id and a different type, the default is skipped
+     * here and the option check then rejects the call.
+     */
     private fun withDefaults(call: DecisionCall): DecisionCall {
         val setIds = call.optionKeys.mapTo(HashSet()) { it.id }
         return defaults.entries.fold(call) { current, (key, value) ->

@@ -62,7 +62,9 @@ class DecisionOption<T : Any> private constructor(
          * @param namespace the owner of the option, as one or more dot-separated segments of
          * lower-case letters, digits and hyphens
          * @param name the option's name, in the same form as the namespace
-         * @param type the class every value of this option must be an instance of
+         * @param type the class every value of this option must be an instance of. A primitive
+         * class such as `int.class` is stored as its boxed class, so it makes the same key as
+         * `Integer.class`
          * @return the option key
          * @throws IllegalArgumentException if the namespace or the name is not in that form
          */
@@ -74,7 +76,9 @@ class DecisionOption<T : Any> private constructor(
             require(DOTTED_SEGMENTS.matches(name)) {
                 "Option name '$name' must be dot-separated segments of lower-case letters, digits and hyphens"
             }
-            return DecisionOption(namespace, name, type)
+            // A primitive token such as int.class can never match a value, because values arrive boxed.
+            @Suppress("UNCHECKED_CAST")
+            return DecisionOption(namespace, name, type.kotlin.javaObjectType as Class<T>)
         }
     }
 }
