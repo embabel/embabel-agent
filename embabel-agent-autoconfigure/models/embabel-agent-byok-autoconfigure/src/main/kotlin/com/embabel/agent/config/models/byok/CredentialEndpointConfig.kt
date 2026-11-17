@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.byok
 import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.config.models.openai.OpenAiApiFormat
 import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
@@ -31,6 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.bind.BindException
+import org.springframework.boot.context.properties.bind.Bindable
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -91,6 +93,15 @@ class CredentialEndpointConfig @Autowired constructor(
      * never constructs it.
      */
     private val openAiTimeouts by lazy { OpenAiTimeouts(environment) }
+
+    private val openAiApiFormatOverrides by lazy {
+        Binder.get(environment)
+            .bind(
+                "$MODELS_PREFIX.openai.api-format-overrides",
+                Bindable.mapOf(String::class.java, OpenAiApiFormat::class.java),
+            )
+            .orElse(emptyMap())
+    }
 
     /**
      * Builds anything routed to Anthropic's protocol, whoever routed it there.
@@ -153,6 +164,7 @@ class CredentialEndpointConfig @Autowired constructor(
                         pricingModel = it.pricingModel,
                         provider = it.provider,
                         knowledgeCutoffDate = it.knowledgeCutoffDate,
+                        apiFormatOverrides = openAiApiFormatOverrides,
                     )
             }
         }

@@ -635,6 +635,7 @@ open class OpenAiCompatibleModelFactory(
      * The match is on the exact model id, never on its shape: `deepseek-v4-pro` is not a `*-pro`
      * OpenAI model, and a dated snapshot the catalog does not list keeps today's behaviour.
      * [pricingModel] and [knowledgeCutoffDate] are the caller's; a null cutoff takes the catalog's.
+     * [apiFormatOverrides] can replace the catalog transport for application compatibility.
      */
     @JvmOverloads
     fun llm(
@@ -642,8 +643,11 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel,
         provider: String,
         knowledgeCutoffDate: LocalDate? = null,
+        apiFormatOverrides: Map<String, OpenAiApiFormat> = emptyMap(),
     ): LlmService<*> {
-        val definition = catalogDefinitionFor(provider, model)?.takeIf { servesOpenAiCatalog }
+        val definition = catalogDefinitionFor(provider, model)
+            ?.let { it.copy(apiFormat = apiFormatOverrides[model] ?: it.apiFormat) }
+            ?.takeIf { servesOpenAiCatalog }
             ?: return openAiCompatibleLlm(
                 model = model,
                 pricingModel = pricingModel,
