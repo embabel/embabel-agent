@@ -333,12 +333,9 @@ class SpecJsonTest {
         }
 
         @Test
-        fun `capabilities reject a limit member`() {
-            assertRejects(
-                """{"questionKinds":["rating"],"maxQuestions":8}""",
-                DecisionCapabilities::class.java,
-                "'maxQuestions'",
-            )
+        fun `capabilities read a stated limit`() {
+            val capabilities = mapper.readValue("""{"questionKinds":["rating"],"maxQuestions":8}""", DecisionCapabilities::class.java)
+            assertEquals(8, capabilities.maxQuestions)
         }
     }
 

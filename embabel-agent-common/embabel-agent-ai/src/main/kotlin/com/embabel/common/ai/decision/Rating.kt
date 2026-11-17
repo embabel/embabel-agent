@@ -161,7 +161,8 @@ sealed interface RatingResult {
      * @property provenance the model that answered
      * @property selectedLevelId the level the provider selected, when it selects one
      * @property score the provider's score and the statistic it represents, when reported
-     * @property confidence the provider's concentration measure, in 0..1, when reported
+     * @property confidence the confidence the provider reported, in 0..1, when reported. The
+     * service's capabilities say what it measures.
      */
     @JsonPropertyOrder("selectedLevelId", "distribution", "score", "confidence", "provenance")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -239,7 +240,8 @@ sealed interface RatingResult {
              * @param selectedLevelId the level the provider selected, when it selects one
              * @param distribution the per-level probabilities, or null when absent
              * @param score the provider's score and the statistic it represents, when reported
-             * @param confidence the provider's concentration measure, when reported
+             * @param confidence the confidence the provider reported, when reported. The service's
+             * capabilities say what it measures.
              * @return the answered rating
              */
             @JvmStatic
