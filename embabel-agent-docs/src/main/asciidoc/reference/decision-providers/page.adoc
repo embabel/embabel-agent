@@ -20,6 +20,10 @@ Defaults and roles pick a model by name.
 |Application bean
 |A singleton `DecisionService` or `ClassificationService` bean registers under its bean name. A `@Lazy` or scoped bean is left out.
 |`triage`
+
+|Provider function
+|`DecisionService.from(metadata, capabilities, executor)` makes a service from one function. Define the service as an application bean to register it.
+|`refund-rules`
 |===
 
 ==== Selection
@@ -73,6 +77,290 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/kotlin
 <<reference.decision-execution>> shows the same registry built in Java.
 In Spring, every `DecisionModelProvider` bean is added to the registry in bean order.
 A service a provider created stays cached for the life of the registry.
+
+==== Writing a provider
+
+`DecisionExecutor` is the one function a provider writes.
+It receives a `DecisionCall` and returns a `DecisionResponse` with one answer per question.
+`DecisionService.from(metadata, capabilities, executor)` makes a `DecisionService` from it.
+`DecisionService.KIND` is the model kind for decision services.
+
+This provider answers one proposition or one choice question from text with fixed rules.
+Its capabilities allow one question per call.
+`DecisionResponseAssembler` builds the response and applies the answer rules in <<reference.decision-execution>>.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-openai/src/test/kotlin/com/embabel/agent/openai/decision/DecisionProviderExamplesTest.kt[tag=rules-provider,indent=0]
+----
+
+[source,java]
+----
+include::../../../../../../embabel-agent-openai/src/test/java/com/embabel/agent/openai/decision/DecisionProviderJavaExamplesTest.java[tag=rules-provider-java,indent=0]
+----
+
+Every way of asking the service reaches the executor as one call, including `assess` and `classify`.
+The call is checked against the capabilities before the executor runs.
+The checks run in this order:
+
+|===
+|Check |The call is rejected when
+
+|Question kinds
+|A question's kind is not in `questionKinds`
+
+|Question count
+|The spec holds more questions than `maxQuestions`
+
+|Arity
+|A choice question's option count or a rating question's level count is outside the arity stated for its kind
+
+|Input
+|The input is neither text nor a kind in `nativeInputKinds`, or the call requires native JSON and `nativeInputKinds` leaves out `json`
+
+|Option keys
+|The call sets an option whose id is not in `supportedCallOptionIds`
+
+|Preflight
+|The provider's preflight check throws
+|===
+
+A failed capability check throws `UnsupportedDecisionException` and the executor is not called.
+A spec that exceeds `maxQuestions` is rejected whole.
+The framework never splits it into smaller calls.
+A preflight exception reaches the caller unchanged.
+When `nativeInputKinds` leaves out `json`, a JSON input reaches the executor as its compact text.
+A response that does not answer the call's spec becomes an `INVALID_RESPONSE` failure for every question.
+An exception the executor throws reaches the caller unchanged.
+
+`DecisionService.builder(metadata, capabilities, executor)` adds default options and a preflight check from Java.
+In Kotlin, `DecisionService(metadata, capabilities, executor)` takes a block with the same settings.
+
+|===
+|Setting |Java builder |Kotlin block |Effect
+
+|Default option
+|`withDefaultOption(key, value)`
+|`defaultOption(key, value)`
+|Fills in an option the call leaves unset. The capabilities must list the option.
+
+|Preflight
+|`withPreflight(check)`
+|`preflight(check)`
+|Runs on the call the executor would get, after the capability checks. Throwing stops the ask.
+|===
+
+Defaults are filled in before the option keys are checked.
+When the call has a `DecisionOptions.TIMEOUT`, the executor gets a call whose timeout is the time left since the ask began.
+With no time left, every question fails as `UNAVAILABLE` and the executor is not called.
+
+==== Calls and options
+
+`DecisionCall` holds the input, the spec and the options for one call.
+`ask(call)` sends it to a service.
+The input is a `TextDecisionInput` or a `JsonDecisionInput`.
+`requiringNativeJson()` asks for a JSON input to reach the model as JSON.
+It throws `IllegalArgumentException` for any other input.
+A `DecisionOption<T>` is a typed key with a namespaced id, such as `openai.prompt-cache-key`.
+
+This example asks two questions about a support ticket held as JSON, with a prompt cache key.
+`service` is a test service made with `DecisionService.from`.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-openai/src/test/kotlin/com/embabel/agent/openai/decision/DecisionProviderExamplesTest.kt[tag=structured-call,indent=0]
+----
+
+[source,java]
+----
+include::../../../../../../embabel-agent-openai/src/test/java/com/embabel/agent/openai/decision/DecisionProviderJavaExamplesTest.java[tag=structured-call-java,indent=0]
+----
+
+How a service treats a call depends on how it was made:
+
+|===
+|Service |Call options |Native JSON required |JSON input
+
+|Made with `DecisionService.from`
+|Checked against `supportedCallOptionIds`
+|Needs `json` in `nativeInputKinds`
+|Sent as JSON when `nativeInputKinds` lists `json`, and as text otherwise
+
+|Any other `DecisionService`
+|Rejected
+|Rejected
+|Sent as text
+|===
+
+An option the service does not support is rejected before the provider is called.
+No option is dropped silently.
+Option values stay out of request JSON, logs and observations.
+`DecisionCall.toString()` shows the input kind, question names and option ids.
+It leaves out option values and the input.
+A `DecisionCall` has no JSON form.
+Use a `DecisionRequest` for a document you store or send.
+`ObservedDecisionService` records one `embabel.ai.ask` and one `embabel.ai.decision` observation for an ask of a service made with `DecisionService.from`.
+The `embabel.ai.decision` observation has the operation `ask_question_set`.
+Observations read only the spec.
+
+`OpenAiDecisionOptions` in `com.embabel.agent.openai.decision` publishes the OpenAI option keys:
+
+|===
+|Key |Id |Kotlin property |OpenAI limit
+
+|`PROMPT_CACHE_KEY`
+|`openai.prompt-cache-key`
+|`promptCacheKey`
+|64 characters
+
+|`SAFETY_IDENTIFIER`
+|`openai.safety-identifier`
+|`safetyIdentifier`
+|128 characters
+|===
+
+In Kotlin, the `openAi` block inside a `DecisionCall` block sets the keys by name.
+The block does not check the length limits.
+The keys are published before the OpenAI decision adapter.
+This release does not include that adapter.
+
+==== Declaring capabilities
+
+`DecisionCapabilities` states what a service accepts.
+Only the question kinds are required.
+A declaration left out means the service does not say.
+
+|===
+|Declaration |Java chain |Kotlin block |When left out
+
+|Question kinds
+|`DecisionCapabilities.of(kinds)`
+|`DecisionCapabilities(kinds) { }`
+|Required
+
+|Native inputs
+|`acceptingInput(kind)`
+|`input(kind)`
+|Text only. A JSON input is sent as text.
+
+|Question limit
+|`withMaxQuestions(max)`
+|`maxQuestions = max`
+|No limit
+
+|Call options
+|`acceptingOption(key)`
+|`option(key)`
+|No option is accepted
+
+|Arity
+|`withArity(kind, min, max)`
+|`arity(kind, min, max)`
+|Any option or level count
+
+|Evidence
+|`reporting(kind, evidence...)`
+|`reports(kind, evidence...)`
+|Not stated
+
+|Confidence measure
+|`withConfidenceMeasure(kind, measure)`
+|`confidence(kind, measure)`
+|Not stated
+|===
+
+Each chain method returns a new value.
+A per-kind declaration for a kind outside the question kinds throws `IllegalArgumentException`.
+Evidence and confidence measures describe answers.
+They are not checked against calls.
+`confidenceMeasure(kind)` returns a `ConfidenceMeasure`, which says what a provider's confidence number measures.
+Two providers can report the same confidence and mean different things.
+
+|===
+|Evidence kind |What the service reports
+
+|`TRUE_PROBABILITY`
+|A probability that a proposition is true
+
+|`CATEGORY_DISTRIBUTION`
+|A probability for each option of a choice question
+
+|`LEVEL_DISTRIBUTION`
+|A probability for each level of a rating question
+
+|`EXPECTED_LEVEL_INDEX`
+|The expected position on a rating scale, as a fractional level index
+
+|`CONFIDENCE`
+|A confidence figure, whose meaning the confidence measure states
+
+|`REFUSAL`
+|An explicit refusal to answer a question
+|===
+
+This example declares a model that reads JSON and takes up to 400 questions per call.
+It accepts both OpenAI option keys.
+It reports a distribution and a confidence for choice questions.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-openai/src/test/kotlin/com/embabel/agent/openai/decision/DecisionProviderExamplesTest.kt[tag=provider-capabilities,indent=0]
+----
+
+Capabilities serialize to JSON.
+A declaration left out is also left out of the JSON.
+
+==== Refusals and usage
+
+A provider reports a refused question with `DecisionResponseAssembler.refused(name, provenance)`.
+A refused question has the `Inconclusive` outcome of its kind.
+`DecisionResponse.wasRefused(question)` tells a refusal from an inconclusive answer.
+`DecisionResponse.refusedQuestions` lists the refused question names in spec order.
+A failed request lists no refusals.
+
+A provider reports token counts with `DecisionResponseAssembler.usage(usage)`.
+The usage is attached to the response, including a failed one.
+`DecisionResponse.usage` is null when the provider reported nothing.
+
+|===
+|`DecisionUsage` count |Tokens counted
+
+|`inputTokens`
+|Read from the request
+
+|`outputTokens`
+|Written in the reply
+
+|`totalTokens`
+|The provider's own total
+
+|`cacheReadInputTokens`
+|Input served from the provider's cache
+
+|`cacheWriteInputTokens`
+|Input written to the provider's cache
+
+|`reasoningTokens`
+|Spent on hidden reasoning
+|===
+
+Each count is optional.
+A missing count means the provider did not report it.
+
+The test service in the call example answers `duplicate`, refuses `team` and reports usage:
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-openai/src/test/kotlin/com/embabel/agent/openai/decision/DecisionProviderExamplesTest.kt[tag=refusing-provider,indent=0]
+----
+
+The caller reads the typed answer, sends a refused ticket to human review and reads the input token count.
+The Java call example reads the same values.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-openai/src/test/kotlin/com/embabel/agent/openai/decision/DecisionProviderExamplesTest.kt[tag=reading-answers,indent=0]
+----
 
 ==== Credentials
 
