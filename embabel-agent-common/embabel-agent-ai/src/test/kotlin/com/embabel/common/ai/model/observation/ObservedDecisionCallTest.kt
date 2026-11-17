@@ -37,6 +37,7 @@ import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -76,12 +77,14 @@ class ObservedDecisionCallTest {
     /** Remembers each call it gets and answers every question true. */
     private inner class Executor {
         val calls = mutableListOf<DecisionCall>()
+        var failure: RuntimeException? = null
 
         fun service(): DecisionService = DecisionService.from(
             DecisionServiceMetadata.create("one-function", "test"),
             DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION)).acceptingOption(flag),
         ) { call ->
             calls += call
+            failure?.let { throw it }
             DecisionResponse.builder(call.spec).answer(urgent, PropositionResult.Answered(true, provenance)).build()
         }
     }
@@ -120,7 +123,7 @@ class ObservedDecisionCallTest {
     }
 
     @Test
-    fun `a nested observed decorator records one ask observation for a call`() {
+    fun `an observed decorator inside an observed decorator records one ask and one decision observation`() {
         val executor = Executor()
         val observed = ObservedDecisionService(ObservedDecisionService(executor.service(), registry), registry)
 
@@ -128,7 +131,23 @@ class ObservedDecisionCallTest {
 
         assertEquals(1, executor.calls.size)
         assertEquals("on", executor.calls.single().option(flag))
-        assertEquals(1, recorder.named("embabel.ai.ask").size)
+        assertEquals(listOf("ask"), recorder.operations("embabel.ai.ask"))
+        assertEquals(listOf("ask_question_set"), recorder.operations("embabel.ai.decision"))
+    }
+
+    @Test
+    fun `an exception from the executor reaches the caller unchanged and both observations close`() {
+        val executor = Executor()
+        val boom = IllegalStateException("provider down")
+        executor.failure = boom
+        val observed = ObservedDecisionService(executor.service(), registry)
+
+        val thrown = assertThrows<IllegalStateException> { observed.ask(callWithFlag()) }
+
+        assertSame(boom, thrown)
+        assertEquals(1, executor.calls.size)
+        assertEquals(listOf("ask"), recorder.operations("embabel.ai.ask"))
+        assertEquals(listOf("ask_question_set"), recorder.operations("embabel.ai.decision"))
     }
 
     @Test

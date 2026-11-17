@@ -60,7 +60,11 @@ import org.jetbrains.annotations.ApiStatus
  * itself. That ask records one `embabel.ai.ask` observation and one `ask_question_set` provider
  * observation around the delegate's call hook. A delegate that only answers requests gets the call
  * as a plain request, and a call it cannot hold, such as one with options, is refused before any
- * provider call. Observations read only the call's spec, never its options or input.
+ * provider call. Observations read only the call's spec. They record nothing from its options or input.
+ *
+ * Only `ask(call)` observes a call. The call hook forwards without observing, so a stack of
+ * decorators records one `embabel.ai.ask` and one `ask_question_set` observation however the
+ * observed and operation-bound decorators are nested.
  */
 // Members are forwarded by hand: interface delegation would send default methods such as ask past the observation.
 @Suppress("kotlin:S6514")
@@ -144,15 +148,14 @@ class ObservedDecisionService @JvmOverloads constructor(
     }
 
     /**
-     * Runs the delegate's call hook inside one `ask_question_set` observation. A decorator in front
-     * of this one reaches it here, and that decorator's own ask observation covers the call.
+     * Passes the call to the delegate's call hook without opening an observation. A decorator in
+     * front of this one reaches the hook here, and the outermost observed decorator's `ask(call)`
+     * has already opened the ask and provider observations, so opening more would count the call twice.
      *
      * @throws IllegalStateException if the delegate does not implement [DecisionCallExecution]
      */
-    override fun askCall(call: DecisionCall): DecisionResponse {
-        val hook = requireHook<DecisionCallExecution>("DecisionCallExecution")
-        return observation.questionSet { hook.askCall(call) }
-    }
+    override fun askCall(call: DecisionCall): DecisionResponse =
+        requireHook<DecisionCallExecution>("DecisionCallExecution").askCall(call)
 
     /**
      * Runs the delegate's question-set call inside one `ask_question_set` observation.

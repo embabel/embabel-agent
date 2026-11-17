@@ -132,6 +132,8 @@ class OperationBoundDecisionCallTest {
         assertEquals(1, executor.calls.size)
         assertEquals("on", executor.calls.single().option(flag))
         assertEquals(listOf("action"), executor.currentNames)
+        assertEquals(0, handler.started.count { it == "embabel.ai.ask" })
+        assertEquals(0, handler.started.count { it == "embabel.ai.decision" })
     }
 
     @Test
@@ -149,7 +151,7 @@ class OperationBoundDecisionCallTest {
     }
 
     @Test
-    fun `an observed service inside a binding runs the executor once with the option`() {
+    fun `a binding outside an observed service runs the executor once with the option`() {
         val executor = Executor()
         val observed = ObservedDecisionService(executor.service(), observations)
         inObservation("action") {
@@ -161,6 +163,22 @@ class OperationBoundDecisionCallTest {
         assertEquals(1, executor.calls.size)
         assertEquals("on", executor.calls.single().option(flag))
         assertEquals(1, handler.started.count { it == "embabel.ai.ask" })
+        assertEquals(1, handler.started.count { it == "embabel.ai.decision" })
+        assertEquals("action", handler.parents["embabel.ai.ask"])
+    }
+
+    @Test
+    fun `an observed service outside a binding runs the executor once with the option`() {
+        val executor = Executor()
+        inObservation("action") {
+            val bound = OperationBoundDecisionService(executor.service(), observations.currentObservation, observations)
+            ObservedDecisionService(bound, observations).ask(callWithFlag())
+        }
+
+        assertEquals(1, executor.calls.size)
+        assertEquals("on", executor.calls.single().option(flag))
+        assertEquals(1, handler.started.count { it == "embabel.ai.ask" })
+        assertEquals(1, handler.started.count { it == "embabel.ai.decision" })
     }
 
     @Test
