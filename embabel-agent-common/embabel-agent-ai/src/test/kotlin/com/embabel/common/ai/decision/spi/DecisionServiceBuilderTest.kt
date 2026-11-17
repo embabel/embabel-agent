@@ -80,6 +80,27 @@ class DecisionServiceBuilderTest {
     private fun call(): DecisionCall = DecisionCall.of(TextDecisionInput("the printer is on fire"), spec)
 
     @Test
+    fun `E5 a call that sets an unsupported option is rejected even when a supported default is configured`() {
+        val unsupported = DecisionOption.of("test", "unsupported", String::class.java)
+        val executor = RecordingExecutor(provenance)
+        var preflights = 0
+        val chain = DecisionService.builder(metadata, capabilities, executor)
+            .withDefaultOption(effort, "low")
+            .withPreflight { preflights++ }
+            .build()
+        val block = DecisionService(metadata, capabilities, executor) {
+            defaultOption(effort, "low")
+            preflight { preflights++ }
+        }
+
+        for (service in listOf(chain, block)) {
+            assertThrows<UnsupportedDecisionException> { service.ask(call().withOption(unsupported, "x")) }
+        }
+        assertTrue(executor.calls.isEmpty())
+        assertEquals(0, preflights)
+    }
+
+    @Test
     fun `E6 a default fills an unset option and a call's own value wins`() {
         val executor = RecordingExecutor(provenance)
         val service = DecisionService.builder(metadata, capabilities, executor)

@@ -154,8 +154,8 @@ sealed interface RatingResult {
 
     /**
      * A rating the provider answered with at least one piece of evidence: a selected level id,
-     * a distribution over levels, a score, or a combination of these. Confidence is the
-     * provider's own measure of how concentrated its reported distribution is. It is absent
+     * a distribution over levels, a score, or a combination of these. Confidence is the value
+     * the provider reported, and the service's capabilities say what it measures. It is absent
      * unless the provider actually reports it.
      *
      * @property provenance the model that answered

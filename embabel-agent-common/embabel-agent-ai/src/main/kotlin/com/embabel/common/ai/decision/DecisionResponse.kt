@@ -21,7 +21,6 @@ import com.embabel.common.ai.classification.FailureReason
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonFormat
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
@@ -303,7 +302,8 @@ class DecisionResponse private constructor(
     /**
      * The tokens the request used as the provider reported them, or null when it reported nothing.
      */
-    @get:JsonIgnore
+    @get:JsonProperty("usage")
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
     val usage: DecisionUsage? = null,
     refused: Collection<String> = emptySet(),
 ) {
@@ -425,15 +425,6 @@ class DecisionResponse private constructor(
         }
         require(mismatches.isEmpty()) { "The response does not match the spec. ${mismatches.joinToString(" ")}" }
     }
-
-    /**
-     * Returns the usage in the form written to JSON, or null when there is none.
-     *
-     * @return the usage counts to write
-     */
-    @JsonProperty("usage")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private fun usageJson(): UsageJson? = usage?.let(UsageJson::of)
 
     /**
      * Says whether the provider refused to answer the given question. It checks the question the
@@ -656,7 +647,7 @@ class DecisionResponse private constructor(
             @JsonProperty("answers", required = true)
             @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
             answers: List<DecisionAnswer>,
-            @JsonProperty("usage") usage: UsageJson?,
+            @JsonProperty("usage") usage: DecisionUsage?,
             @JsonProperty("refused")
             @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
             refused: List<String>?,
@@ -665,57 +656,9 @@ class DecisionResponse private constructor(
             val seen = HashSet<String>()
             val repeated = names.filterNot(seen::add).distinct()
             require(repeated.isEmpty()) { "Refused question names must be unique within a decision response" }
-            return DecisionResponse(requestFailure, answers, usage?.toUsage(), names)
+            return DecisionResponse(requestFailure, answers, usage, names)
         }
     }
-}
-
-/**
- * The usage member of a response as it appears in JSON. Usage has more than one constructor, which
- * leaves a JSON mapper unsure which one to use, so a response writes and reads usage through this
- * class. A count that was not reported is left out.
- */
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder("inputTokens", "outputTokens", "totalTokens", "cacheReadInputTokens", "cacheWriteInputTokens", "reasoningTokens")
-private class UsageJson @JsonCreator constructor(
-    @param:JsonProperty("inputTokens") @get:JsonProperty("inputTokens") val inputTokens: Long?,
-    @param:JsonProperty("outputTokens") @get:JsonProperty("outputTokens") val outputTokens: Long?,
-    @param:JsonProperty("totalTokens") @get:JsonProperty("totalTokens") val totalTokens: Long?,
-    @param:JsonProperty("cacheReadInputTokens") @get:JsonProperty("cacheReadInputTokens") val cacheReadInputTokens: Long?,
-    @param:JsonProperty("cacheWriteInputTokens") @get:JsonProperty("cacheWriteInputTokens") val cacheWriteInputTokens: Long?,
-    @param:JsonProperty("reasoningTokens") @get:JsonProperty("reasoningTokens") val reasoningTokens: Long?,
-) {
-
-    companion object {
-        /**
-         * Copies the counts out of a usage.
-         *
-         * @param usage the usage to write
-         * @return the same counts in JSON form
-         */
-        fun of(usage: DecisionUsage): UsageJson = UsageJson(
-            usage.inputTokens, usage.outputTokens, usage.totalTokens,
-            usage.cacheReadInputTokens, usage.cacheWriteInputTokens, usage.reasoningTokens,
-        )
-    }
-
-    /**
-     * Builds the usage these counts describe.
-     *
-     * @return the usage
-     * @throws IllegalArgumentException if any count is negative
-     */
-    fun toUsage(): DecisionUsage =
-        DecisionUsage(inputTokens, outputTokens, totalTokens, cacheReadInputTokens, cacheWriteInputTokens, reasoningTokens)
-
-    /**
-     * Rejects a JSON member usage doesn't define.
-     *
-     * @param name the unknown member's name
-     * @param value the unknown member's value
-     */
-    @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionUsage", name, value)
 }
 
 // A private object compiles to a package-private class, so these shared checks add nothing Java can see.

@@ -37,12 +37,17 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DecisionServiceBuilderJavaTest {
 
@@ -152,5 +157,19 @@ class DecisionServiceBuilderJavaTest {
         assertEquals("own-builder", built.getName());
         PropositionResult answer = built.ask("the printer is on fire", DecisionSpec.of(urgent)).answer(urgent);
         assertEquals(new PropositionResult.Answered(true, provenance), answer);
+    }
+
+    @Test
+    void theInterfaceDeclaresNoNestedBuilderOrScope() {
+        // The check must see an implementer's own nested types, or an empty result would prove nothing.
+        assertTrue(nestedNames(ServiceWithItsOwnBuilderAndScope.class).containsAll(Set.of("Builder", "Scope")));
+
+        Set<String> nested = nestedNames(DecisionService.class);
+        assertFalse(nested.contains("Builder"), "DecisionService declares " + nested);
+        assertFalse(nested.contains("Scope"), "DecisionService declares " + nested);
+    }
+
+    private static Set<String> nestedNames(Class<?> type) {
+        return Arrays.stream(type.getDeclaredClasses()).map(Class::getSimpleName).collect(Collectors.toSet());
     }
 }

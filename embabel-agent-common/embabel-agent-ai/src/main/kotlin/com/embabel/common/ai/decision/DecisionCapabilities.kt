@@ -29,8 +29,9 @@ import java.util.Objects
 /**
  * What one configured decision service can accept, as the service reports it. It always lists the
  * question kinds the service answers. It can also state which inputs the model reads natively, how
- * many questions fit in one request, which call options it understands, how many questions of each
- * kind it takes, what evidence it reports for each kind, and what its confidence figure measures.
+ * many questions fit in one request, which call options it understands, how many options or levels
+ * a question of each kind may have, what evidence it reports for each kind, and what its confidence
+ * figure measures.
  *
  * Everything past the question kinds is optional. A declaration that is null means the service
  * said nothing about it, which is different from stating an empty set. Create a value with [of],
@@ -102,7 +103,9 @@ class DecisionCapabilities private constructor(
     private val confidenceMeasures: Map<QuestionKind, ConfidenceMeasure> = perKind("a confidence measure", confidenceMeasures) { it }
 
     /**
-     * Returns how many questions of a kind the service takes in one request.
+     * Returns how many options or levels the service accepts in one question of a kind. For a
+     * choice question it bounds the number of options, and for a rating question the number of
+     * levels. A proposition question has no arity.
      *
      * @param kind the question kind
      * @return the arity, or null when the service doesn't say
@@ -153,12 +156,14 @@ class DecisionCapabilities private constructor(
     fun withMaxQuestions(max: Int): DecisionCapabilities = copy(maxQuestions = max)
 
     /**
-     * Returns a copy that takes between min and max questions of a kind per request, replacing any
-     * arity already stated for it.
+     * Returns a copy that accepts between min and max options or levels in each question of a
+     * kind, replacing any arity already stated for it. For a choice question this bounds the number
+     * of options, and for a rating question the number of levels. A proposition question has no
+     * arity, so the service doesn't check one stated for it.
      *
      * @param kind a question kind the service accepts
-     * @param min the fewest questions, at least 1
-     * @param max the most questions, at least min
+     * @param min the fewest options or levels, at least 1
+     * @param max the most options or levels, at least min
      * @return the new capabilities
      * @throws IllegalArgumentException if the bounds are out of order or the kind isn't accepted
      */
@@ -364,11 +369,14 @@ class DecisionCapabilities private constructor(
         }
 
         /**
-         * States how many questions of a kind one request may hold.
+         * States how many options or levels each question of a kind may have. For a choice
+         * question this bounds the number of options, and for a rating question the number of
+         * levels. A proposition question has no arity, so the service doesn't check one stated
+         * for it.
          *
          * @param kind a question kind the service accepts
-         * @param min the fewest questions, at least 1
-         * @param max the most questions, at least min
+         * @param min the fewest options or levels, at least 1
+         * @param max the most options or levels, at least min
          */
         fun arity(kind: QuestionKind, min: Int, max: Int) {
             arities += Triple(kind, min, max)

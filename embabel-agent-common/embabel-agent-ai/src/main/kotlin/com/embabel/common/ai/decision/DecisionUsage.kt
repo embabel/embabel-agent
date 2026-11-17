@@ -15,15 +15,19 @@
  */
 package com.embabel.common.ai.decision
 
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
 
 /**
  * The tokens one decision request used, as the provider reported them.
  *
  * Every count is optional because providers report different things. A missing count means the
- * provider said nothing about it, and it is left out of JSON.
+ * provider said nothing about it, and it is left out of JSON. Reading JSON builds usage through the
+ * full constructor, so the same checks run, and a member usage doesn't define is rejected.
  *
  * @param inputTokens the tokens read from the request
  * @param outputTokens the tokens written in the reply
@@ -35,6 +39,7 @@ import org.jetbrains.annotations.ApiStatus
  */
 @ApiStatus.Experimental
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder("inputTokens", "outputTokens", "totalTokens", "cacheReadInputTokens", "cacheWriteInputTokens", "reasoningTokens")
 data class DecisionUsage @JvmOverloads constructor(
     /** The tokens read from the request, or null when not reported. */
     @param:JsonProperty("inputTokens") @get:JsonProperty("inputTokens")
@@ -67,5 +72,42 @@ data class DecisionUsage @JvmOverloads constructor(
 
     private fun requireCount(name: String, count: Long?) {
         require(count == null || count >= 0) { "$name must be zero or more, but was $count" }
+    }
+
+    /**
+     * Rejects a JSON member usage doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionUsage", name, value)
+
+    private companion object {
+
+        /**
+         * Reads usage from JSON. The constructor has several overloads for Java callers, and each
+         * one would carry a creator annotation, so JSON is read through this one function instead.
+         *
+         * @param inputTokens the input count as read from JSON, or null
+         * @param outputTokens the output count as read from JSON, or null
+         * @param totalTokens the total as read from JSON, or null
+         * @param cacheReadInputTokens the cache read count as read from JSON, or null
+         * @param cacheWriteInputTokens the cache write count as read from JSON, or null
+         * @param reasoningTokens the reasoning count as read from JSON, or null
+         * @return the usage the counts describe
+         * @throws IllegalArgumentException if any count is negative
+         */
+        @JvmStatic
+        @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+        private fun fromJson(
+            @JsonProperty("inputTokens") inputTokens: Long?,
+            @JsonProperty("outputTokens") outputTokens: Long?,
+            @JsonProperty("totalTokens") totalTokens: Long?,
+            @JsonProperty("cacheReadInputTokens") cacheReadInputTokens: Long?,
+            @JsonProperty("cacheWriteInputTokens") cacheWriteInputTokens: Long?,
+            @JsonProperty("reasoningTokens") reasoningTokens: Long?,
+        ): DecisionUsage =
+            DecisionUsage(inputTokens, outputTokens, totalTokens, cacheReadInputTokens, cacheWriteInputTokens, reasoningTokens)
     }
 }

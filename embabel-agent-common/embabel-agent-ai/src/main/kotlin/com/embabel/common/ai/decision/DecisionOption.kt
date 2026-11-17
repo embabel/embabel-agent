@@ -80,12 +80,18 @@ class DecisionOption<T : Any> private constructor(
 }
 
 /**
- * The options every decision service understands, whichever provider sits behind it.
+ * Option keys whose meaning is shared by every provider. A service honours one only when its
+ * capabilities list the key, for example with `acceptingOption(DecisionOptions.TIMEOUT)`.
  */
 @ApiStatus.Experimental
 object DecisionOptions {
 
-    /** How long the caller is willing to wait for one decision call, with the id `embabel.timeout`. */
+    /**
+     * How long the caller is willing to wait for one decision call, with the id `embabel.timeout`.
+     * A service honours it only when its capabilities list it with
+     * `acceptingOption(DecisionOptions.TIMEOUT)`. Otherwise a call that sets it is rejected before
+     * the provider is called.
+     */
     @JvmField
     val TIMEOUT: DecisionOption<Duration> = DecisionOption.of("embabel", "timeout", Duration::class.java)
 }

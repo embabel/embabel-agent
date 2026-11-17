@@ -22,10 +22,12 @@ import com.fasterxml.jackson.annotation.JsonValue
 import org.jetbrains.annotations.ApiStatus
 
 /**
- * How many questions of one kind a service will take in a single request.
+ * How many options or levels a service accepts in one question of a given kind. For a choice
+ * question it bounds the number of options, and for a rating question the number of levels. A
+ * proposition question has no arity, so the service doesn't check one stated for it.
  *
- * @property min the fewest questions of that kind a request may hold, at least 1
- * @property max the most questions of that kind a request may hold, at least [min]
+ * @property min the fewest options or levels a question may have, at least 1
+ * @property max the most options or levels a question may have, at least [min]
  * @throws IllegalArgumentException if min is below 1 or above max
  */
 @ApiStatus.Experimental

@@ -147,7 +147,8 @@ class DecisionResponseAssembler private constructor(
     /**
      * Records that the provider refused to answer one question. The question gets the inconclusive
      * outcome of its kind, with this provenance, and the response lists it as refused. Like any
-     * other answer, a second report under the same name fails the request.
+     * other answer, a second report under the same name fails the request. A refusal records the
+     * inconclusive outcome of the question's kind, so the question's answer validation does not run.
      *
      * @param name the question name the provider's refusal maps to
      * @param provenance the model that refused
