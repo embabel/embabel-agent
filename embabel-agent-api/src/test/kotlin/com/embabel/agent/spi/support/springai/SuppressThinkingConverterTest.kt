@@ -233,19 +233,22 @@ class SuppressThinkingConverterTest {
         }
     }
 
+    // The delegate that `ChatClientLlmOperations` wraps
+    private fun filteringConverter() = SuppressThinkingConverter(
+        FilteringJacksonOutputConverter<Dog>(
+            clazz = Dog::class.java,
+            objectMapper = jacksonObjectMapper(),
+            fieldFilter = { true },
+        ),
+    )
+
     /**
-     * These run through [FilteringJacksonOutputConverter], the delegate that `ChatClientLlmOperations` wraps.
+     * Positive cases: the object is found and its value comes back exactly as the model wrote it.
      */
     @Nested
-    inner class WithFilteringConverter {
+    inner class PositiveCases {
 
-        private val converter = SuppressThinkingConverter(
-            FilteringJacksonOutputConverter<Dog>(
-                clazz = Dog::class.java,
-                objectMapper = jacksonObjectMapper(),
-                fieldFilter = { true },
-            ),
-        )
+        private val converter = filteringConverter()
 
         @Test
         fun `the object is parsed with think blocks, prose and fences around it`() {
@@ -276,8 +279,92 @@ class SuppressThinkingConverterTest {
         }
 
         @Test
-        fun `output with no object is a parse error`() {
-            assertThrows<RuntimeException> { converter.convert("I could not find anything relevant.") }
+        fun `every combination of text before, value and text after keeps the value`() {
+            // The text before and after the object also appears inside the values
+            val before = listOf("", " ", ".", "Sure! ", "Rex", "<think>I am thinking</think> ", "```json\n")
+            val values = listOf("Rex", "Sir Rex", "Rex Jr.", "Sure! Rex", "a } b", "a { b")
+            val after = listOf("", ".", "Rex", "\n```", "<think>I am thinking</think>")
+            for (b in before) for (value in values) for (a in after) {
+                val output = "$b{\"name\": \"$value\"}$a"
+                assertEquals(value, converter.convert(output).name, "LLM output: $output")
+            }
+        }
+
+        @Test
+        fun `think blocks before and after the object are removed`() {
+            val rex = """{"name": "Rex"}"""
+            val outputs = listOf(
+                "<think></think>$rex",
+                "<think>\nline 1\nline 2\n</think>\n$rex",
+                "<think>never closed\n$rex",
+                "$rex<think>after</think>",
+                "<think>a</think><think>b</think>$rex",
+                "<think>a</think> x <think>b</think>$rex",
+                // An object inside a think block is not the answer
+                "<think>{\"name\": \"Wrong\"}</think>$rex",
+                // Other tags are not think blocks; they go as text before the object
+                "<THINK>upper</THINK>$rex",
+                "<thinking>hmm</thinking>$rex",
+            )
+            outputs.forEach { output ->
+                assertEquals("Rex", converter.convert(output).name, "LLM output: $output")
+            }
+        }
+
+        @Test
+        fun `quotes, non-ASCII text, line breaks and markdown around the object`() {
+            val cases = listOf(
+                "\"{\"name\": \"Rex\"}\"" to "Rex",
+                ", {\"name\": \"Rex, Sir\"}" to "Rex, Sir",
+                "Sí. {\"name\": \"Señor Rex.\"}." to "Señor Rex.",
+                "Here: {\"name\": \"Rex \\\"the dog\\\"\"}" to "Rex \"the dog\"",
+                "\r\n{\"name\": \"Rex\"}\r\n" to "Rex",
+                "**Answer**\n\n{\"name\": \"Rex\"}\n\n---" to "Rex",
+                "{\n  \"name\": \"Sir Rex\"\n}\n\nDone." to "Sir Rex",
+                "<think>maybe {\"name\": \"Wrong\"}?</think>\n{\"name\": \"Sir Rex\"}" to "Sir Rex",
+            )
+            cases.forEach { (output, expected) ->
+                assertEquals(expected, converter.convert(output).name, "LLM output: $output")
+            }
+        }
+
+        @Test
+        fun `a think block inside a value is kept when the output is already valid`() {
+            val result = converter.convert("""{"name": "a <think>x</think> b"}""")
+            // Expected: the value as written. Valid output is parsed as it is, with nothing removed
+            assertEquals("a <think>x</think> b", result.name)
+        }
+    }
+
+    /**
+     * Negative cases: the output has no usable object, so the result is a parse error
+     * and never an object with a made-up or damaged value.
+     */
+    @Nested
+    inner class NegativeCases {
+
+        @Test
+        fun `output without a usable object is a parse error`() {
+            val outputs = listOf(
+                "",
+                "   ",
+                "I could not find anything relevant.",
+                "<think>only thinking</think>",
+                "<think>I am thinking</think>\nNo JSON here.",
+                // Cut off before the closing brace
+                "{\"name\": \"Rex\"",
+                // Not JSON
+                "{name: Rex}",
+                // The required field is missing
+                "{}",
+                "[]",
+                // Two objects: no way to tell which one is the answer
+                "{\"name\": \"Rex\"} {\"name\": \"Max\"}",
+            )
+            val converter = filteringConverter()
+            outputs.forEach { output ->
+                assertThrows<RuntimeException>("LLM output: $output") { converter.convert(output) }
+            }
         }
     }
 
@@ -326,6 +413,30 @@ class SuppressThinkingConverterTest {
             // are removed. "Sure. " and the final "." are part of the answer and stay.
             val input = """Sure. {"name": "Rex Jr."}."""
             assertEquals(input, stringWithoutThinkBlocks(input))
+        }
+
+        @Test
+        fun `positive - think blocks are removed wherever they are`() {
+            val cases = listOf(
+                "Hello <think>x</think>world" to "Hello world",
+                "<think></think>Answer" to "Answer",
+                "<think>{\"a\": 1}</think>Answer" to "Answer",
+                "<think>a</think>A<think>a</think>B<think>a</think>" to "AB",
+                "<think>x</think>" to "",
+            )
+            cases.forEach { (input, expected) -> assertEquals(expected, stringWithoutThinkBlocks(input)) }
+        }
+
+        @Test
+        fun `negative - text that is not a complete think block is left as it is`() {
+            val inputs = listOf(
+                "",
+                "Answer</think>",
+                "<THINK>x</THINK>Answer",
+                "<thinking>x</thinking>Answer",
+                "a < b and b > c",
+            )
+            inputs.forEach { input -> assertEquals(input, stringWithoutThinkBlocks(input)) }
         }
 
         @Test
