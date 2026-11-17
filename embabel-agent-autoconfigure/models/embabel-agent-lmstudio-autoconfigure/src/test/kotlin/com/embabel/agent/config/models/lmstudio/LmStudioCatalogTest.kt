@@ -15,13 +15,15 @@
  */
 package com.embabel.agent.config.models.lmstudio
 
-import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class LmStudioCatalogTest {
 
+    /** The real catalog arrives with embabel-agent-openai; a second copy would shadow it. */
     @Test
     fun `ships no OpenAI model catalog that could shadow the real one`() {
-        assertNull(javaClass.classLoader.getResource("models/openai-models.yml"))
+        val copies = javaClass.classLoader.getResources("models/openai-models.yml").toList()
+        assertEquals(1, copies.size, "OpenAI catalogs on the classpath: $copies")
     }
 }

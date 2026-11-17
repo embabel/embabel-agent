@@ -174,10 +174,21 @@ fun luna(): LlmService<*> =
 ----
 ====
 
+`llm` builds a model the way the shipped OpenAI catalog (`models/openai-models.yml`) declares it, so you need not choose between `openAiResponsesLlm` and `openAiCompatibleLlm` yourself.
+For a model the catalog lists by its exact id, on OpenAI's own endpoint, it picks the catalog's transport, options and native structured output; GPT-6 gets the Responses API, GPT-4.1 gets Chat Completions.
+Any other model, provider or base URL gets `openAiCompatibleLlm`, so a gateway that only implements Chat Completions keeps working.
+
+[source,kotlin]
+----
+val astra: LlmService<*> = OpenAiCompatibleModelFactory(baseUrl = null, apiKey = apiKey)
+    .llm(model = "gpt-6-astra", pricingModel = PricingModel.ALL_YOU_CAN_EAT, provider = "OpenAI")
+----
+
 - *Requests*: no sampling parameters are sent, and `LlmOptions.maxTokens` becomes `max_output_tokens`, which also covers reasoning tokens.
 - *Reasoning*: set the effort per call with `LlmOptions.withOpenAiReasoningEffort("low")`. It is sent as the Responses `reasoning.effort` whatever the `provider` name is.
 - *Structured output*: native only when `nativeSupport` declares it, as with the catalog settings above. Schemas that fail the native-output compatibility check fall back to prompt-based output, as for catalog models. Without `nativeSupport`, structured output is prompt-based.
-- *Limits*: this transport does not stream, and it rejects media content in messages. The endpoint must implement `/v1/responses`.
+- *Media*: media attached to a user message is sent after the text, images as `input_image` and other media, such as a document from `withDocument`, as `input_file`: bytes as a `data:` URL with the media's name, a string or URL as given. OpenAI decides which file types it reads; a type it refuses fails the call with OpenAI's reason.
+- *Limits*: this transport does not stream. The endpoint must implement `/v1/responses`.
 
 ==== Adding embedding models
 
@@ -281,6 +292,7 @@ The provider's SDK does not retry a 401, 402 or 403 response, so a refused key i
 one request. The SDK retries a 429 response twice, so a rate limited key is reported after three
 requests. The SDK also retries other failures it treats as temporary, such as a failed connection.
 On success it returns a production `LlmService`; on failure it throws `InvalidApiKeyException`.
+The probe and the returned service are built with `llm`, so an OpenAI key gets each catalog model on the transport the catalog declares, GPT-6 included.
 
 A **blank** key is treated as absent and rejected before any network call, also with
 `InvalidApiKeyException`. This matters more than it sounds: Docker Compose passes
@@ -293,6 +305,28 @@ cause. Callers therefore do not need to pre-check for blank keys themselves.
 NOTE: This applies to the BYOK path only. Provider autoconfiguration documents its API key as
 required (see <<reference.environment_setup>>) and still fails at startup when one is missing —
 putting a provider starter on the classpath is a statement that the deployment has that key.
+
+===== Closing Anthropic services
+
+`AnthropicModelFactory.build()` and `buildValidated()` return a service that implements `AutoCloseable`.
+This also applies when `detectProvider` selects Anthropic.
+The factory builds an Embabel `SpringAiLlmService` around a Spring AI `AnthropicChatModel`.
+That chat model uses two Anthropic SDK clients, one for synchronous requests and one for asynchronous requests.
+Closing the service releases both clients immediately.
+Let active calls finish and let streams complete or cancel their subscriptions before closing the service.
+
+A copy such as `service.withKnowledgeCutoffDate(LocalDate.of(2026, 1, 1))` uses the same chat model and clients.
+Closing either service releases the shared clients, so finish using both instances before closing either one.
+
+`buildValidated()` closes its temporary probe service whether the probe succeeds or fails.
+On success, the returned service has its own clients.
+Closing a factory closes the clients it still tracks.
+Spring closes a managed factory on application context shutdown.
+
+With the BYOK starter's role resolution, the platform closes cached credential services on shutdown and closes an unused service if another request already cached one for the same key and model.
+Cache eviction only removes the cached reference. A caller can still use an evicted service, sender, or streamer that holds the chat model.
+Once the chat model is eligible for garbage collection, a cleaner can close its clients.
+This automatic cleanup can happen later.
 
 ===== Auto-detecting the provider
 
@@ -338,7 +372,7 @@ specific set of models:
 ----
 // OpenAI — use a different model tier for the probe
 OpenAiCompatibleModelFactory.openAi(userKey)
-    .validating(OpenAiModels.GPT_41_NANO, OpenAiModels.PROVIDER)
+    .validating(OpenAiModels.GPT_6_LUNA, OpenAiModels.PROVIDER)
 
 // Anthropic — set validation model at construction time
 AnthropicModelFactory(apiKey = userKey, validationModel = AnthropicModels.CLAUDE_SONNET_4_5)

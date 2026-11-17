@@ -188,6 +188,7 @@ Each chunk:
 - Carries a typed `structure` (`ChunkStructure`) describing its origin (root document, container section, leaf section) and position (chunk index, sequence number)
 - Includes `metadata` for user-supplied data; during a deprecation window the structural fields also remain readable there under their legacy keys such as `sequence_number`. Numeric structural values are re-emitted as `Int` regardless of the type originally written, so stores that persisted them as `Long` should assert on `structure` rather than on the metadata view
 - Can compute its `pathFromRoot` through the document hierarchy
+- Has a `uri`: `metadata["url"]` if the application set it, otherwise the URL of the leaf section the chunk comes from, otherwise, for a chunk that combines several leaf sections, the URL of the section that contains them. Search results shown to the LLM include this URL, so the LLM can link to the section it quotes
 
 This hierarchical model enables advanced RAG capabilities like "zoom out" to parent sections or expansion to adjacent chunks.
 
@@ -1176,6 +1177,20 @@ fun ingest(@Option(defaultValue = "./data/document.md") location: String): Strin
 }
 ----
 ====
+
+In Markdown, each heading starts a section. A line inside a fenced code block (`+```+` or `+~~~+`) is part of the section's content, even when it starts with `#`.
+That includes a fence inside a list item, whether it opens on the item's line (`+- ```bash+`) or below it, indented to the item's text.
+A heading can end with an id attribute, as pandoc and kramdown write it:
+
+[source,markdown]
+----
+## ToolishRag lifecycle {#toolishrag-lifecycle}
+----
+
+The id is removed from the section title, and the section URI is the document URI with `#toolishrag-lifecycle` as its fragment, replacing any fragment the document URI has.
+Chunks from that section carry it as their section URL, so a search result can link to the heading.
+A heading without an id gives a section with the URI of the nearest heading above it that has one, so a site that gives ids only to the upper levels of headings still links each section to the heading nearest to it.
+Without one above it, the section has the document URI.
 
 ===== Chunking Configuration
 

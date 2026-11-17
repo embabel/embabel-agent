@@ -19,11 +19,15 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -34,8 +38,14 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.core.Ordered
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit.SECONDS
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Roles resolving against whichever provider is active, rather than against a fixed model name.
@@ -45,7 +55,7 @@ class RoleResolutionTest {
     private fun llm(name: String, provider: String): LlmService<*> =
         SpringAiLlmService(name, provider, mockk<ChatModel>(), DefaultOptionsConverter)
 
-    private val openAiModel = llm("gpt-4.1-nano", "openai")
+    private val openAiModel = llm(OpenAiModels.GPT_6_LUNA, "openai")
     private val anthropicModel = llm("claude-haiku-4-5", "anthropic")
     private val defaultModel = llm("gpt-4.1-mini", "openai")
 
@@ -65,7 +75,7 @@ class RoleResolutionTest {
      */
     private val nestedRoles = mapOf(
         CHEAPEST_ROLE to mapOf(
-            "openai" to LlmOptions.withModel("gpt-4.1-nano"),
+            "openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA),
             "anthropic" to LlmOptions.withModel("claude-haiku-4-5").withTemperature(0.3),
         ),
     )
@@ -92,7 +102,7 @@ class RoleResolutionTest {
         @Test
         fun `falls back to the provider of the default LLM when no key is active`() {
             val resolved = provider().getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
-            assertEquals("gpt-4.1-nano", resolved.name)
+            assertEquals(OpenAiModels.GPT_6_LUNA, resolved.name)
         }
 
         @Test
@@ -120,11 +130,11 @@ class RoleResolutionTest {
         fun `provider match is case insensitive`() {
             val mp = provider(
                 properties = ConfigurableModelProviderProperties(
-                    roles = mapOf(CHEAPEST_ROLE to mapOf("OpenAI" to LlmOptions.withModel("gpt-4.1-nano"))),
+                    roles = mapOf(CHEAPEST_ROLE to mapOf("OpenAI" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA))),
                     defaultLlm = "gpt-4.1-mini",
                 ),
             )
-            assertEquals("gpt-4.1-nano", mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
+            assertEquals(OpenAiModels.GPT_6_LUNA, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
         }
 
         @Test
@@ -147,7 +157,7 @@ class RoleResolutionTest {
                     defaultLlm = "gpt-4.1-mini",
                 ),
             )
-            assertEquals("gpt-4.1-nano", mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
+            assertEquals(OpenAiModels.GPT_6_LUNA, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name)
         }
     }
 
@@ -199,7 +209,7 @@ class RoleResolutionTest {
                 provider(
                     models = listOf(expensiveDefault),
                     properties = ConfigurableModelProviderProperties(
-                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nano"))),
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA))),
                         defaultLlm = "gpt-4.1-mini",
                     ),
                 )
@@ -231,7 +241,7 @@ class RoleResolutionTest {
             val mp = provider(
                 models = listOf(placeholderModel),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    llms = mapOf(CHEAPEST_ROLE to OpenAiModels.GPT_6_LUNA),
                     defaultLlm = "setup-required",
                 ),
             )
@@ -265,13 +275,13 @@ class RoleResolutionTest {
                 provider(
                     models = listOf(placeholderModel),
                     properties = ConfigurableModelProviderProperties(
-                        roles = mapOf(CHEAPEST_ROLE to mapOf("none" to LlmOptions.withModel("gpt-4.1-nanoo"))),
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("none" to LlmOptions.withModel("gpt-6-lunaa"))),
                         defaultLlm = "setup-required",
                     ),
                 )
             }
             assertTrue(
-                warnings.any { it.contains("gpt-4.1-nanoo") && it.contains(CHEAPEST_ROLE) },
+                warnings.any { it.contains("gpt-6-lunaa") && it.contains(CHEAPEST_ROLE) },
                 "the entry must still be reported, just not fatally: $warnings",
             )
         }
@@ -328,7 +338,7 @@ class RoleResolutionTest {
                 properties = ConfigurableModelProviderProperties(
                     roles = mapOf(
                         CHEAPEST_ROLE to mapOf(
-                            "openai" to LlmOptions.withModel("gpt-4.1-nano")
+                            "openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA)
                                 .withTemperature(0.2)
                                 .withTimeout(Duration.ofSeconds(90)),
                         ),
@@ -347,7 +357,7 @@ class RoleResolutionTest {
                 properties = ConfigurableModelProviderProperties(
                     roles = mapOf(
                         CHEAPEST_ROLE to mapOf(
-                            "openai" to LlmOptions.withModel("gpt-4.1-nano").withTemperature(0.2),
+                            "openai" to LlmOptions.withModel(OpenAiModels.GPT_6_LUNA).withTemperature(0.2),
                         ),
                     ),
                     defaultLlm = "gpt-4.1-mini",
@@ -510,7 +520,7 @@ class RoleResolutionTest {
         fun `a user key does not fall through to the flat llms map either`() {
             val mp = provider(
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    llms = mapOf(CHEAPEST_ROLE to OpenAiModels.GPT_6_LUNA),
                     defaultLlm = "gpt-4.1-mini",
                 ),
                 factories = listOf(factory),
@@ -543,6 +553,121 @@ class RoleResolutionTest {
             }
             assertEquals(listOf("sk-ben", "sk-rod"), built)
         }
+
+        @Test
+        fun `shutdown closes cached credential services`() {
+            val service = mockk<LlmService<*>>(
+                relaxed = true,
+                moreInterfaces = arrayOf(AutoCloseable::class),
+            )
+            val mp = provider(factories = listOf(CredentialLlmServiceFactory { _, _ -> service }))
+            ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential("anthropic", "sk-test")),
+            ) {
+                assertSame(service, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
+            }
+
+            mp.close()
+            mp.close()
+
+            verify(exactly = 1) { (service as AutoCloseable).close() }
+        }
+
+        @Test
+        fun `concurrent credential builds close the unused service`() {
+            val builds = AtomicInteger()
+            val first = closeableService()
+            val second = closeableService()
+            val firstStarted = CountDownLatch(1)
+            val releaseFirst = CountDownLatch(1)
+            val mp = provider(factories = listOf(CredentialLlmServiceFactory { _, _ ->
+                if (builds.getAndIncrement() == 0) {
+                    firstStarted.countDown()
+                    check(releaseFirst.await(10, SECONDS))
+                    first
+                } else {
+                    second
+                }
+            }))
+            Executors.newSingleThreadExecutor().use { executor ->
+                val pending = executor.submit<LlmService<*>> { resolveCredential(mp, "sk-test") }
+                try {
+                    assertTrue(firstStarted.await(10, SECONDS))
+                    assertSame(second, resolveCredential(mp, "sk-test"))
+                } finally {
+                    releaseFirst.countDown()
+                }
+                assertSame(second, pending.get(10, SECONDS))
+                verify(exactly = 1) { (first as AutoCloseable).close() }
+                verify(exactly = 0) { (second as AutoCloseable).close() }
+            }
+            mp.close()
+        }
+
+        @Test
+        fun `shutdown closes a credential service that finishes building afterward`() {
+            val service = closeableService()
+            val started = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            val mp = provider(factories = listOf(CredentialLlmServiceFactory { _, _ ->
+                started.countDown()
+                check(release.await(10, SECONDS))
+                service
+            }))
+            Executors.newSingleThreadExecutor().use { executor ->
+                val pending = executor.submit<LlmService<*>> { resolveCredential(mp, "sk-test") }
+                try {
+                    assertTrue(started.await(10, SECONDS))
+                    mp.close()
+                } finally {
+                    release.countDown()
+                }
+                val failure = assertThrows<ExecutionException> { pending.get(10, SECONDS) }
+                assertTrue(failure.cause is IllegalStateException)
+                verify(exactly = 1) { (service as AutoCloseable).close() }
+            }
+        }
+
+        @Test
+        fun `a sender can still use its model after the service is evicted`() {
+            val chatModel = mockk<ChatModel>()
+            val cleanup = mockk<Runnable>(relaxed = true)
+            val expected = IllegalStateException("model called")
+            every { chatModel.call(any<Prompt>()) } throws expected
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = "gpt-4.1-mini",
+                    credentialServiceCacheSize = 1,
+                ),
+                factories = listOf(CredentialLlmServiceFactory { credential, _ ->
+                    if (credential.apiKey == "sk-first") {
+                        SpringAiLlmService("claude-haiku-4-5", "anthropic", chatModel)
+                            .also { it.registerChatModelCleanup(cleanup) }
+                    } else {
+                        closeableService()
+                    }
+                }),
+            )
+            val sender = resolveCredential(mp, "sk-first").createMessageSender(LlmOptions())
+            resolveCredential(mp, "sk-second")
+
+            assertSame(expected, assertThrows<IllegalStateException> {
+                sender.call(listOf(UserMessage("Hi")), emptyList())
+            })
+            verify(exactly = 0) { cleanup.run() }
+            mp.close()
+        }
+
+        private fun closeableService(): LlmService<*> =
+            mockk(relaxed = true, moreInterfaces = arrayOf(AutoCloseable::class))
+
+        private fun resolveCredential(mp: ConfigurableModelProvider, key: String): LlmService<*> =
+            ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential("anthropic", key)),
+            ) {
+                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            }
 
         @Test
         fun `the cache is bounded by configuration, and evicted entries rebuild`() {
@@ -649,7 +774,7 @@ class RoleResolutionTest {
 
         @Test
         fun `the configured view answers with the nested entry for the provider`() {
-            assertEquals("gpt-4.1-nano", provider().configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
+            assertEquals(OpenAiModels.GPT_6_LUNA, provider().configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
         }
 
         @Test
@@ -686,7 +811,7 @@ class RoleResolutionTest {
                 roleResolvers = listOf(RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) }),
             )
             // The resolver decides what RUNS; configuration is what the deployment DECLARES.
-            assertEquals("gpt-4.1-nano", mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
+            assertEquals(OpenAiModels.GPT_6_LUNA, mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
         }
 
         @Test
@@ -785,7 +910,7 @@ class RoleResolutionTest {
             val mp = provider(
                 models = listOf(openAiModel),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                    llms = mapOf("workhorse" to OpenAiModels.GPT_6_LUNA),
                     defaultLlm = "workhorse",
                 ),
             )
@@ -848,10 +973,10 @@ class RoleResolutionTest {
         @Test
         fun `a role name is not reported as a model this deployment knows about`() {
             val properties = ConfigurableModelProviderProperties(
-                llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                llms = mapOf("workhorse" to OpenAiModels.GPT_6_LUNA),
                 defaultLlm = "workhorse",
             )
-            assertEquals(setOf("gpt-4.1-nano"), properties.allWellKnownLlmNames())
+            assertEquals(setOf(OpenAiModels.GPT_6_LUNA), properties.allWellKnownLlmNames())
         }
 
         @Test
@@ -904,7 +1029,7 @@ class RoleResolutionTest {
                 provider(
                     models = listOf(defaultModel),
                     properties = ConfigurableModelProviderProperties(
-                        llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                        llms = mapOf("workhorse" to OpenAiModels.GPT_6_LUNA),
                         defaultLlm = "workhorse",
                     ),
                 )

@@ -52,7 +52,7 @@ class GeminiChatTestConfig
 
 @SpringBootTest(
     properties = [
-        "embabel.models.default-llm=gemini-2.5-flash",
+        "embabel.models.default-llm=gemini-3.8-flash",
         "embabel.agent.platform.models.gemini.max-attempts=1",
         "spring.main.allow-bean-definition-overriding=true",
     ]
@@ -112,6 +112,8 @@ class GeminiChatIntegrationIT(
     companion object {
         @JvmStatic
         fun allGeminiModelIds(): List<String> = listOf(
+            GeminiModels.GEMINI_3_8_FLASH,
+            GeminiModels.GEMINI_3_5_FLASH_LITE,
             GeminiModels.GEMINI_3_1_PRO_PREVIEW,
             GeminiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
             GeminiModels.GEMINI_3_1_FLASH_LITE_PREVIEW,

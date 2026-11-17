@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.models.OpenAiModels
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -64,8 +65,9 @@ class OpenAiModelLoaderTest {
         fun `known models are present and priced`() {
             val modelNames = shippedCatalogue.models.map { it.name }
             assertFalse(modelNames.contains("gpt53chat"), "GPT-5.3 Chat is retired and must not be listed")
+            assertFalse(modelNames.contains("gpt41nano"), "GPT-4.1 Nano is retired and must not be listed")
             assertTrue(
-                modelNames.containsAll(listOf("gpt6astra", "gpt61sol", "gpt6sol", "gpt6luna")),
+                modelNames.containsAll(listOf("gpt6astra", "gpt61sol", "gpt61terra", "gpt6sol", "gpt6luna")),
                 "Should include the GPT-6 family",
             )
 
@@ -116,31 +118,14 @@ class OpenAiModelLoaderTest {
         }
 
         /**
-         * GPT-4.1 family is temperature-restricted but still accepts classic `max_tokens` and
-         * other sampling fields (unlike the GPT-5 family).
+         * GPT-4.1 and GPT-4.1 Mini accept any temperature and classic `max_tokens`, so they take the
+         * standard converter: Embabel Me's `temperature: 0.0` roles must reach them as sent.
          */
         @Test
-        fun `every GPT-4_1 model declares temperature-only special handling`() {
-            val gpt41Models = shippedCatalogue.models.filter { it.name.startsWith("gpt41") }
-            assertTrue(gpt41Models.isNotEmpty(), "Should have GPT-4.1 models")
-
-            gpt41Models.forEach { model ->
-                assertNotNull(model.specialHandling, "GPT-4.1 models should have special handling")
-                assertEquals(
-                    false,
-                    model.specialHandling?.supportsTemperature,
-                    "GPT-4.1 models should not support temperature adjustment (${model.modelId})",
-                )
-                assertEquals(
-                    true,
-                    model.specialHandling?.supportsTopP ?: true,
-                    "GPT-4.1 still accepts top_p (${model.modelId})",
-                )
-                assertEquals(
-                    false,
-                    model.specialHandling?.usesMaxCompletionTokens ?: false,
-                    "GPT-4.1 still uses max_tokens (${model.modelId})",
-                )
+        fun `GPT-4_1 and GPT-4_1 Mini accept every sampling parameter`() {
+            listOf("gpt-4.1", "gpt-4.1-mini").forEach { id ->
+                val model = shippedCatalogue.models.single { it.modelId == id }
+                assertNull(model.specialHandling, "$id should need no special handling")
             }
         }
 
@@ -716,7 +701,7 @@ class OpenAiModelLoaderTest {
                 setOf(
                     "gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro",
                     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
-                    "gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna",
+                    OpenAiModels.GPT_6_ASTRA, OpenAiModels.GPT_61_SOL, OpenAiModels.GPT_61_TERRA, OpenAiModels.GPT_6_SOL, OpenAiModels.GPT_6_LUNA,
                 ),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
                 "Only the *-pro models and the GPT-5.6 and GPT-6 tiers are served over /v1/responses",
@@ -765,7 +750,7 @@ class OpenAiModelLoaderTest {
         }
 
         /**
-         * GPT-6 keeps the GPT-5.6 split: Astra and 6.1 Sol take tool calls only over Responses,
+         * GPT-6 keeps the GPT-5.6 split: Astra, 6.1 Sol and 6.1 Terra take tool calls only over Responses,
          * and 6 Sol and Luna accept function tools on Chat Completions only at reasoning effort
          * `none`.
          */
@@ -779,6 +764,7 @@ class OpenAiModelLoaderTest {
                 mapOf(
                     "gpt-6-astra" to OpenAiApiFormat.RESPONSES,
                     "gpt-6.1-sol" to OpenAiApiFormat.RESPONSES,
+                    OpenAiModels.GPT_61_TERRA to OpenAiApiFormat.RESPONSES,
                     "gpt-6-sol" to OpenAiApiFormat.RESPONSES,
                     "gpt-6-luna" to OpenAiApiFormat.RESPONSES,
                 ),

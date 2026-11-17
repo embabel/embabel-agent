@@ -192,11 +192,8 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
      * See [usage] for the LLM usage aggregate across the entire process subtree,
      * and [totalUsage] for the usage including embeddings.
      */
-    fun ownUsage(): Usage {
-        val promptTokens = llmInvocations.sumOf { it.usage.promptTokens ?: 0 }
-        val completionTokens = llmInvocations.sumOf { it.usage.completionTokens ?: 0 }
-        return Usage(promptTokens, completionTokens, null)
-    }
+    fun ownUsage(): Usage =
+        llmInvocations.fold(Usage(0, 0, null)) { total, invocation -> total + invocation.usage }
 
     /**
      * Distinct LLMs used by this process's own invocations, excluding any child processes.

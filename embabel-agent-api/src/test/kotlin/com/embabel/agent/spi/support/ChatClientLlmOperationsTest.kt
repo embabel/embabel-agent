@@ -18,7 +18,10 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.annotation.support.Wumpus
+import com.embabel.agent.api.common.AgentImage
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.AgentProcess
@@ -35,6 +38,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
+import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.DefaultOptionsConverter
@@ -198,6 +202,37 @@ class ChatClientLlmOperationsTest {
             val promptText = fakeChatModel.promptsPassed[0].toString()
             assertTrue(promptText.contains("\$schema"), "Prompt contains JSON schema")
             assertTrue(promptText.contains(promptText), "Prompt contains user prompt:\n$promptText")
+        }
+
+        @Test
+        fun `images added with withImage and withImages reach the chat model as media bytes`() {
+            val fakeChatModel = FakeChatModel("red")
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            val platformServices = object : PlatformServices by IntegrationTestUtils.dummyPlatformServices() {
+                override val llmOperations = setup.llmOperations
+            }
+            val context = OperationContext(
+                processContext = ProcessContext(
+                    platformServices = platformServices,
+                    agentProcess = setup.mockAgentProcess,
+                ),
+                operation = SimpleTestAgent.actions.first(),
+                toolGroups = emptySet(),
+            )
+            val png = AgentImage.create("image/png", byteArrayOf(1, 2, 3))
+            val jpeg = AgentImage.create("image/jpeg", byteArrayOf(4, 5, 6))
+
+            context.ai().withDefaultLlm()
+                .withImage(png)
+                .withImages(jpeg)
+                .generateText("Colour?")
+
+            val userMessage = fakeChatModel.promptsPassed.single().instructions
+                .filterIsInstance<org.springframework.ai.chat.messages.UserMessage>().single()
+            assertTrue(userMessage.text.contains("Colour?"), "Prompt text kept: ${userMessage.text}")
+            assertEquals(listOf("image/png", "image/jpeg"), userMessage.media.map { it.mimeType.toString() })
+            assertArrayEquals(png.data, userMessage.media[0].data as ByteArray)
+            assertArrayEquals(jpeg.data, userMessage.media[1].data as ByteArray)
         }
 
         @Test

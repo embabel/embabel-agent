@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
 import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.withOpenAiReasoningEffort
@@ -36,6 +37,7 @@ import com.openai.core.http.HttpResponse
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseError
+import com.openai.models.responses.ResponseInputContent
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
 import com.openai.models.responses.ResponseOutputItem
@@ -77,6 +79,7 @@ import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
 import reactor.core.publisher.Flux
+import java.net.URL
 import java.util.Optional
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CyclicBarrier
@@ -99,7 +102,7 @@ class OpenAiResponsesChatModelTest {
 
     private val model = OpenAiResponsesChatModel(
         client = client,
-        defaultOptions = OpenAiChatOptions.builder().model("gpt-5-pro").build(),
+        defaultOptions = OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build(),
     )
 
     @AfterEach
@@ -205,7 +208,7 @@ class OpenAiResponsesChatModelTest {
                     .build()
             )
             try {
-                val defaults = OpenAiChatOptions.builder().model("gpt-5-pro").build()
+                val defaults = OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build()
                 val chatModel = OpenAiResponsesChatModel(sdkClient, defaults)
                 val options = OpenAiChatOptions.builder()
                     .customHeaders(mapOf("x-route" to "request-route", "X-Trace-Id" to "trace-1")).build()
@@ -268,11 +271,11 @@ class OpenAiResponsesChatModelTest {
         @Test
         fun `reasoning is omitted by default and forwarded for configured efforts`() {
             val converter = OpenAiReasoningEffortOptionsConverter(CapabilityAwareOpenAiOptionsConverter())
-            val absent = converter.convertOptions(LlmOptions(), "gpt-5-pro")
+            val absent = converter.convertOptions(LlmOptions(), OpenAiModels.GPT_5_PRO)
             assertTrue(capture(Prompt(listOf(UserMessage("Hi")), absent)).reasoning().isEmpty)
 
             for (effort in listOf("none", "low", "medium")) {
-                val options = converter.convertOptions(LlmOptions().withOpenAiReasoningEffort(effort), "gpt-5-pro")
+                val options = converter.convertOptions(LlmOptions().withOpenAiReasoningEffort(effort), OpenAiModels.GPT_5_PRO)
                 val params = capture(Prompt(listOf(UserMessage("Hi")), options))
                 assertEquals(effort, params.reasoning().orElseThrow().effort().orElseThrow().asString())
             }
@@ -287,7 +290,7 @@ class OpenAiResponsesChatModelTest {
             val params = capture(
                 Prompt(
                     listOf(SystemMessage("You are terse."), UserMessage("Hello")),
-                    OpenAiChatOptions.builder().model("gpt-5-pro").build(),
+                    OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build(),
                 )
             )
 
@@ -315,7 +318,7 @@ class OpenAiResponsesChatModelTest {
                             .responses(listOf(ToolResponseMessage.ToolResponse("call_42", "lookup", "found")))
                             .build(),
                     ),
-                    OpenAiChatOptions.builder().model("gpt-5-pro").build(),
+                    OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build(),
                 )
             )
 
@@ -337,7 +340,7 @@ class OpenAiResponsesChatModelTest {
                 Prompt(
                     listOf(UserMessage("Hi")),
                     OpenAiChatOptions.builder()
-                        .model("gpt-5-pro")
+                        .model(OpenAiModels.GPT_5_PRO)
                         .toolCallbacks(listOf(toolCallback("lookup", "Looks things up")))
                         .build(),
                 )
@@ -361,7 +364,7 @@ class OpenAiResponsesChatModelTest {
                 Prompt(
                     listOf(UserMessage("Hi")),
                     OpenAiChatOptions.builder()
-                        .model("gpt-5-pro")
+                        .model(OpenAiModels.GPT_5_PRO)
                         .responseFormat(
                             OpenAiChatModel.ResponseFormat.builder()
                                 .type(OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA)
@@ -390,7 +393,7 @@ class OpenAiResponsesChatModelTest {
                 Prompt(
                     listOf(UserMessage("Hi")),
                     OpenAiChatOptions.builder()
-                        .model("gpt-5-pro")
+                        .model(OpenAiModels.GPT_5_PRO)
                         .responseFormat(
                             OpenAiChatModel.ResponseFormat.builder()
                                 .type(OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA)
@@ -432,7 +435,7 @@ class OpenAiResponsesChatModelTest {
                 Prompt(
                     listOf(UserMessage("Hi")),
                     OpenAiChatOptions.builder()
-                        .model("gpt-5-pro")
+                        .model(OpenAiModels.GPT_5_PRO)
                         .responseFormat(
                             OpenAiChatModel.ResponseFormat.builder()
                                 .type(OpenAiChatModel.ResponseFormat.Type.TEXT)
@@ -457,7 +460,7 @@ class OpenAiResponsesChatModelTest {
                 capture(
                     Prompt(
                         listOf(UserMessage("Hi")),
-                        OpenAiChatOptions.builder().model("gpt-5-pro").maxCompletionTokens(256).build(),
+                        OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).maxCompletionTokens(256).build(),
                     )
                 ).maxOutputTokens().orElse(null),
             )
@@ -467,7 +470,7 @@ class OpenAiResponsesChatModelTest {
                 capture(
                     Prompt(
                         listOf(UserMessage("Hi")),
-                        OpenAiChatOptions.builder().model("gpt-5-pro").maxTokens(128).build(),
+                        OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).maxTokens(128).build(),
                     )
                 ).maxOutputTokens().orElse(null),
                 "Options built elsewhere still use maxTokens",
@@ -487,7 +490,7 @@ class OpenAiResponsesChatModelTest {
                     Prompt(
                         listOf(UserMessage("Hi")),
                         OpenAiChatOptions.builder()
-                            .model("gpt-5-pro")
+                            .model(OpenAiModels.GPT_5_PRO)
                             .responseFormat(
                                 OpenAiChatModel.ResponseFormat.builder()
                                     .type(OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA)
@@ -515,7 +518,7 @@ class OpenAiResponsesChatModelTest {
                     Prompt(
                         listOf(UserMessage("Hi")),
                         OpenAiChatOptions.builder()
-                            .model("gpt-5-pro")
+                            .model(OpenAiModels.GPT_5_PRO)
                             .toolCallbacks(listOf(toolCallback("lookup", "Looks things up", "{ not json")))
                             .build(),
                     )
@@ -528,31 +531,97 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
-        /** An image-bearing prompt sent as text alone yields a confident answer about nothing. */
-        @Test
-        fun `media is refused rather than silently dropped`() {
-            respondWith(textResponse("ok"))
+        private fun userContentOf(text: String?, vararg media: Media): List<ResponseInputContent> {
+            val message = UserMessage.builder().text(text ?: "").media(media.toList()).build()
+            val params = capture(Prompt(listOf(message), OpenAiChatOptions.builder().model(OpenAiModels.GPT_6_ASTRA).build()))
+            return params.input().orElseThrow().asResponse().single()
+                .easyInputMessage().orElseThrow().content().asResponseInputMessageContentList()
+        }
 
-            assertThrows(UnsupportedOperationException::class.java) {
-                model.call(
-                    Prompt(
-                        listOf(
-                            UserMessage.builder()
-                                .text("What is in this image?")
-                                .media(
-                                    listOf(
-                                        Media.builder()
-                                            .mimeType(MimeTypeUtils.IMAGE_PNG)
-                                            .data(ByteArrayResource(byteArrayOf(1, 2, 3)))
-                                            .build()
-                                    )
-                                )
-                                .build()
-                        ),
-                        OpenAiChatOptions.builder().model("gpt-5-pro").build(),
-                    )
-                )
-            }
+        private fun imageUrlOf(part: ResponseInputContent): String =
+            part.inputImage().orElseThrow().imageUrl().orElseThrow()
+
+        /** Image analysis and chat attachments reach GPT-6 over this transport, so images must arrive. */
+        @Test
+        fun `image bytes are sent as a data url after the text`() {
+            val parts = userContentOf(
+                "What is in this image?",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(ByteArrayResource(byteArrayOf(1, 2, 3))).build(),
+            )
+
+            assertEquals(2, parts.size)
+            assertEquals("What is in this image?", parts[0].inputText().orElseThrow().text())
+            assertEquals("data:image/png;base64,AQID", imageUrlOf(parts[1]))
+        }
+
+        @Test
+        fun `an image url is passed through and several images keep their order`() {
+            val parts = userContentOf(
+                "Compare",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_JPEG).data("https://example.com/a.jpg").build(),
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(byteArrayOf(9)).build(),
+            )
+
+            assertEquals(listOf("https://example.com/a.jpg", "data:image/png;base64,CQ=="), parts.drop(1).map(::imageUrlOf))
+        }
+
+        @Test
+        fun `an image without text is sent as the image alone`() {
+            val parts = userContentOf(
+                null,
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(byteArrayOf(1)).build(),
+            )
+
+            assertEquals(1, parts.size)
+            assertTrue(parts.single().isInputImage())
+        }
+
+        /** Spring AI keeps a `java.net.URL` as given, unlike a `URI`, which it turns into a string. */
+        @Test
+        fun `an image given as a java URL is passed through as its string`() {
+            val parts = userContentOf(
+                "What is this?",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(URL("https://example.com/a.png")).build(),
+            )
+
+            assertEquals("https://example.com/a.png", imageUrlOf(parts[1]))
+        }
+
+        /** `withDocument` works over Chat Completions, so it must keep working when a model moves here. */
+        @Test
+        fun `a document is sent as an input file with its data url and name`() {
+            val parts = userContentOf(
+                "Summarise this",
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data(ByteArrayResource(byteArrayOf(1, 2, 3))).name("invoice.pdf").build(),
+            )
+
+            val file = parts[1].inputFile().orElseThrow()
+            assertEquals("data:application/pdf;base64,AQID", file.fileData().orElseThrow())
+            assertEquals("invoice.pdf", file.filename().orElseThrow())
+            assertTrue(file.fileUrl().isEmpty)
+        }
+
+        /** The Responses API fetches a file from a URL itself; a data URL is file data, not a URL to fetch. */
+        @Test
+        fun `a document given as a url is sent as a file url`() {
+            val parts = userContentOf(
+                "Summarise these",
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data(URL("https://example.com/a.pdf")).build(),
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data("https://example.com/b.pdf").build(),
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data("data:application/pdf;base64,AQID").name("c.pdf").build(),
+            )
+
+            val files = parts.drop(1).map { it.inputFile().orElseThrow() }
+            assertEquals(
+                listOf("https://example.com/a.pdf", "https://example.com/b.pdf"),
+                files.take(2).map { it.fileUrl().orElseThrow() },
+            )
+            assertEquals("data:application/pdf;base64,AQID", files[2].fileData().orElseThrow())
+            assertEquals("c.pdf", files[2].filename().orElseThrow())
         }
 
         /**
@@ -572,7 +641,7 @@ class OpenAiResponsesChatModelTest {
             )
 
             assertEquals(
-                "gpt-5-pro",
+                OpenAiModels.GPT_5_PRO,
                 capture(Prompt(listOf(UserMessage("Hi")))).model().orElseThrow().asString(),
             )
         }
@@ -653,7 +722,7 @@ class OpenAiResponsesChatModelTest {
         fun `model name is reported in the response metadata`() {
             respondWith(textResponse("ok"))
 
-            assertEquals("gpt-5-pro", model.call(Prompt("Hi")).metadata.model)
+            assertEquals(OpenAiModels.GPT_5_PRO, model.call(Prompt("Hi")).metadata.model)
         }
     }
 
@@ -827,7 +896,7 @@ class OpenAiResponsesChatModelTest {
         @Test
         fun `the published constructors still link`() {
             val type = OpenAiResponsesChatModel::class.java
-            val options = OpenAiChatOptions.builder().model("gpt-5-pro").build()
+            val options = OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build()
 
             type.getConstructor(
                 OpenAIClient::class.java, OpenAiChatOptions::class.java,
@@ -854,7 +923,7 @@ class OpenAiResponsesChatModelTest {
         fun `LlmService reports the Responses model as non-streaming after a single probe`() {
             val counting = ProbeCountingChatModel(model)
             val service = SpringAiLlmService(
-                name = "gpt-5-pro",
+                name = OpenAiModels.GPT_5_PRO,
                 provider = "openai",
                 chatModel = counting,
             )
@@ -866,7 +935,7 @@ class OpenAiResponsesChatModelTest {
 
         @Test
         fun `default options expose the configured model`() {
-            assertEquals("gpt-5-pro", model.defaultOptions.model)
+            assertEquals(OpenAiModels.GPT_5_PRO, model.defaultOptions.model)
         }
 
         /**
@@ -889,7 +958,7 @@ class OpenAiResponsesChatModelTest {
             }
             val observedModel = OpenAiResponsesChatModel(
                 client = client,
-                defaultOptions = OpenAiChatOptions.builder().model("gpt-5-pro").build(),
+                defaultOptions = OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build(),
                 observationRegistry = registry,
             )
             respondWith(textResponse("ok"))
@@ -916,7 +985,7 @@ class OpenAiResponsesChatModelTest {
             }
             val observedModel = OpenAiResponsesChatModel(
                 client = client,
-                defaultOptions = OpenAiChatOptions.builder().model("gpt-5-pro").build(),
+                defaultOptions = OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build(),
                 observationRegistry = registry,
             )
             every { client.responses() } returns responseService
@@ -978,7 +1047,7 @@ class OpenAiResponsesChatModelTest {
         Response.builder()
             .id("resp_1")
             .createdAt(0.0)
-            .model("gpt-5-pro")
+            .model(OpenAiModels.GPT_5_PRO)
             .output(output.toList())
             .parallelToolCalls(false)
             .toolChoice(com.openai.models.responses.ToolChoiceOptions.AUTO)

@@ -15,11 +15,16 @@
  */
 package com.embabel.agent.openai
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.ai.openai.OpenAiChatOptions
 
 class CapabilityAwareOpenAiOptionsConverterTest {
@@ -255,6 +260,30 @@ class CapabilityAwareOpenAiOptionsConverterTest {
             val result = (StandardOpenAiOptionsConverter.convertOptions(options, "test-model") as OpenAiChatOptions)
             assertEquals(0.5, result.temperature)
             assertEquals(100, result.maxTokens)
+        }
+    }
+
+    /** An application that sets `temperature: 0.0` on every role must not log a warning per call. */
+    @Test
+    fun `a dropped parameter is warned about once per model, then logged at debug`() {
+        val logger = LoggerFactory.getLogger(CapabilityAwareOpenAiOptionsConverter::class.java) as Logger
+        val logs = ListAppender<ILoggingEvent>().apply { start() }
+        val previousLevel = logger.level
+        logger.level = Level.DEBUG
+        logger.addAppender(logs)
+        try {
+            val converter = CapabilityAwareOpenAiOptionsConverter(ModelCapabilities.GPT5_FAMILY)
+            // A changing value is the same dropped parameter: warned once, and the set does not grow.
+            listOf(0.0, 0.3, 0.7).forEach { converter.convertOptions(LlmOptions().withTemperature(it), "gpt-6-astra") }
+            converter.convertOptions(LlmOptions().withTemperature(0.0), "gpt-6-luna")
+
+            assertEquals(
+                listOf(Level.WARN, Level.DEBUG, Level.DEBUG, Level.WARN),
+                logs.list.map { it.level },
+            )
+        } finally {
+            logger.detachAppender(logs)
+            logger.level = previousLevel
         }
     }
 }

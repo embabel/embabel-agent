@@ -185,7 +185,20 @@ internal fun thinkBlockSanitization(
         thinkBlockFinder(cleanedInput)?.let { found ->
             if (found.isNotEmpty()) {
                 thinkBlock = found
-                cleanedInput = cleanedInput.replace(found, "")
+                // The text around the object can also appear inside its values, so remove it only where it was found.
+                // Example: `<think>I am thinking</think> {"name": "Sir Rex"}`
+                //   1. FindMarkupThinkBlock finds `<think>I am thinking</think>`  -> ` {"name": "Sir Rex"}`
+                //   2. FindPrefixThinkBlock finds the space before `{`
+                //      replace(" ", "") would also remove the space in the value -> `{"name":"SirRex"}`
+                //      removePrefix(" ") removes only the leading space           -> `{"name": "Sir Rex"}`
+                cleanedInput = when (thinkBlockFinder) {
+                    // Text before the object: remove it only at the start, e.g. `Sure! {...}` -> `{...}`
+                    FindPrefixThinkBlock -> cleanedInput.removePrefix(found)
+                    // Text after the object: remove it only at the end, e.g. `{"name": "Rex Jr."}.` -> `{"name": "Rex Jr."}`
+                    FindSuffixThinkBlock -> cleanedInput.removeSuffix(found)
+                    // <think> blocks and custom finders: remove every copy, as before this change
+                    else -> cleanedInput.replace(found, "")
+                }
             }
         }
     }

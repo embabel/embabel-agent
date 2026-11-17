@@ -19,15 +19,18 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.agent.spi.support.streaming.IdentityWeakMap
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
+import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
+import java.lang.ref.Cleaner
 import java.time.LocalDate
 
 /**
@@ -60,6 +63,8 @@ import java.time.LocalDate
  *        request metadata. Defaults to no-op so unsupported providers keep prompt-schema fallback.
  * @param nativeThinkingExtractor Extracts native thinking blocks from the raw ChatResponse.
  *        Defaults to no-op; Anthropic wires [com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor].
+ * @param promptTokensExcludeCache Whether the chat model reports prompt-cache reads and writes
+ *        on top of Spring AI's promptTokens (Anthropic) rather than within it (OpenAI).
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(
@@ -79,7 +84,30 @@ data class SpringAiLlmService @JvmOverloads constructor(
     val nativeThinkingExtractor: SpringAiNativeThinkingExtractor =
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
-) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
+    val promptTokensExcludeCache: Boolean = false,
+) : LlmService<SpringAiLlmService>, AiModel<ChatModel>, AutoCloseable {
+
+    companion object {
+        private val cleaner = Cleaner.create()
+        private val modelCleanups = IdentityWeakMap<ChatModel, Cleaner.Cleanable>()
+    }
+
+    /**
+     * Registers cleanup for a newly built chat model. The action must not retain the model.
+     * Copies, senders and streamers keep using the same model after the service is discarded.
+     */
+    @ApiStatus.Internal
+    fun registerChatModelCleanup(cleanup: Runnable) {
+        modelCleanups[chatModel] = cleaner.register(chatModel, cleanup)
+    }
+
+    /**
+     * Releases resources registered for this model immediately, including for other service
+     * instances that share it. Call after active calls and streams have finished or been cancelled.
+     */
+    override fun close() {
+        modelCleanups[chatModel]?.clean()
+    }
 
     /**
      * The underlying Spring AI ChatModel.
@@ -99,6 +127,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             nativeThinkingExtractor = nativeThinkingExtractor,
             nativeSupport = nativeSupport,
             llmMetadata = this,
+            promptTokensExcludeCache = promptTokensExcludeCache,
         )
     }
 
@@ -107,6 +136,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             chatModel = chatModel,
             chatOptions = convertOptions(options),
             toolResponseContentAdapter = toolResponseContentAdapter,
+            promptTokensExcludeCache = promptTokensExcludeCache,
         )
     }
 

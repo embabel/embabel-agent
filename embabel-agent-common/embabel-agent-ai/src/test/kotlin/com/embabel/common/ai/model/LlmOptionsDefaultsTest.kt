@@ -15,10 +15,19 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.boot.context.properties.bind.Bindable
+import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
+import org.springframework.boot.env.YamlPropertySourceLoader
+import org.springframework.core.io.ByteArrayResource
 import java.time.Duration
 
 /**
@@ -33,12 +42,12 @@ class LlmOptionsDefaultsTest {
 
         @Test
         fun `reads the model field, which is what configuration binding sets`() {
-            assertEquals("gpt-4.1-nano", LlmOptions(model = "gpt-4.1-nano").modelName)
+            assertEquals("gpt-6-luna", LlmOptions(model = "gpt-6-luna").modelName)
         }
 
         @Test
         fun `reads by-name selection criteria, which is what withModel sets`() {
-            assertEquals("gpt-4.1-nano", LlmOptions.withModel("gpt-4.1-nano").modelName)
+            assertEquals("gpt-6-luna", LlmOptions.withModel("gpt-6-luna").modelName)
         }
 
         @Test
@@ -60,7 +69,7 @@ class LlmOptionsDefaultsTest {
     @Nested
     inner class WithDefaultsFrom {
 
-        private val defaults = LlmOptions.withModel("gpt-4.1-nano")
+        private val defaults = LlmOptions.withModel("gpt-6-luna")
             .withTemperature(0.2)
             .withMaxTokens(1000)
             .withTopK(10)
@@ -75,7 +84,7 @@ class LlmOptionsDefaultsTest {
         fun `fills in everything the caller left unset`() {
             val merged = LlmOptions().withDefaultsFrom(defaults)
 
-            assertEquals("gpt-4.1-nano", merged.modelName)
+            assertEquals("gpt-6-luna", merged.modelName)
             assertEquals("cheapest", merged.role)
             assertEquals(0.2, merged.temperature)
             assertEquals(1000, merged.maxTokens)
@@ -116,7 +125,161 @@ class LlmOptionsDefaultsTest {
             // Resolving a role decides which model it means, so the caller's own model choice
             // (there is none when a role was named) must not survive the merge.
             val merged = LlmOptions.withModel("caller-choice").withDefaultsFrom(defaults)
-            assertEquals("gpt-4.1-nano", merged.modelName)
+            assertEquals("gpt-6-luna", merged.modelName)
+        }
+
+        @Test
+        fun `reasoning effort is filled in from the defaults unless the caller set one`() {
+            val defaults = LlmOptions().withReasoningEffort(ReasoningEffort.HIGH)
+            assertEquals(ReasoningEffort.HIGH, LlmOptions().withDefaultsFrom(defaults).reasoningEffort)
+            assertEquals(
+                ReasoningEffort.LOW,
+                LlmOptions().withReasoningEffort(ReasoningEffort.LOW).withDefaultsFrom(defaults).reasoningEffort,
+            )
+        }
+
+        @Test
+        fun `an explicit caller thinking choice suppresses the inherited effort`() {
+            val high = LlmOptions().withReasoningEffort(ReasoningEffort.HIGH)
+            assertNull(LlmOptions().withoutThinking().withDefaultsFrom(high).reasoningEffort)
+            val none = LlmOptions().withReasoningEffort(ReasoningEffort.NONE)
+            assertNull(LlmOptions().withThinking(Thinking.withTokenBudget(8192)).withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `extraction-only thinking inherits the effort and keeps the extraction`() {
+            val merged = LlmOptions().withThinking(Thinking.withExtraction())
+                .withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.LOW))
+            assertEquals(ReasoningEffort.LOW, merged.reasoningEffort)
+            assertEquals(true, merged.thinking?.extractThinking)
+        }
+
+        @Test
+        fun `extraction added after a caller's opt-out does not bring back the inherited effort`() {
+            val optedOut = LlmOptions().withoutThinking()
+            val merged = optedOut.withThinking(optedOut.thinking!!.applyExtraction())
+                .withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.NONE))
+            assertNull(merged.reasoningEffort)
+            assertEquals(true, merged.thinking?.extractThinking)
+        }
+
+        private val none = LlmOptions().withReasoningEffort(ReasoningEffort.NONE)
+
+        private val mapper = EmbabelObjectMapperHolder.createDefault().get()
+
+        private fun withExtraction(options: LlmOptions) = options.withThinking(options.thinking!!.applyExtraction())
+
+        private fun roundTrip(options: LlmOptions): LlmOptions =
+            mapper.readValue(mapper.writeValueAsString(options), LlmOptions::class.java)
+
+        private fun bind(vararg properties: Pair<String, String>): LlmOptions =
+            Binder(MapConfigurationPropertySource(properties.toMap()))
+                .bind("opts", Bindable.of(LlmOptions::class.java)).get()
+
+        @Test
+        fun `a caller's opt-out survives a JSON round trip`() {
+            assertNull(withExtraction(roundTrip(LlmOptions().withoutThinking())).withDefaultsFrom(none).reasoningEffort)
+            assertNull(roundTrip(withExtraction(LlmOptions().withoutThinking())).withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `extraction-only thinking still inherits the effort after a JSON round trip`() {
+            val restored = roundTrip(LlmOptions().withThinking(Thinking.withExtraction()))
+            assertEquals(ReasoningEffort.NONE, restored.withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `written thinking never carries a null enabled, which older readers cannot parse`() {
+            val states = mapOf(
+                "none" to LlmOptions().withoutThinking(),
+                "none plus extraction" to withExtraction(LlmOptions().withoutThinking()),
+                "extraction only" to LlmOptions().withThinking(Thinking.withExtraction()),
+                "budget" to LlmOptions().withThinking(Thinking.withTokenBudget(8192)),
+                "default" to LlmOptions(),
+            )
+            for ((name, options) in states) {
+                val thinking = mapper.readTree(mapper.writeValueAsString(options)).path("thinking")
+                assertFalse(thinking.path("enabled").isNull, "$name wrote enabled:null")
+                assertTrue(thinking.path("disabled").isMissingNode, "$name wrote disabled")
+            }
+        }
+
+        @Test
+        fun `each thinking state keeps its meaning after a JSON round trip`() {
+            fun effortAfterRoundTrip(options: LlmOptions) = roundTrip(options).withDefaultsFrom(none).reasoningEffort
+            assertNull(effortAfterRoundTrip(LlmOptions().withoutThinking()))
+            assertNull(effortAfterRoundTrip(withExtraction(LlmOptions().withoutThinking())))
+            assertEquals(ReasoningEffort.NONE, effortAfterRoundTrip(LlmOptions().withThinking(Thinking.withExtraction())))
+            assertNull(effortAfterRoundTrip(LlmOptions().withThinking(Thinking.withTokenBudget(8192))))
+            assertEquals(ReasoningEffort.NONE, effortAfterRoundTrip(LlmOptions()))
+            val budget = roundTrip(LlmOptions().withThinking(Thinking.withTokenBudget(8192))).thinking!!
+            assertEquals(true, budget.enabled)
+            assertEquals(8192, budget.tokenBudget)
+        }
+
+        @Test
+        fun `thinking bound as disabled is an opt-out that extraction keeps`() {
+            val bound = bind("opts.thinking.enabled" to "false")
+            assertNull(withExtraction(bound).withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `thinking bound with extraction only inherits the effort`() {
+            val bound = bind("opts.thinking.extract-thinking" to "true")
+            assertEquals(ReasoningEffort.NONE, bound.withDefaultsFrom(none).reasoningEffort)
+            assertEquals(ReasoningEffort.NONE, bind("opts.model" to "m").withDefaultsFrom(none).reasoningEffort)
+        }
+
+        private fun bindYaml(yaml: String): LlmOptions =
+            Binder(ConfigurationPropertySources.from(YamlPropertySourceLoader().load("test", ByteArrayResource(yaml.toByteArray()))))
+                .bind("opts", Bindable.of(LlmOptions::class.java)).get()
+
+        @Test
+        fun `thinking written as disabled with extraction before the opt-out marker is extraction-only`() {
+            // Before Thinking kept an unset mode apart from false, extraction-only thinking read and wrote enabled=false.
+            val low = LlmOptions().withReasoningEffort(ReasoningEffort.LOW)
+            val legacy = mapOf(
+                "JSON" to mapper.readValue("""{"thinking":{"enabled":false,"extractThinking":true}}""", LlmOptions::class.java),
+                "YAML" to bindYaml("opts:\n  thinking:\n    enabled: false\n    extract-thinking: true\n"),
+            )
+            for ((source, options) in legacy) {
+                val merged = options.withDefaultsFrom(low)
+                assertEquals(ReasoningEffort.LOW, merged.reasoningEffort, source)
+                assertFalse(merged.thinking!!.disabled, source)
+                assertTrue(merged.thinking!!.extractThinking, source)
+            }
+        }
+
+        @Test
+        fun `thinking bound as an opt-out with extraction keeps the opt-out`() {
+            val bound = bindYaml("opts:\n  thinking:\n    enabled: false\n    extract-thinking: true\n    opt-out: true\n")
+            assertTrue(bound.thinking!!.disabled)
+            assertNull(bound.withDefaultsFrom(none).reasoningEffort)
+        }
+
+        @Test
+        fun `each thinking state is written as exactly this JSON`() {
+            val states = mapOf(
+                """{"enabled":false,"tokenBudget":null,"extractThinking":false,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true}"""
+                    to LlmOptions().withoutThinking(),
+                """{"enabled":false,"tokenBudget":null,"extractThinking":true,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true,"optOut":true}"""
+                    to withExtraction(LlmOptions().withoutThinking()),
+                """{"tokenBudget":null,"extractThinking":true,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true}"""
+                    to LlmOptions().withThinking(Thinking.withExtraction()),
+                """{"enabled":true,"tokenBudget":8192,"extractThinking":false,"includedTags":null,"excludedTags":null,"injectSystemPrompt":true}"""
+                    to LlmOptions().withThinking(Thinking.withTokenBudget(8192)),
+            )
+            for ((json, options) in states) {
+                assertEquals(json, mapper.writeValueAsString(options.thinking))
+                assertEquals(json, mapper.writeValueAsString(roundTrip(options).thinking), "round trip of $json")
+            }
+        }
+
+        @Test
+        fun `an explicit caller effort still wins alongside the caller's thinking`() {
+            val caller = LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW)
+            val merged = caller.withDefaultsFrom(LlmOptions().withReasoningEffort(ReasoningEffort.HIGH))
+            assertEquals(ReasoningEffort.LOW, merged.reasoningEffort)
         }
     }
 }

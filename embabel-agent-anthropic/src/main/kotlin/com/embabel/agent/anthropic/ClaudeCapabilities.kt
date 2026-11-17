@@ -132,6 +132,13 @@ data class ClaudeCapabilities(val version: Int) {
             return ClaudeCapabilities(version)
         }
 
+        /** Effort starts at Claude 4.6; Opus 4.5 is the only 4.5 model that supports it. */
+        internal fun supportsEffort(model: String): Boolean {
+            val version = of(model).version
+            // shortcut: versionless IDs stay permissive; add an ID exception if Anthropic ships one without effort support.
+            return version == 0 || version >= 46 || (version == 45 && model.contains("-opus-"))
+        }
+
         /**
          * [ClaudeCapabilities.rejectsThinkingDisabled] with the family exception applied: Haiku accepts
          * thinking.type="disabled" where its 5.1+ siblings reject it, though only at effort high or below.

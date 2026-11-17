@@ -166,6 +166,33 @@ class PricingModelTest {
     }
 
     @Test
+    fun `cache tokens are priced at their own rates`() {
+        val model = PerTokenPricingModel(2.0, 10.0, 0.2, 2.5)
+
+        val cost = model.costOf(100, 50, 18_000, 2_000)
+
+        assertEquals(0.0093, cost, 1e-12)
+    }
+
+    @Test
+    fun `cache tokens default to the input rate`() {
+        val model = PricingModel.usdPer1MTokens(2.0, 10.0)
+
+        val cost = model.costOf(100, 50, 18_000, 2_000)
+
+        assertEquals((20_100 * 2.0 + 50 * 10.0) / ONE_MILLION, cost, 1e-12)
+    }
+
+    @Test
+    fun `Usage cost prices cache tokens within promptTokens at their own rates`() {
+        val model = PerTokenPricingModel(2.0, 10.0, 0.2, 2.5)
+
+        val cost = model.costOf(DefaultUsage(20_100, 50, 20_150, null, 18_000L, 2_000L))
+
+        assertEquals(0.0093, cost, 1e-12)
+    }
+
+    @Test
     fun `PerTokenPricingModel should implement PricingModel interface`() {
         // Arrange
         val model = PerTokenPricingModel(5.0, 15.0)
