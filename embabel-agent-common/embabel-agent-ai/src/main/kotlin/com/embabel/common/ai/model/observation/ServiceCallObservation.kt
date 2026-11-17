@@ -99,21 +99,35 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
      *
      * @param service the answering service's own name
      * @param provider the answering service's provider
-     * @param request the request, read only for its question count and spec
+     * @param request the request, read only for its spec
      * @param work the execution that produces the response
      * @return the response [work] returned, unchanged
      */
-    fun ask(service: String, provider: String, request: DecisionRequest, work: () -> DecisionResponse): DecisionResponse {
+    fun ask(service: String, provider: String, request: DecisionRequest, work: () -> DecisionResponse): DecisionResponse =
+        ask(service, provider, request.spec, work)
+
+    /**
+     * Observes one logical ask as `embabel.ai.ask`, the same way as the request overload. Only the
+     * spec is needed, so a call with options or a structured input is observed without reading
+     * either of them.
+     *
+     * @param service the answering service's own name
+     * @param provider the answering service's provider
+     * @param spec the questions asked, read for their count and to match answers
+     * @param work the execution that produces the response
+     * @return the response [work] returned, unchanged
+     */
+    fun ask(service: String, provider: String, spec: DecisionSpec, work: () -> DecisionResponse): DecisionResponse {
         val startTags = KeyValues.of(
             SERVICE, service,
             PROVIDER, provider,
-            QUESTION_COUNT, questionCountBucket(request.spec.questions.size),
+            QUESTION_COUNT, questionCountBucket(spec.questions.size),
         )
         return observe(
             Operation.ASK,
             ::responseOutcome,
             startTags = startTags,
-            resultEvents = { answerEvents(request, it) },
+            resultEvents = { answerEvents(spec, it) },
             work = work,
         )
     }
@@ -423,14 +437,14 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
 
     /**
      * One event per answer, in spec order. Events are recorded only for a response that matches the
-     * request's spec, whose answer names are then the spec's question names.
+     * spec, whose answer names are then the spec's question names.
      *
-     * @param request the request the response answers
+     * @param spec the questions the response answers
      * @param response the response to build events for
      * @return one event per answer, or none when the response doesn't match the spec
      */
-    private fun answerEvents(request: DecisionRequest, response: DecisionResponse): List<Observation.Event> {
-        if (!matchesSpec(response, request.spec)) return emptyList()
+    private fun answerEvents(spec: DecisionSpec, response: DecisionResponse): List<Observation.Event> {
+        if (!matchesSpec(response, spec)) return emptyList()
         return response.answers.map { answer ->
             val kind = when (answer) {
                 is DecisionAnswer.Proposition -> "proposition"

@@ -18,6 +18,7 @@ package com.embabel.common.ai.model.observation
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationSpec
+import com.embabel.common.ai.decision.DecisionCall
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
@@ -28,6 +29,8 @@ import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.spi.DecisionCallExecution
+import com.embabel.common.ai.decision.spi.DecisionCalls
 import com.embabel.common.ai.decision.spi.DecisionExecution
 import com.embabel.common.ai.decision.spi.DelegatingDecisionService
 import com.embabel.common.ai.decision.spi.QuestionSetExecution
@@ -50,8 +53,14 @@ import org.jetbrains.annotations.ApiStatus
  * proposition or rating question asked on its own. A choice question asked on its own goes through
  * `classify` and emits one `embabel.ai.classification` observation. The capabilities are the delegate's. Preflight checks them
  * against the hook interfaces of the delegate, so a delegate whose capabilities claim a hook it does
- * not implement fails with an [IllegalStateException] before any provider call. Every ask overload
+ * not implement fails with an [IllegalStateException] before any provider call. Every request ask
  * runs through the shared execution path, so a delegate's own `ask` override is not called.
+ *
+ * A [DecisionCall] is forwarded with its options and input intact when the delegate answers calls
+ * itself. That ask records one `embabel.ai.ask` observation and one `ask_question_set` provider
+ * observation around the delegate's call hook. A delegate that only answers requests gets the call
+ * as a plain request, and a call it cannot hold, such as one with options, is refused before any
+ * provider call. Observations read only the call's spec, never its options or input.
  */
 // Members are forwarded by hand: interface delegation would send default methods such as ask past the observation.
 @Suppress("kotlin:S6514")
@@ -61,6 +70,7 @@ class ObservedDecisionService @JvmOverloads constructor(
     observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : DecisionService by delegate,
     DelegatingDecisionService,
+    DecisionCallExecution,
     QuestionSetExecution,
     PropositionAssessment,
     RatingAssessment {
@@ -112,6 +122,37 @@ class ObservedDecisionService @JvmOverloads constructor(
             }
             DecisionExecution.execute(this, request, hookSource = hookSource)
         }
+
+    /**
+     * Answers a call inside one `embabel.ai.ask` observation.
+     *
+     * When the delegate answers calls itself, the call goes to its call hook, options and all,
+     * inside one `ask_question_set` observation. Otherwise the call becomes a plain request and
+     * takes the request path, which records the same observations as asking with a request.
+     *
+     * @param call the input, questions and options to answer
+     * @return one answer per question, in spec order
+     * @throws com.embabel.common.ai.decision.UnsupportedDecisionException if the delegate cannot
+     * answer the call. No provider call has been made.
+     * @throws IllegalStateException if the delegate answers calls but a decorator between here and it
+     * does not forward them
+     */
+    override fun ask(call: DecisionCall): DecisionResponse {
+        if (hookSource !is DecisionCallExecution) return ask(DecisionCalls.toRequest(name, call))
+        val hook = requireHook<DecisionCallExecution>("DecisionCallExecution")
+        return observation.ask(name, provider, call.spec) { observation.questionSet { hook.askCall(call) } }
+    }
+
+    /**
+     * Runs the delegate's call hook inside one `ask_question_set` observation. A decorator in front
+     * of this one reaches it here, and that decorator's own ask observation covers the call.
+     *
+     * @throws IllegalStateException if the delegate does not implement [DecisionCallExecution]
+     */
+    override fun askCall(call: DecisionCall): DecisionResponse {
+        val hook = requireHook<DecisionCallExecution>("DecisionCallExecution")
+        return observation.questionSet { hook.askCall(call) }
+    }
 
     /**
      * Runs the delegate's question-set call inside one `ask_question_set` observation.

@@ -20,6 +20,7 @@ import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.ClassificationServiceMetadata
 import com.embabel.common.ai.classification.ClassificationSpec
+import com.embabel.common.ai.decision.DecisionCall
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
@@ -31,6 +32,7 @@ import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.spi.DecisionCallExecution
 import com.embabel.common.ai.decision.spi.DelegatingDecisionService
 import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
@@ -254,7 +256,7 @@ private inline fun <R> withParent(
  * and reports the delegate's hook source so that decorator's preflight inspects the hooks of the
  * service that does the work. A hook call throws [IllegalStateException] when the delegate does not
  * implement that hook. [ask] calls the delegate's own `ask`, so the delegate's preflight checks each
- * request.
+ * request, and a [DecisionCall] reaches the delegate with its options and input intact.
  */
 @Suppress("kotlin:S6514")
 // Explicit forwarding keeps a default method added to the interface later from bypassing the operation binding.
@@ -264,6 +266,7 @@ internal class OperationBoundDecisionService(
     private val observationRegistry: ObservationRegistry,
 ) : DecisionService,
     DelegatingDecisionService,
+    DecisionCallExecution,
     QuestionSetExecution,
     PropositionAssessment,
     RatingAssessment {
@@ -296,6 +299,15 @@ internal class OperationBoundDecisionService(
 
     override fun ask(request: DecisionRequest): DecisionResponse =
         withParent(parent, observationRegistry) { delegate.ask(request) }
+
+    override fun ask(call: DecisionCall): DecisionResponse =
+        withParent(parent, observationRegistry) { delegate.ask(call) }
+
+    override fun askCall(call: DecisionCall): DecisionResponse {
+        val hook = delegate as? DecisionCallExecution
+            ?: throw missingHook("DecisionCallExecution", "askCall", "the call options it accepts")
+        return withParent(parent, observationRegistry) { hook.askCall(call) }
+    }
 
     override fun askQuestionSet(request: DecisionRequest): DecisionResponse {
         val hook = delegate as? QuestionSetExecution
