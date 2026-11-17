@@ -22,6 +22,8 @@ import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCall
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionInput
+import com.embabel.common.ai.decision.DecisionOption
+import com.embabel.common.ai.decision.DecisionOptions
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionService
@@ -35,6 +37,7 @@ import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.TextDecisionInput
 import com.embabel.common.ai.decision.UnsupportedDecisionException
+import java.time.Duration
 
 /**
  * A decision service made from one provider function, its metadata and its capabilities.
@@ -44,12 +47,40 @@ import com.embabel.common.ai.decision.UnsupportedDecisionException
  * count, option and level counts, input kind, then call options. A failed check throws
  * [UnsupportedDecisionException] and the executor is never called. After it runs, a response that
  * doesn't answer the call's spec is replaced by an invalid-response failure.
+ *
+ * A service can also carry default option values, which fill in any option the call leaves
+ * unset, and a preflight check of the provider's own that runs after the capability checks. When
+ * the call has a timeout, the executor gets whatever is left of it once the checks and the
+ * preflight are done.
+ *
+ * @param preflight runs on the call the executor would get, and stops the ask by throwing
+ * @param defaults option values used when the call sets no value of its own for that option
+ * @param nanoTime the clock used to measure the timeout budget, which tests replace
+ * @throws IllegalArgumentException if a default's option isn't listed in the capabilities, or its
+ * value isn't an instance of the option's type
  */
 internal class ExecutorDecisionService(
     private val metadata: DecisionServiceMetadata,
     private val capabilities: DecisionCapabilities,
     private val executor: DecisionExecutor,
+    private val preflight: ((DecisionCall) -> Unit)? = null,
+    private val defaults: Map<DecisionOption<*>, Any> = emptyMap(),
+    private val nanoTime: () -> Long = System::nanoTime,
 ) : DecisionService, DecisionCallExecution, QuestionSetExecution {
+
+    init {
+        val supported = capabilities.supportedCallOptionIds.orEmpty()
+        val unlisted = defaults.keys.filter { it.id !in supported }
+        require(unlisted.isEmpty()) {
+            "Decision service '${metadata.name}' has default options its capabilities don't list: " +
+                "${unlisted.joinToString { "'${it.id}'" }}. List them with acceptingOption, or drop the defaults"
+        }
+        defaults.forEach { (key, value) ->
+            require(key.type.isInstance(value)) {
+                "Default option '${key.id}' needs a value of type ${key.type.name}, but got ${value.javaClass.name}"
+            }
+        }
+    }
 
     override val name: String get() = metadata.name
 
@@ -58,9 +89,22 @@ internal class ExecutorDecisionService(
     override fun capabilities(): DecisionCapabilities = capabilities
 
     override fun askCall(call: DecisionCall): DecisionResponse {
-        val accepted = check(call)
+        val started = nanoTime()
+        val accepted = check(withDefaults(call))
+        val timeout = accepted.option(DecisionOptions.TIMEOUT)
+        if (timeout != null && (timeout.isZero || timeout.isNegative)) {
+            reject("its timeout must be longer than zero")
+        }
+        preflight?.invoke(accepted)
+        val budgeted = if (timeout == null) {
+            accepted
+        } else {
+            val left = timeout.minus(Duration.ofNanos(nanoTime() - started))
+            if (left.isZero || left.isNegative) return DecisionResponse.failed(call.spec, FailureReason.UNAVAILABLE)
+            accepted.withOption(DecisionOptions.TIMEOUT, left)
+        }
         // The executor runs outside the try on purpose, so its own exceptions reach the caller as they are.
-        val response: DecisionResponse? = executor.execute(accepted)
+        val response: DecisionResponse? = executor.execute(budgeted)
         if (response == null) return DecisionResponse.failed(call.spec, FailureReason.INVALID_RESPONSE)
         try {
             response.requireMatches(call.spec)
@@ -148,6 +192,17 @@ internal class ExecutorDecisionService(
         }
         return accepted
     }
+
+    /** Adds each default whose option the call doesn't set. An option counts as set when its id matches. */
+    private fun withDefaults(call: DecisionCall): DecisionCall {
+        val setIds = call.optionKeys.mapTo(HashSet()) { it.id }
+        return defaults.entries.fold(call) { current, (key, value) ->
+            if (key.id in setIds) current else current.withDefault(key, value)
+        }
+    }
+
+    private fun <T : Any> DecisionCall.withDefault(key: DecisionOption<T>, value: Any): DecisionCall =
+        withOption(key, key.type.cast(value))
 
     private fun describe(questions: List<Question<*>>): String =
         questions.joinToString(", ") { "'${it.name}' (${it.kind})" }

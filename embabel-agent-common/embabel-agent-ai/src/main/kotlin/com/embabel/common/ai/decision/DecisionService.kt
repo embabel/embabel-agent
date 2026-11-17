@@ -26,6 +26,7 @@ import com.embabel.common.ai.model.ModelName
 import com.embabel.common.ai.model.ModelType
 import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.annotation.JsonDeserialize
+import java.util.function.Consumer
 
 /** Pure metadata for the decision family, which also supports classification. */
 @ApiStatus.Experimental
@@ -39,6 +40,15 @@ interface DecisionServiceMetadata : ClassificationServiceMetadata {
         fun create(name: String, provider: String): DecisionServiceMetadata = DecisionServiceMetadataImpl(name, provider)
     }
 }
+
+/**
+ * Marks the receiver of the Kotlin block that configures a decision service, so code inside the
+ * block can't reach an outer builder by accident.
+ */
+@ApiStatus.Experimental
+@DslMarker
+@Target(AnnotationTarget.CLASS, AnnotationTarget.TYPE)
+annotation class DecisionServiceDsl
 
 /** Classification plus proposition assessment. Applications own any routing or revision policy. */
 @ApiStatus.Experimental
@@ -124,7 +134,117 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
     fun ask(call: DecisionCall): DecisionResponse = DecisionCalls.ask(this, call)
 
     /**
-     * The decision model kind, and a way to make a decision service from one function.
+     * Configures a decision service made from one function, for callers in Java. Every method
+     * hands back a new builder and leaves this one as it was, so a builder can be shared and
+     * extended safely. Get one from [DecisionService.builder].
+     *
+     * ```java
+     * DecisionService service = DecisionService.builder(metadata, capabilities, executor)
+     *     .withDefaultOption(DecisionOptions.TIMEOUT, Duration.ofSeconds(10))
+     *     .withPreflight(call -> quota.check())
+     *     .build();
+     * ```
+     */
+    @ApiStatus.Experimental
+    class Builder internal constructor(
+        private val metadata: DecisionServiceMetadata,
+        private val capabilities: DecisionCapabilities,
+        private val executor: DecisionExecutor,
+        private val preflight: Consumer<DecisionCall>?,
+        private val defaults: Map<DecisionOption<*>, Any>,
+    ) {
+
+        /**
+         * Returns a builder whose service runs a check of its own before the executor. The check
+         * gets the call the executor would get, after the capability checks pass and the defaults
+         * are filled in, and stops the ask by throwing. The exception reaches the caller and the
+         * executor is not called. Setting a preflight again replaces the earlier one.
+         *
+         * @param check the check to run before each executor call
+         * @return a new builder
+         */
+        fun withPreflight(check: Consumer<DecisionCall>): Builder =
+            Builder(metadata, capabilities, executor, check, defaults)
+
+        /**
+         * Returns a builder whose service uses the given value for an option whenever a call
+         * doesn't set that option itself. A value set on the call always wins. Setting a default
+         * for the same option again replaces its value.
+         *
+         * A default for [DecisionOptions.TIMEOUT] gives every call a time budget unless the call
+         * brings its own.
+         *
+         * @param key the option to give a default
+         * @param value the value to use when a call leaves the option unset
+         * @return a new builder
+         */
+        fun <T : Any> withDefaultOption(key: DecisionOption<T>, value: T): Builder {
+            val copy = LinkedHashMap(defaults)
+            copy[key] = value
+            return Builder(metadata, capabilities, executor, preflight, copy)
+        }
+
+        /**
+         * Makes the decision service. It behaves as one made with [DecisionService.from], plus
+         * the defaults and the preflight set on this builder.
+         *
+         * @return the decision service
+         * @throws IllegalArgumentException if a default is for an option the capabilities don't
+         * list, or its value isn't an instance of the option's type
+         */
+        fun build(): DecisionService = ExecutorDecisionService(
+            metadata,
+            capabilities,
+            executor,
+            preflight?.let { check -> { call: DecisionCall -> check.accept(call) } },
+            defaults,
+        )
+    }
+
+    /**
+     * The receiver of the Kotlin block that configures a decision service made from one function.
+     * Each setting works like the matching [Builder] method.
+     */
+    @DecisionServiceDsl
+    @ApiStatus.Experimental
+    class Scope internal constructor() {
+
+        private var preflight: Consumer<DecisionCall>? = null
+
+        private val defaults = LinkedHashMap<DecisionOption<*>, Any>()
+
+        /**
+         * Runs a check of the provider's own before the executor, as [Builder.withPreflight] does.
+         * Setting a preflight again replaces the earlier one.
+         *
+         * @param check the check to run before each executor call, which stops the ask by throwing
+         */
+        fun preflight(check: (DecisionCall) -> Unit) {
+            preflight = Consumer { call -> check(call) }
+        }
+
+        /**
+         * Uses a value for an option whenever a call doesn't set it, as [Builder.withDefaultOption]
+         * does. Setting the same option again replaces its value.
+         *
+         * @param key the option to give a default
+         * @param value the value to use when a call leaves the option unset
+         */
+        fun <T : Any> defaultOption(key: DecisionOption<T>, value: T) {
+            defaults[key] = value
+        }
+
+        internal fun applyTo(builder: Builder): Builder {
+            val withDefaults = defaults.entries.fold(builder) { current, (key, value) -> current.withDefault(key, value) }
+            return preflight?.let { withDefaults.withPreflight(it) } ?: withDefaults
+        }
+
+        private fun <T : Any> Builder.withDefault(key: DecisionOption<T>, value: Any): Builder =
+            withDefaultOption(key, key.type.cast(value))
+    }
+
+    /**
+     * The decision model kind, and ways to make a decision service from one function.
      */
     companion object {
 
@@ -161,6 +281,55 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
             capabilities: DecisionCapabilities,
             executor: DecisionExecutor,
         ): DecisionService = ExecutorDecisionService(metadata, capabilities, executor)
+
+        /**
+         * Starts configuring a decision service made from one function. Use this from Java when
+         * the service needs default options or a preflight check. A builder with nothing set
+         * makes the same service as [from].
+         *
+         * Once a call passes the capability checks, the defaults fill in any option it leaves
+         * unset and the preflight runs. When the call then has a [DecisionOptions.TIMEOUT], the
+         * executor gets a call whose timeout is the time left since the ask began. With no time
+         * left, every question fails as unavailable and the executor is not called. A timeout of
+         * zero or less throws [UnsupportedDecisionException] before the executor is called.
+         *
+         * @param metadata the service's name and provider
+         * @param capabilities what the service accepts
+         * @param executor the function that answers a checked call
+         * @return a builder with no defaults and no preflight
+         */
+        @JvmStatic
+        fun builder(
+            metadata: DecisionServiceMetadata,
+            capabilities: DecisionCapabilities,
+            executor: DecisionExecutor,
+        ): Builder = Builder(metadata, capabilities, executor, null, emptyMap())
+
+        /**
+         * Makes a decision service from one function, configured with a Kotlin block. The block
+         * sets the same things as [builder] and the service behaves the same way.
+         *
+         * ```kotlin
+         * val service = DecisionService(metadata, capabilities, executor) {
+         *     defaultOption(DecisionOptions.TIMEOUT, Duration.ofSeconds(10))
+         *     preflight { call -> quota.check() }
+         * }
+         * ```
+         *
+         * @param metadata the service's name and provider
+         * @param capabilities what the service accepts
+         * @param executor the function that answers a checked call
+         * @param block sets defaults and a preflight
+         * @return the decision service
+         * @throws IllegalArgumentException if a default is for an option the capabilities don't list
+         */
+        @JvmSynthetic
+        operator fun invoke(
+            metadata: DecisionServiceMetadata,
+            capabilities: DecisionCapabilities,
+            executor: DecisionExecutor,
+            block: Scope.() -> Unit,
+        ): DecisionService = Scope().apply(block).applyTo(builder(metadata, capabilities, executor)).build()
     }
 }
 
