@@ -21,6 +21,7 @@ import com.embabel.common.ai.classification.FailureReason
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonFormat
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
@@ -277,14 +278,19 @@ sealed interface DecisionAnswer {
  * RatingResult anger = response.answer(frustration);
  * ```
  *
+ * A response can also say how many tokens the request used, in [usage], and which questions the
+ * provider refused to answer, in [refusedQuestions]. A refused question still has an answer: the
+ * inconclusive outcome of its kind. So code that only reads outcomes treats a refusal like any
+ * other inconclusive answer, and [wasRefused] tells the two apart.
+ *
  * Build a response with [builder], or record a failed request with [failed]. Two responses are
- * equal when their request failures and answers are equal.
+ * equal when their request failures, answers, usage and refused questions are all equal.
  *
  * Reading a response from JSON runs the same checks as building one, answer by answer. It does not
  * compare the response with any spec.
  */
 @ApiStatus.Experimental
-@JsonPropertyOrder("requestFailure", "answers")
+@JsonPropertyOrder("requestFailure", "answers", "usage", "refused")
 class DecisionResponse private constructor(
     /**
      * Why the whole request failed, or null when it did not. When it is set, every answer's outcome
@@ -294,6 +300,12 @@ class DecisionResponse private constructor(
     @get:JsonInclude(JsonInclude.Include.NON_NULL)
     val requestFailure: FailureReason?,
     answers: List<DecisionAnswer>,
+    /**
+     * The tokens the request used as the provider reported them, or null when it reported nothing.
+     */
+    @get:JsonIgnore
+    val usage: DecisionUsage? = null,
+    refused: Collection<String> = emptySet(),
 ) {
 
     /** The answers in spec order, one per question. The list cannot be modified. */
@@ -318,6 +330,15 @@ class DecisionResponse private constructor(
         }
         answersByName = this.answers.associateBy { it.name }
     }
+
+    /**
+     * The names of the questions the provider refused to answer, in spec order. Each one's answer is
+     * the inconclusive outcome of its kind. The set is empty when nothing was refused, and it cannot
+     * be modified.
+     */
+    @get:JsonProperty("refused")
+    @get:JsonInclude(JsonInclude.Include.NON_EMPTY)
+    val refusedQuestions: Set<String> = AnswerRules.refusals(this.answers, answersByName, refused)
 
     /**
      * Returns the answer with the given name. Use this when the name is only known at run time,
@@ -405,12 +426,42 @@ class DecisionResponse private constructor(
         require(mismatches.isEmpty()) { "The response does not match the spec. ${mismatches.joinToString(" ")}" }
     }
 
+    /**
+     * Returns the usage in the form written to JSON, or null when there is none.
+     *
+     * @return the usage counts to write
+     */
+    @JsonProperty("usage")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private fun usageJson(): UsageJson? = usage?.let(UsageJson::of)
+
+    /**
+     * Says whether the provider refused to answer the given question. It checks the question the
+     * same way the typed [answer] lookup does. An inconclusive answer the provider gave without
+     * refusing returns false.
+     *
+     * @param question the question to check
+     * @return true when the question is recorded as refused
+     * @throws IllegalArgumentException if this response has no answer with the question's name, the
+     * answer is of another kind, or the answer's options or levels differ from the question's
+     */
+    fun wasRefused(question: Question<*>): Boolean {
+        answer(question)
+        return question.name in refusedQuestions
+    }
+
     override fun equals(other: Any?): Boolean =
-        this === other || other is DecisionResponse && requestFailure == other.requestFailure && answers == other.answers
+        this === other || other is DecisionResponse && requestFailure == other.requestFailure && answers == other.answers &&
+            usage == other.usage && refusedQuestions == other.refusedQuestions
 
-    override fun hashCode(): Int = Objects.hash(requestFailure, answers)
+    override fun hashCode(): Int = Objects.hash(requestFailure, answers, usage, refusedQuestions)
 
-    override fun toString(): String = "DecisionResponse(requestFailure=$requestFailure, answers=$answers)"
+    override fun toString(): String = buildString {
+        append("DecisionResponse(requestFailure=").append(requestFailure).append(", answers=").append(answers)
+        if (usage != null) append(", usage=").append(usage)
+        if (refusedQuestions.isNotEmpty()) append(", refused=").append(refusedQuestions)
+        append(')')
+    }
 
     /**
      * Rejects a JSON member this type doesn't define.
@@ -430,6 +481,8 @@ class DecisionResponse private constructor(
     class Builder private constructor(private val spec: DecisionSpec) {
 
         private val answers = HashMap<String, DecisionAnswer>()
+        private val refused = HashSet<String>()
+        private var usage: DecisionUsage? = null
 
         /**
          * Adds the answer to one proposition question of the spec. A rejected answer leaves the
@@ -476,16 +529,43 @@ class DecisionResponse private constructor(
         }
 
         /**
-         * Returns a new response holding the answers added so far, in spec order.
+         * Records the tokens the request used. A later call replaces the earlier usage.
          *
-         * @throws IllegalArgumentException if a question of the spec has no answer
+         * @param usage the tokens the provider reported
+         * @return this builder
+         */
+        fun usage(usage: DecisionUsage): Builder = apply { this.usage = usage }
+
+        /**
+         * Marks one question of the spec as refused by the provider. The question still needs its
+         * answer, added before or after this call, and that answer must be the inconclusive
+         * outcome of its kind. A rejected call leaves the builder as it was.
+         *
+         * @param question a question of the spec, or an equal question
+         * @return this builder
+         * @throws IllegalArgumentException if the spec has no question with this name, the spec's
+         * question is not equal to this one, or the question is already marked as refused
+         */
+        fun refused(question: Question<*>): Builder {
+            requireDeclared(question)
+            require(question.name !in refused) { "Question '${question.name}' is already marked as refused" }
+            refused += question.name
+            return this
+        }
+
+        /**
+         * Returns a new response holding the answers added so far, in spec order, with any usage and
+         * refused questions.
+         *
+         * @throws IllegalArgumentException if a question of the spec has no answer, or a refused
+         * question's answer is not the inconclusive outcome of its kind
          */
         fun build(): DecisionResponse {
             val missing = spec.questions.map { it.name }.filterNot(answers::containsKey)
             require(missing.isEmpty()) {
                 "Every question in the spec needs an answer. Missing: ${missing.joinToString { "'$it'" }}"
             }
-            return DecisionResponse(null, spec.questions.map { answers.getValue(it.name) })
+            return DecisionResponse(null, spec.questions.map { answers.getValue(it.name) }, usage, refused)
         }
 
         /**
@@ -496,14 +576,23 @@ class DecisionResponse private constructor(
          * @return this builder
          */
         private fun add(question: Question<*>, make: () -> DecisionAnswer): Builder {
+            requireDeclared(question)
+            require(question.name !in answers) { "Question '${question.name}' already has an answer" }
+            answers[question.name] = make()
+            return this
+        }
+
+        /**
+         * Checks that the spec holds a question with this name and the same definition.
+         *
+         * @param question the question to check
+         */
+        private fun requireDeclared(question: Question<*>) {
             val declared = spec.question(question.name)
             require(declared != null) { "The spec has no question named '${question.name}'" }
             require(declared == question) {
                 "Question '${question.name}' has a different definition from the one in the spec"
             }
-            require(question.name !in answers) { "Question '${question.name}' already has an answer" }
-            answers[question.name] = make()
-            return this
         }
 
         internal companion object {
@@ -541,16 +630,24 @@ class DecisionResponse private constructor(
 
         // Rebuilds a response without its spec. The constructor checks every invariant. Hidden from Java.
         @JvmSynthetic
-        internal fun create(requestFailure: FailureReason?, answers: List<DecisionAnswer>): DecisionResponse =
-            DecisionResponse(requestFailure, answers)
+        internal fun create(
+            requestFailure: FailureReason?,
+            answers: List<DecisionAnswer>,
+            usage: DecisionUsage? = null,
+            refused: Collection<String> = emptySet(),
+        ): DecisionResponse = DecisionResponse(requestFailure, answers, usage, refused)
 
         /**
-         * Reads a response from JSON through the same constructor. An explicit null request failure
-         * reads the same as an absent one.
+         * Reads a response from JSON through the same constructor. An explicit null request failure,
+         * usage or refused list reads the same as an absent one.
          *
          * @param requestFailure the request failure as read from JSON, or null when there is none
          * @param answers the answers as read from JSON
+         * @param usage the usage as read from JSON, or null when there is none
+         * @param refused the refused question names as read from JSON, or null when there are none
          * @return the response
+         * @throws IllegalArgumentException if a refused name repeats, names no answer, or names an
+         * answer whose outcome is not inconclusive
          */
         @JvmStatic
         @JsonCreator
@@ -559,8 +656,66 @@ class DecisionResponse private constructor(
             @JsonProperty("answers", required = true)
             @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
             answers: List<DecisionAnswer>,
-        ): DecisionResponse = DecisionResponse(requestFailure, answers)
+            @JsonProperty("usage") usage: UsageJson?,
+            @JsonProperty("refused")
+            @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
+            refused: List<String>?,
+        ): DecisionResponse {
+            val names = refused.orEmpty()
+            val seen = HashSet<String>()
+            val repeated = names.filterNot(seen::add).distinct()
+            require(repeated.isEmpty()) { "Refused question names must be unique within a decision response" }
+            return DecisionResponse(requestFailure, answers, usage?.toUsage(), names)
+        }
     }
+}
+
+/**
+ * The usage member of a response as it appears in JSON. Usage has more than one constructor, which
+ * leaves a JSON mapper unsure which one to use, so a response writes and reads usage through this
+ * class. A count that was not reported is left out.
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder("inputTokens", "outputTokens", "totalTokens", "cacheReadInputTokens", "cacheWriteInputTokens", "reasoningTokens")
+private class UsageJson @JsonCreator constructor(
+    @param:JsonProperty("inputTokens") @get:JsonProperty("inputTokens") val inputTokens: Long?,
+    @param:JsonProperty("outputTokens") @get:JsonProperty("outputTokens") val outputTokens: Long?,
+    @param:JsonProperty("totalTokens") @get:JsonProperty("totalTokens") val totalTokens: Long?,
+    @param:JsonProperty("cacheReadInputTokens") @get:JsonProperty("cacheReadInputTokens") val cacheReadInputTokens: Long?,
+    @param:JsonProperty("cacheWriteInputTokens") @get:JsonProperty("cacheWriteInputTokens") val cacheWriteInputTokens: Long?,
+    @param:JsonProperty("reasoningTokens") @get:JsonProperty("reasoningTokens") val reasoningTokens: Long?,
+) {
+
+    companion object {
+        /**
+         * Copies the counts out of a usage.
+         *
+         * @param usage the usage to write
+         * @return the same counts in JSON form
+         */
+        fun of(usage: DecisionUsage): UsageJson = UsageJson(
+            usage.inputTokens, usage.outputTokens, usage.totalTokens,
+            usage.cacheReadInputTokens, usage.cacheWriteInputTokens, usage.reasoningTokens,
+        )
+    }
+
+    /**
+     * Builds the usage these counts describe.
+     *
+     * @return the usage
+     * @throws IllegalArgumentException if any count is negative
+     */
+    fun toUsage(): DecisionUsage =
+        DecisionUsage(inputTokens, outputTokens, totalTokens, cacheReadInputTokens, cacheWriteInputTokens, reasoningTokens)
+
+    /**
+     * Rejects a JSON member usage doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionUsage", name, value)
 }
 
 // A private object compiles to a package-private class, so these shared checks add nothing Java can see.
@@ -611,6 +766,45 @@ private object AnswerRules {
         }
         val changed = answer.zip(question).filter { (a, q) -> a.second != q.second }.map { it.first.first }
         return "its $label have different descriptions from the question's for ${changed.joinToString { "'$it'" }}"
+    }
+
+    /**
+     * Checks a set of refused question names against the answers and returns them in answer order
+     * as a set that cannot be modified. Every name must belong to an answer whose outcome is the
+     * inconclusive outcome of its kind.
+     *
+     * @param answers the response's answers, in spec order
+     * @param answersByName the same answers keyed by name
+     * @param refused the refused question names, in any order
+     * @return the refused names in answer order
+     */
+    fun refusals(
+        answers: List<DecisionAnswer>,
+        answersByName: Map<String, DecisionAnswer>,
+        refused: Collection<String>,
+    ): Set<String> {
+        if (refused.isEmpty()) return emptySet()
+        val unknown = refused.filterNot(answersByName::containsKey)
+        require(unknown.isEmpty()) { "A refused question needs an answer in the response. Unknown: ${unknown.size}" }
+        val notInconclusive = answers.filter { it.name in refused && !isInconclusive(it) }
+        require(notInconclusive.isEmpty()) {
+            "A refused question's answer must be the inconclusive outcome of its kind. " +
+                "Not inconclusive: ${notInconclusive.joinToString { "'${it.name}'" }}"
+        }
+        val wanted = refused.toSet()
+        return java.util.Collections.unmodifiableSet(answers.mapTo(LinkedHashSet()) { it.name }.apply { retainAll(wanted) })
+    }
+
+    /**
+     * Says whether an answer's outcome is the inconclusive outcome of its kind.
+     *
+     * @param answer the answer to check
+     * @return true when the outcome is inconclusive
+     */
+    private fun isInconclusive(answer: DecisionAnswer): Boolean = when (answer) {
+        is DecisionAnswer.Proposition -> answer.outcome is PropositionResult.Inconclusive
+        is DecisionAnswer.Choice -> answer.outcome is ClassificationResult.Inconclusive
+        is DecisionAnswer.Rating -> answer.outcome is RatingResult.Inconclusive
     }
 
     /**

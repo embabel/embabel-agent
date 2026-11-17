@@ -17,9 +17,11 @@ package com.embabel.common.ai.decision.spi
 
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
+import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
+import com.embabel.common.ai.decision.DecisionUsage
 import com.embabel.common.ai.decision.OutcomeRules
 import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionResult
@@ -43,6 +45,9 @@ import org.slf4j.LoggerFactory
  * - A question with no answer, an answer of the wrong kind, an unreadable answer, or an outcome
  *   the question's `validate` rejects fails only that question with [FailureReason.INVALID_RESPONSE].
  * - The response lists the answers in spec order, whatever order they arrived in.
+ * - A question reported through [refused] gets the inconclusive outcome of its kind and is listed
+ *   as refused. A failed request lists no refusals.
+ * - Usage reported through [usage] is attached to the response, including a failed one.
  *
  * Outcomes pass through unchanged, so any confidence or evidence in them is what the provider reported.
  *
@@ -95,12 +100,14 @@ class DecisionResponseAssembler private constructor(
     private sealed interface Received {
         data class Outcome(val kind: QuestionKind, val value: Any) : Received
         data class Unreadable(val anomaly: Anomaly) : Received
+        data class Refused(val provenance: ModelProvenance) : Received
     }
 
     private val received = HashMap<String, Received>()
     private val duplicates = LinkedHashSet<String>()
     private var unexpected = 0
     private var unsafe = false
+    private var usage: DecisionUsage? = null
     private var built = false
 
     init {
@@ -136,6 +143,29 @@ class DecisionResponseAssembler private constructor(
      */
     fun rating(name: String, outcome: RatingResult): DecisionResponseAssembler =
         record(name, Received.Outcome(QuestionKind.RATING, outcome))
+
+    /**
+     * Records that the provider refused to answer one question. The question gets the inconclusive
+     * outcome of its kind, with this provenance, and the response lists it as refused. Like any
+     * other answer, a second report under the same name fails the request.
+     *
+     * @param name the question name the provider's refusal maps to
+     * @param provenance the model that refused
+     * @return this assembler
+     */
+    fun refused(name: String, provenance: ModelProvenance): DecisionResponseAssembler =
+        record(name, Received.Refused(provenance))
+
+    /**
+     * Records the tokens the request used. A later call replaces the earlier usage.
+     *
+     * @param usage the tokens the provider reported
+     * @return this assembler
+     */
+    fun usage(usage: DecisionUsage): DecisionResponseAssembler = apply {
+        requireOpen()
+        this.usage = usage
+    }
 
     /**
      * Records an answer the provider could not read, as [Anomaly.UNREADABLE].
@@ -202,15 +232,16 @@ class DecisionResponseAssembler private constructor(
                     "every question failed with {}",
                 serviceName, Anomaly.UNSAFE_ENVELOPE, FailureReason.INVALID_RESPONSE,
             )
-            return DecisionResponse.failed(spec, FailureReason.INVALID_RESPONSE)
+            return failed()
         }
         if (duplicates.isNotEmpty()) {
             val named = spec.questions.filter { it.name in duplicates }.map { it.name to Anomaly.DUPLICATE }
             warn(named, requestFailed = true)
-            return DecisionResponse.failed(spec, FailureReason.INVALID_RESPONSE)
+            return failed()
         }
         val anomalies = ArrayList<Pair<String, Anomaly>>()
         val builder = DecisionResponse.builder(spec)
+        usage?.let(builder::usage)
         for (question in spec.questions) {
             val anomaly = place(builder, question, received[question.name])
             if (anomaly != null) {
@@ -241,6 +272,17 @@ class DecisionResponseAssembler private constructor(
         }
     }
 
+    /**
+     * Returns the response for a request that failed as a whole, with any recorded usage attached.
+     *
+     * @return a response whose outcomes are all invalid-response failures
+     */
+    private fun failed(): DecisionResponse {
+        val failed = DecisionResponse.failed(spec, FailureReason.INVALID_RESPONSE)
+        val recorded = usage ?: return failed
+        return DecisionResponse.create(failed.requestFailure, failed.answers, recorded)
+    }
+
     /** Fails when this assembler has already built its response. */
     private fun requireOpen() {
         check(!built) { "This assembler has already built its response. Use a new assembler for each response." }
@@ -257,6 +299,15 @@ class DecisionResponseAssembler private constructor(
     private fun place(builder: DecisionResponse.Builder, question: Question<*>, answer: Received?): Anomaly? {
         if (answer == null) return Anomaly.MISSING
         if (answer is Received.Unreadable) return answer.anomaly
+        if (answer is Received.Refused) {
+            when (question) {
+                is PropositionQuestionSpec -> builder.answer(question, PropositionResult.Inconclusive(answer.provenance))
+                is ChoiceQuestionSpec -> builder.answer(question, ClassificationResult.Inconclusive(answer.provenance))
+                is RatingQuestionSpec -> builder.answer(question, RatingResult.Inconclusive(answer.provenance))
+            }
+            builder.refused(question)
+            return null
+        }
         val outcome = answer as Received.Outcome
         if (outcome.kind != question.kind) return Anomaly.WRONG_KIND
         when (question) {
