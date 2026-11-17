@@ -47,12 +47,12 @@ class DecisionServiceShapeTest {
     }
 
     @Test
-    fun `capabilities and the two ask overloads are default methods`() {
+    fun `capabilities and the three ask overloads are default methods`() {
         val type = DecisionService::class.java
         val capabilities = type.declared("capabilities")
         val ask = type.declared("ask")
         assertEquals(1, capabilities.size)
-        assertEquals(2, ask.size)
+        assertEquals(3, ask.size)
         (capabilities + ask).forEach { assertTrue(it.isDefault) { "$it is not a default method" } }
     }
 

@@ -17,7 +17,12 @@ package com.embabel.common.ai.decision
 
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.ClassificationServiceMetadata
+import com.embabel.common.ai.decision.spi.DecisionCalls
 import com.embabel.common.ai.decision.spi.DecisionExecution
+import com.embabel.common.ai.decision.spi.DecisionExecutor
+import com.embabel.common.ai.decision.spi.ExecutorDecisionService
+import com.embabel.common.ai.model.ModelKind
+import com.embabel.common.ai.model.ModelName
 import com.embabel.common.ai.model.ModelType
 import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.annotation.JsonDeserialize
@@ -99,6 +104,64 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      * @throws java.util.concurrent.CancellationException if the thread is interrupted during the ask
      */
     fun ask(request: DecisionRequest): DecisionResponse = DecisionExecution.execute(this, request)
+
+    /**
+     * Answers a call, which can carry structured input and options for this call alone.
+     *
+     * A service that implements `DecisionCallExecution`, such as one made with [from], gets the
+     * whole call. A decorator over such a service must implement it as well and forward the call,
+     * or this method throws an [IllegalStateException]. Any other service gets a text request
+     * through [ask]: a text input as it is and a JSON input as its text. Such a service refuses a
+     * call with options, a call that requires native JSON, and any other input kind, so an option
+     * is never silently dropped.
+     *
+     * @param call the input, the questions and any call options
+     * @return one answer per question, in spec order
+     * @throws com.embabel.common.ai.decision.UnsupportedDecisionException if this service cannot
+     * answer the call. No provider call has been made.
+     * @throws IllegalStateException if a decorator does not forward calls its hook source answers
+     */
+    fun ask(call: DecisionCall): DecisionResponse = DecisionCalls.ask(this, call)
+
+    /**
+     * The decision model kind, and a way to make a decision service from one function.
+     */
+    companion object {
+
+        /** Decision models. A role binds one to a [ModelName]. */
+        @JvmField
+        val KIND: ModelKind<DecisionService, ModelName> = ModelKind("decision", DecisionService::class.java)
+
+        /**
+         * Makes a decision service from one function that answers a whole call.
+         *
+         * The service reports the given metadata and capabilities. Every way of asking it, including
+         * [classify] and [assess], reaches the executor as one call. Before the executor runs, the
+         * call is checked against the capabilities: question kinds, the question limit, option and
+         * level counts, the input kind and the call options. A call that fails a check throws
+         * [UnsupportedDecisionException] and the executor is not called. A JSON input goes to the
+         * executor as JSON when the capabilities list the JSON input kind and as text otherwise.
+         * A response that doesn't answer the call's spec becomes an invalid-response failure for
+         * every question. An exception the executor throws reaches the caller unchanged.
+         *
+         * ```kotlin
+         * val service = DecisionService.from(metadata, capabilities) { call ->
+         *     myProvider.answer(call)
+         * }
+         * ```
+         *
+         * @param metadata the service's name and provider
+         * @param capabilities what the service accepts
+         * @param executor the function that answers a checked call
+         * @return the decision service
+         */
+        @JvmStatic
+        fun from(
+            metadata: DecisionServiceMetadata,
+            capabilities: DecisionCapabilities,
+            executor: DecisionExecutor,
+        ): DecisionService = ExecutorDecisionService(metadata, capabilities, executor)
+    }
 }
 
 private data class DecisionServiceMetadataImpl(
