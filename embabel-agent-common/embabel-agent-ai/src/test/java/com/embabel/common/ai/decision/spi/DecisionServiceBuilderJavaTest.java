@@ -15,6 +15,8 @@
  */
 package com.embabel.common.ai.decision.spi;
 
+import com.embabel.common.ai.classification.ClassificationRequest;
+import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.DecisionCall;
 import com.embabel.common.ai.decision.DecisionCapabilities;
@@ -22,9 +24,11 @@ import com.embabel.common.ai.decision.DecisionOption;
 import com.embabel.common.ai.decision.DecisionOptions;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionService;
+import com.embabel.common.ai.decision.DecisionServiceBuilder;
 import com.embabel.common.ai.decision.DecisionServiceMetadata;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
+import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.decision.QuestionKind;
 import com.embabel.common.ai.decision.Questions;
@@ -37,6 +41,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DecisionServiceBuilderJavaTest {
@@ -81,5 +86,71 @@ class DecisionServiceBuilderJavaTest {
         DecisionCall forbidden = call.withOption(effort, "forbidden");
         assertThrows(IllegalStateException.class, () -> service.ask(forbidden));
         assertEquals(1, seen.size());
+    }
+    /**
+     * A service written against the base API that happens to declare its own nested types called
+     * Builder and Scope. Configuring a service must not add member types with those names to the
+     * interface, or this class would no longer see its own types the way it expects.
+     */
+    static final class ServiceWithItsOwnBuilderAndScope implements DecisionService {
+
+        static final class Builder {
+            String name() {
+                return "own-builder";
+            }
+        }
+
+        static final class Scope {
+            String label() {
+                return "own-scope";
+            }
+        }
+
+        private final Builder builder = new Builder();
+
+        private final Scope scope = new Scope();
+
+        @Override
+        public String getName() {
+            return builder.name();
+        }
+
+        @Override
+        public String getProvider() {
+            return scope.label();
+        }
+
+        @Override
+        public ClassificationResult classify(ClassificationRequest request) {
+            return new ClassificationResult.NoMatch(new ModelProvenance("own", "test"));
+        }
+
+        @Override
+        public PropositionResult assess(PropositionRequest request) {
+            return new PropositionResult.Answered(true, new ModelProvenance("own", "test"));
+        }
+
+        DecisionServiceBuilder configure(DecisionExecutor executor) {
+            return DecisionService.builder(
+                    DecisionServiceMetadata.create(getName(), getProvider()),
+                    DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION)),
+                    executor);
+        }
+    }
+
+    @Test
+    void anImplementerWithItsOwnNestedBuilderAndScopeCompilesAndCanStillCallBuilder() {
+        ServiceWithItsOwnBuilderAndScope own = new ServiceWithItsOwnBuilderAndScope();
+        assertEquals("own-builder", own.getName());
+        assertEquals("own-scope", own.getProvider());
+
+        DecisionService built = own.configure(call -> DecisionResponse.builder(call.getSpec())
+                        .answer(urgent, new PropositionResult.Answered(true, provenance))
+                        .build())
+                .build();
+        assertNotNull(built);
+        assertEquals("own-builder", built.getName());
+        PropositionResult answer = built.ask("the printer is on fire", DecisionSpec.of(urgent)).answer(urgent);
+        assertEquals(new PropositionResult.Answered(true, provenance), answer);
     }
 }
