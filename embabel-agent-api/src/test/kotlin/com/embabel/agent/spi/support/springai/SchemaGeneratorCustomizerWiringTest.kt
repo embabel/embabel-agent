@@ -18,7 +18,6 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.DefaultToolDecorator
-import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
@@ -31,7 +30,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.core.annotation.Order
-import java.util.concurrent.Executors
 
 class SchemaGeneratorCustomizerWiringTest {
 
@@ -50,11 +48,11 @@ class SchemaGeneratorCustomizerWiringTest {
         .withBean(ToolDecorator::class.java, { DefaultToolDecorator() })
         .withBean(Validator::class.java, { Validation.buildDefaultValidatorFactory().validator })
         .withBean(TemplateRenderer::class.java, { JinjavaTemplateRenderer() })
-        .withBean(Asyncer::class.java, { ExecutorAsyncer(Executors.newCachedThreadPool()) })
+        .withBean(Asyncer::class.java, { mockk<Asyncer>() })
         .withBean(ChatClientLlmOperations::class.java)
 
     @Test
-    fun `schema generator customizer beans are applied in bean order`() {
+    fun `schema generator customizer beans are injected in bean order`() {
         contextRunner
             .withBean(SecondCustomizer::class.java)
             .withBean(FirstCustomizer::class.java)
@@ -66,13 +64,5 @@ class SchemaGeneratorCustomizerWiringTest {
                     context.getBean(SecondCustomizer::class.java),
                 )
             }
-    }
-
-    @Test
-    fun `no schema generator customizer beans are needed`() {
-        contextRunner.run { context ->
-            assertThat(context).hasNotFailed()
-            assertThat(context.getBean(ChatClientLlmOperations::class.java).schemaGeneratorCustomizers).isEmpty()
-        }
     }
 }

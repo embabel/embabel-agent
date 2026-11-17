@@ -33,8 +33,8 @@ import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.embabel.common.core.streaming.StreamingEvent
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.prompt.Prompt

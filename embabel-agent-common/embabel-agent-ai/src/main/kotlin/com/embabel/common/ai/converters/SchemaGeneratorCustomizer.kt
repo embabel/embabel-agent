@@ -19,14 +19,9 @@ import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 
 /**
  * Customizes the victools [SchemaGeneratorConfigBuilder] that generates the JSON schema of structured output,
- * for example to add victools modules or type mappings for types the default configuration describes wrongly.
- *
- * Declare implementations as Spring beans. Embabel applies them in bean order
- * ([org.springframework.core.annotation.Order]) to streaming and non-streaming calls alike,
- * after its own configuration, including [EnumConstantDescriptionProvider].
- * Victools uses the first custom definition provider that returns a definition for a type, so a custom definition
- * from an earlier customizer takes precedence over one from a later customizer, and cannot replace the `oneOf`
- * schema of an [@EnumAsOneOf][EnumAsOneOf] enum.
+ * streaming or not, for example to add victools modules or type mappings.
+ * Spring beans are applied in bean order, after Embabel's own configuration,
+ * including [EnumConstantDescriptionProvider].
  */
 fun interface SchemaGeneratorCustomizer {
 

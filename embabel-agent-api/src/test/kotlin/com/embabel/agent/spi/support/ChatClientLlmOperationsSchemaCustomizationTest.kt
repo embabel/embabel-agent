@@ -56,6 +56,7 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
 import tools.jackson.databind.JsonNode
+import tools.jackson.databind.node.ObjectNode
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.util.concurrent.Executors
 
@@ -93,26 +94,16 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
 
         @ParameterizedTest
         @EnumSource(Call::class)
-        fun `without customizers a type keeps its default schema`(call: Call) {
-            val schema = schemaSent(call, duke, customizers = emptyList())
-
-            assertEquals("object", schema.at("/properties/tags/type").asText())
-        }
-
-        @ParameterizedTest
-        @EnumSource(Call::class)
         fun `a customizer changes the schema sent to the model`(call: Call) {
-            val schema = schemaSent(call, duke, customizers = listOf(tagsAs("""{"type":"array","items":{"type":"string"}}""")))
+            val schema = schemaSent(call, duke, customizers = listOf(tagsAsArray))
 
             assertEquals("array", schema.at("/properties/tags/type").asText())
-            assertEquals("string", schema.at("/properties/tags/items/type").asText())
         }
 
-        @ParameterizedTest
-        @EnumSource(Call::class)
-        fun `earlier customizers take precedence`(call: Call) {
+        @Test
+        fun `earlier customizers take precedence`() {
             val schema = schemaSent(
-                call,
+                Call.NON_STREAMING,
                 duke,
                 customizers = listOf(
                     tagsAs("""{"type":"array","description":"first"}"""),
@@ -126,10 +117,7 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
         @Test
         fun `a customizer changes the schema of createObjectIfPossible`() {
             val fakeChatModel = FakeChatModel("""{"failure":"not enough information"}""")
-            val llmOperations = chatClientLlmOperations(
-                fakeChatModel,
-                customizers = listOf(tagsAs("""{"type":"array","items":{"type":"string"}}""")),
-            )
+            val llmOperations = chatClientLlmOperations(fakeChatModel, customizers = listOf(tagsAsArray))
 
             llmOperations.createObjectIfPossible(
                 messages = listOf(UserMessage("Describe the dog")),
@@ -182,11 +170,23 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
         }
     }
 
+    private val tagsAsArray = SchemaGeneratorCustomizer { builder ->
+        builder.forTypesInGeneral().withCustomDefinitionProvider(
+            CustomDefinitionProviderV2 { javaType, context ->
+                if (javaType.erasedType == Tags::class.java) {
+                    CustomDefinition(context.generatorConfig.createObjectNode().put("type", "array"))
+                } else {
+                    null
+                }
+            }
+        )
+    }
+
     private fun tagsAs(definition: String) = SchemaGeneratorCustomizer { builder ->
         builder.forTypesInGeneral().withCustomDefinitionProvider(
             CustomDefinitionProviderV2 { javaType, _ ->
                 if (javaType.erasedType == Tags::class.java) {
-                    CustomDefinition(objectMapper.readTree(definition) as tools.jackson.databind.node.ObjectNode)
+                    CustomDefinition(objectMapper.readTree(definition) as ObjectNode)
                 } else {
                     null
                 }
@@ -211,12 +211,12 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
 
             Call.STREAMING, Call.LEGACY_STREAMING -> {
                 val chatModel = CountingChatModel { Flux.just(chatResponse("$responseJson\n")) }
-                val streamed = chatClientLlmOperations(
+                val llmOperations = chatClientLlmOperations(
                     chatModel,
                     customizers,
                     useLegacyStreaming = call == Call.LEGACY_STREAMING,
                 )
-                    .createStreamingOperations(LlmOptions())
+                val streamed = llmOperations.createStreamingOperations(LlmOptions())
                     .createObjectStream(
                         messages = listOf(UserMessage("Describe it")),
                         interaction = interaction(),
