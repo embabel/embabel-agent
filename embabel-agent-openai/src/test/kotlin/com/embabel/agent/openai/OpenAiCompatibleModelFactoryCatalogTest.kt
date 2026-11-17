@@ -39,6 +39,7 @@ import org.springframework.ai.openai.OpenAiChatModel
 import tools.jackson.databind.JsonNode
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.net.InetSocketAddress
+import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -90,6 +91,20 @@ class OpenAiCompatibleModelFactoryCatalogTest {
         val options = service.optionsConverter.convertOptions(LlmOptions.withModel(model).withTemperature(0.0), model)
         service.chatModel.call(Prompt(listOf(UserMessage("hi")), options))
         return captured.single()
+    }
+
+    @Test
+    fun `the published Kotlin default argument method still links`() {
+        OpenAiCompatibleModelFactory::class.java.getDeclaredMethod(
+            "llm\$default",
+            OpenAiCompatibleModelFactory::class.java,
+            String::class.java,
+            PricingModel::class.java,
+            String::class.java,
+            LocalDate::class.java,
+            Int::class.javaPrimitiveType,
+            Object::class.java,
+        )
     }
 
     @Test
