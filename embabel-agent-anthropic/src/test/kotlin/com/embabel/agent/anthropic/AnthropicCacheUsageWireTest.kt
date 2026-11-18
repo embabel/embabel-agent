@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.anthropic
 
+import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
@@ -73,8 +74,11 @@ class AnthropicCacheUsageWireTest {
         assertEquals(50, usage.cacheWriteInputTokens)
         assertEquals(950, usage.promptTokens, "input_tokens excludes cache, so embabel adds read and write")
         assertEquals(5, usage.completionTokens)
-        // 100 uncached at $3, 800 read at $0.30, 50 written at the default 1.25x ($3.75), 5 out at $15 per 1M.
-        val expected = (100 * 3.0 + 800 * 0.3 + 50 * 3.75 + 5 * 15.0) / 1_000_000
+        // 100 uncached, 800 read, 50 written at the unconfigured default of 1.25x input, 5 out.
+        val expected = with(PRICING) {
+            100 * usdPer1mInputTokens + 800 * usdPer1mCacheReadInputTokens!! +
+                50 * usdPer1mInputTokens * 1.25 + 5 * usdPer1mOutputTokens
+        } / 1_000_000
         val llm = llm()
         val cost = LlmInvocation(llm, usage, timestamp = Instant.now(), runningTime = Duration.ZERO).cost()
         assertEquals(expected, cost, 1e-12)
@@ -105,7 +109,7 @@ class AnthropicCacheUsageWireTest {
     }
 
     private companion object {
-        const val MODEL = "claude-haiku-4-5"
+        const val MODEL = AnthropicModels.CLAUDE_HAIKU_5_5
 
         val PRICING = PerTokenPricingModel(
             usdPer1mInputTokens = 3.0,

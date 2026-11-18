@@ -274,6 +274,11 @@ class CacheTokenUsageTest {
 
         private val defaultsMarker = Class.forName("kotlin.jvm.internal.DefaultConstructorMarker")
 
+        /**
+         * Calls, by reflection, the `copy(Int?, Int?, Any?)` and `copy$default` methods that `Usage` had
+         * before the cache fields. Both must still exist and keep the original's cache counts, because old
+         * callers cannot pass them. `copy$default`'s mask marks omitted arguments, which keep their value.
+         */
         @Test
         fun `old Usage copy signatures still link and keep cache counts`() {
             val original = Usage(100, 50, null, 18_000, 2_000)
@@ -304,6 +309,10 @@ class CacheTokenUsageTest {
             com.embabel.common.ai.autoconfig.NativeSupport::class.java,
         )
 
+        /**
+         * Calls the synthetic default-argument constructor an old caller uses when it passes only the required
+         * arguments. Every omitted argument must get the primary constructor's default.
+         */
         @Test
         fun `old SpringAiLlmService constructor with defaults still links and fills in defaults`() {
             val chatModel = mockk<ChatModel>()
@@ -318,6 +327,7 @@ class CacheTokenUsageTest {
             )
         }
 
+        /** Calls the same synthetic constructor with every argument given. Each value must be used as passed. */
         @Test
         fun `old SpringAiLlmService constructor with every argument given uses them`() {
             val values = serviceValues()
@@ -325,6 +335,10 @@ class CacheTokenUsageTest {
             assertEquals(serviceOf(values), ctor.newInstance(*values, 0, null))
         }
 
+        /**
+         * Calls the old `copy` and `copy$default` signatures. Both must keep the original's
+         * [SpringAiLlmService.promptTokensExcludeCache], which old callers cannot pass.
+         */
         @Test
         fun `old SpringAiLlmService copy signatures still link and keep cache semantics`() {
             val original = SpringAiLlmService(

@@ -101,7 +101,7 @@ class AnthropicModelFactoryTest {
             restClientBuilder = restClientBuilder,
         )
         val service = factory.build(
-            model = AnthropicModels.CLAUDE_HAIKU_4_5,
+            model = AnthropicModels.CLAUDE_HAIKU_5_5,
             pricingModel = PricingModel.usdPer1MTokens(1.0, 5.0),
         ) as SpringAiLlmService
         val pricing = service.pricingModel!!

@@ -112,6 +112,8 @@ class PerTokenPricingModel @JvmOverloads constructor(
 
 /**
  * Uses Anthropic's input-rate read fallback and 1.25x input-rate write fallback.
+ * 1.25x is Anthropic's 5-minute cache-write rate for current models, not a guarantee for every model:
+ * a model priced differently must set [PerTokenPricingModel.usdPer1mCacheWriteInputTokens].
  * Returns this model unchanged when that changes no price.
  */
 fun PerTokenPricingModel.withAnthropicCacheRateDefaults(): PerTokenPricingModel =

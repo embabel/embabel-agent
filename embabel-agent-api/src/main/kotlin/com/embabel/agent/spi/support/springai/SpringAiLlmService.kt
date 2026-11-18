@@ -120,6 +120,10 @@ data class SpringAiLlmService @JvmOverloads constructor(
         nativeThinkingExtractor: SpringAiNativeThinkingExtractor?, nativeSupport: NativeSupport?,
         mask: Int, marker: DefaultConstructorMarker?,
     ) : this(
+        // Bit n of mask stands for the n-th argument (0-based). A set bit means the old caller omitted
+        // it, so we substitute the default the primary constructor declares. A clear bit means the caller
+        // passed a real value, so `!!` is safe. Arguments whose default is null or false need no check:
+        // an omitted argument arrives as null or false already.
         name = name,
         provider = provider,
         chatModel = chatModel,
