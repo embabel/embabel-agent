@@ -38,7 +38,9 @@ import java.util.function.Function
  * Reads and writes the System One wire format, the JSON protocol for asking a decision model
  * several typed questions about one piece of state in a single request.
  *
- * A request is `{"state", "model", "questions"}`. Questions are keyed `q1` to `qN` in spec order,
+ * A request is `{"state", "model", "questions"}`. The state is a string for a text request and a
+ * JSON object or array for a structured one, with its fields in the order the caller added them.
+ * Questions are keyed `q1` to `qN` in spec order,
  * replacing application question names in the JSON sent to the model endpoint. The input and
  * question instructions are still sent. A proposition goes out as a `noul`
  * question, a choice as a `choice` question with its options as criteria, and a rating as a
@@ -98,7 +100,9 @@ object SystemOneCodec {
      * @return the JSON body as UTF-8 bytes
      */
     private fun body(model: String?, request: DecisionRequest): ByteArray {
-        val body = mapper.createObjectNode().put("state", request.input)
+        val body = mapper.createObjectNode()
+        val state = request.state
+        if (state == null) body.put("state", request.input) else body.set("state", state)
         model?.let { body.put("model", it) }
         val questions = body.putObject("questions")
         request.spec.questions.forEachIndexed { index, question -> writeQuestion(questions.putObject(key(index)), question) }

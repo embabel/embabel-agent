@@ -27,6 +27,7 @@ import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
+import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
@@ -155,6 +156,21 @@ class SystemOneModelFactoryTest {
 
     @Nested
     inner class Requests {
+
+        @Test
+        fun `a structured state is posted as a JSON object in field order`() {
+            val mocked = mocked()
+            var body: String? = null
+            mocked.server.expect(requestTo("$base/v1/systemone"))
+                .andExpect { request -> body = (request as MockClientHttpRequest).bodyAsString }
+                .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+            val state = mapper.readTree("""{"rule":"Declared only.","facts":[{"subject":"Tomato"}]}""")
+
+            val response = mocked.factory.build().ask(state, DecisionSpec.of(urgent))
+
+            assertEquals(null, response.requestFailure)
+            assertTrue(body!!.startsWith("""{"state":{"rule":"Declared only.","facts":[{"subject":"Tomato"}]},"model":"model-1","""), body)
+        }
 
         @Test
         fun `posts the encoded question set under the base path with the key as a bearer token`() {

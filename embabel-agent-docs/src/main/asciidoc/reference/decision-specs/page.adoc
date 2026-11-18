@@ -232,7 +232,10 @@ An answer read from JSON holds them as written, and the typed lookup and `requir
 `DecisionRequest.of(input, spec)` pairs an input with a spec.
 `DecisionRequest.of(input, questions...)` builds the spec from the questions in order.
 The input may be empty.
-A request's `toString()` shows the spec and leaves the input out.
+`DecisionRequest.of(state, spec)` and `DecisionRequest.of(state, questions...)` take a structured state, a Jackson `JsonNode` holding a JSON object or array, in place of text.
+The request keeps its own copy of the state, and `getInput()` returns that state as compact JSON text.
+<<reference.decision-execution.structured-input,Structured input>> shows how services use it.
+A request's `toString()` shows the spec and leaves the input and the state out.
 
 `DecisionCapabilities` describes what a service accepts: the question kinds it answers.
 `DecisionCapabilities.of(questionKinds)` creates one.
@@ -251,7 +254,7 @@ Each decision type has fixed member names:
 |`questions`
 
 |`DecisionRequest`
-|`input` and `spec`
+|`input` and `spec` for a text request, `state` and `spec` for a structured one
 
 |`DecisionCapabilities`
 |`questionKinds`

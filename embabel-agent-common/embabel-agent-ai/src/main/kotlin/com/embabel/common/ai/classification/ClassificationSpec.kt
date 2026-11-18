@@ -27,6 +27,8 @@ import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
+import tools.jackson.databind.ValueDeserializer
+import tools.jackson.databind.annotation.JsonDeserialize
 
 /**
  * A classification: one choice question that picks a category for some text. It is a decision
@@ -206,6 +208,8 @@ data class Category @JsonCreator constructor(
  */
 @ApiStatus.Experimental
 @JsonAutoDetect(getterVisibility = Visibility.NONE, isGetterVisibility = Visibility.NONE)
+// A classification request has no state, so it is read by its own creator, not the decision request reader.
+@JsonDeserialize(using = ValueDeserializer.None::class)
 class ClassificationRequest private constructor(
     input: String,
     @get:JsonProperty("spec") override val spec: ClassificationSpec,
