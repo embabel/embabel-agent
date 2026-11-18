@@ -352,15 +352,16 @@ internal class StreamingLlmOperationsImpl(
             override fun streamInference(
                 messages: List<Message>,
                 tools: List<Tool>,
-            ): Flux<LlmInferenceStreamEvent> = messageStreamer.streamInference(messages, tools)
-                .doOnNext { event ->
+            ): Flux<LlmInferenceStreamEvent> = Flux.defer {
+                val start = Instant.now()
+                messageStreamer.streamInference(messages, tools).doOnNext { event ->
                     val usage = (event as? LlmInferenceStreamEvent.Complete)?.usage ?: return@doOnNext
                     val invocation = LlmInvocation(
                         llmMetadata = llmService,
                         usage = usage,
                         agentName = agentProcess.agent.name,
-                        timestamp = Instant.now(),
-                        runningTime = Duration.ZERO,
+                        timestamp = start,
+                        runningTime = Duration.between(start, Instant.now()),
                     )
                     agentProcess.recordLlmInvocation(invocation)
                     agentProcess.processContext.onProcessEvent(
@@ -371,6 +372,7 @@ internal class StreamingLlmOperationsImpl(
                         )
                     )
                 }
+            }
         }
 
     /**

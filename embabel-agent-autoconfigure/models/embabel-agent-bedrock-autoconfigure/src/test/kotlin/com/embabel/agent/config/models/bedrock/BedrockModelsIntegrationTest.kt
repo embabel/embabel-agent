@@ -70,6 +70,12 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
 import software.amazon.awssdk.regions.providers.AwsRegionProvider
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock
+import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse
+import software.amazon.awssdk.services.bedrockruntime.model.StopReason
+import org.springframework.ai.bedrock.converse.BedrockChatOptions
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationContext
@@ -152,6 +158,32 @@ class BedrockModelsIntegrationTest {
             runningTime = Duration.ZERO,
         )
         assertEquals(0.1005, invocation.cost(), 1e-12)
+    }
+
+    @Test
+    fun `Bedrock usage reads cache tokens from Spring AI's Converse mapping`() {
+        // A real Converse TokenUsage through Spring AI's BedrockProxyChatModel, not a hand-built DefaultUsage.
+        val runtime = mockk<BedrockRuntimeClient>()
+        every { runtime.converse(any<ConverseRequest>()) } returns ConverseResponse.builder()
+            .output { it.message { m -> m.role(ConversationRole.ASSISTANT).content(ContentBlock.fromText("done")) } }
+            .stopReason(StopReason.END_TURN)
+            .usage { it.inputTokens(100).outputTokens(5).totalTokens(955).cacheReadInputTokens(800).cacheWriteInputTokens(50) }
+            .metrics { it.latencyMs(1) }
+            .build()
+        val chatModel = EmbabelBedrockProxyChatModelBuilder()
+            .bedrockRuntimeClient(runtime)
+            .bedrockRuntimeAsyncClient(mockk())
+            .defaultOptions(BedrockChatOptions.builder().model(EU_ANTHROPIC_CLAUDE_SONNET_4).build())
+            .build()
+        val llm = applicationContext.getBeansOfType(SpringAiLlmService::class.java).values
+            .first { it.name == EU_ANTHROPIC_CLAUDE_SONNET_4 }
+            .copy(chatModel = chatModel)
+
+        val usage = llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("hi")), emptyList()).usage!!
+
+        assertEquals(800, usage.cacheReadInputTokens)
+        assertEquals(50, usage.cacheWriteInputTokens)
+        assertEquals(950, usage.promptTokens)
     }
 
     @Test
