@@ -21,7 +21,6 @@ import com.embabel.common.ai.model.ModelType
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import org.jetbrains.annotations.ApiStatus
-import tools.jackson.databind.JsonNode
 import tools.jackson.databind.annotation.JsonDeserialize
 
 /** Pure metadata for a classification model, independent of its provider client. */
@@ -60,23 +59,6 @@ interface ClassificationService : ClassificationServiceMetadata, HasInfoString {
      */
     fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
         classify(ClassificationRequest.of(input, spec))
-
-    /**
-     * Classifies a structured state with a spec. Same as calling [classify] with
-     * `ClassificationRequest.of(state, spec)`.
-     *
-     * A System One service sends the state as JSON. Any other service reasons over the state
-     * written out as JSON text.
-     *
-     * @param state the JSON object or array to classify
-     * @param spec the classification to make
-     * @return the result
-     * @throws IllegalArgumentException if the state is not a JSON object or array
-     * @throws UnsupportedDecisionException if provider-specific limits
-     * reject the request before any provider call
-     */
-    fun classify(state: JsonNode, spec: ClassificationSpec): ClassificationResult =
-        classify(ClassificationRequest.of(state, spec))
 
     /**
      * Copy public model identity into pure metadata before serialization. This snapshot contains no

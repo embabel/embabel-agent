@@ -206,9 +206,9 @@ class StructuredClassificationTest {
     inner class Classifying {
 
         @Test
-        fun `classify with a state hands the service a structured request`() {
+        fun `a structured request reaches the service unchanged`() {
             val service = Recording()
-            assertEquals(selected, service.classify(state(), spec))
+            assertEquals(selected, service.classify(ClassificationRequest.of(state(), spec)))
             assertEquals(listOf(ClassificationRequest.of(state(), spec)), service.requests)
         }
 
@@ -217,7 +217,7 @@ class StructuredClassificationTest {
             val stopped = Stopped()
             val registry = ObservationRegistry.create().apply { observationConfig().observationHandler(stopped) }
             val delegate = Recording()
-            assertEquals(selected, ObservedDecisionService(delegate, registry).classify(state(), spec))
+            assertEquals(selected, ObservedDecisionService(delegate, registry).classify(ClassificationRequest.of(state(), spec)))
             assertEquals(listOf("embabel.ai.classification"), stopped.names)
             assertEquals(state(), delegate.requests.single().state)
         }
@@ -227,7 +227,7 @@ class StructuredClassificationTest {
             val stopped = Stopped()
             val registry = ObservationRegistry.create().apply { observationConfig().observationHandler(stopped) }
             val delegate = Recording()
-            assertEquals(selected, ObservedClassificationService(delegate, registry).classify(state(), spec))
+            assertEquals(selected, ObservedClassificationService(delegate, registry).classify(ClassificationRequest.of(state(), spec)))
             assertEquals(listOf("embabel.ai.classification"), stopped.names)
             assertEquals(state(), delegate.requests.single().state)
         }
@@ -235,7 +235,7 @@ class StructuredClassificationTest {
         @Test
         fun `a structured ask gives a per-question service the state for a choice question`() {
             val service = Recording()
-            val response = service.ask(state(), DecisionSpec.of(spec.question))
+            val response = service.ask(DecisionRequest.of(state(), DecisionSpec.of(spec.question)))
             assertEquals(selected, response.answer(spec.question))
             assertEquals(state(), service.requests.single().state)
             assertEquals(stateJson, service.requests.single().input)

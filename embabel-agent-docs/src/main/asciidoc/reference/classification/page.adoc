@@ -100,7 +100,7 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/c
 `classify(input, spec)` is the same as `classify(ClassificationRequest.of(input, spec))`.
 Providers read the spec's instructions and categories from the request.
 
-To classify a JSON object or array, pass it as a Jackson `JsonNode`: `classify(state, spec)` is the same as `classify(ClassificationRequest.of(state, spec))`.
+To classify a JSON object or array, build the request with `ClassificationRequest.of(state, spec)`, where the state is a Jackson `JsonNode`.
 The instructions can then point at a value with a backticked path.
 
 [source,java]

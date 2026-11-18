@@ -187,7 +187,7 @@ class SystemOneModelFactoryTest {
                 category("support", "Help")
             }
 
-            mocked.factory.build().classify(state, teams)
+            mocked.factory.build().classify(ClassificationRequest.of(state, teams))
 
             assertTrue(body!!.startsWith("""{"state":{"ticket":{"subject":"Refund"},"priority":2},"model":"model-1","""), body)
         }

@@ -17,6 +17,7 @@ package com.embabel.common.ai.decision;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ModelProvenance;
@@ -92,7 +93,7 @@ class StructuredInputJavaTest {
                 .category("technical", "Bugs, outages, integrations")
                 .build();
 
-        var result = classifier.classify(ticket, departments);
+        var result = classifier.classify(ClassificationRequest.of(ticket, departments));
         // end::classify[]
 
         assertEquals(billing, result);

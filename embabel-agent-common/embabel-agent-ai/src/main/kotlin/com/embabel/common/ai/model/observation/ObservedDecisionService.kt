@@ -84,10 +84,6 @@ class ObservedDecisionService @JvmOverloads constructor(
     override fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
         classify(ClassificationRequest.of(input, spec))
 
-    // The same goes for a structured state.
-    override fun classify(state: JsonNode, spec: ClassificationSpec): ClassificationResult =
-        classify(ClassificationRequest.of(state, spec))
-
     override fun assess(request: PropositionRequest): PropositionResult = observation.assess { delegate.assess(request) }
 
     /**

@@ -21,7 +21,6 @@ import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.ClassificationSpec
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
-import tools.jackson.databind.JsonNode
 
 /**
  * Opt-in observations for classification, with the delegate's metadata and model family preserved.
@@ -46,8 +45,4 @@ class ObservedClassificationService @JvmOverloads constructor(
     // Interface delegation would forward this straight to the delegate and skip the observation.
     override fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
         classify(ClassificationRequest.of(input, spec))
-
-    // The same goes for a structured state.
-    override fun classify(state: JsonNode, spec: ClassificationSpec): ClassificationResult =
-        classify(ClassificationRequest.of(state, spec))
 }
