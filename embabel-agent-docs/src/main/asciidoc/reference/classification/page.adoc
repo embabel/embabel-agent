@@ -100,6 +100,16 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/c
 `classify(input, spec)` is the same as `classify(ClassificationRequest.of(input, spec))`.
 Providers read the spec's instructions and categories from the request.
 
+To classify a JSON object or array, pass it as a Jackson `JsonNode`: `classify(state, spec)` is the same as `classify(ClassificationRequest.of(state, spec))`.
+The instructions can then point at a value with a backticked path.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/StructuredInputJavaTest.java[tag=classify,indent=0]
+----
+
+<<reference.decision-execution.structured-input,Structured input>> describes what each kind of service does with the state.
+
 ==== Interpret the Outcome
 
 [cols="1,3",options="header"]

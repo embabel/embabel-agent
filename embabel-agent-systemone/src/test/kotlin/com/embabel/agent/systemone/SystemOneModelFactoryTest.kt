@@ -25,6 +25,7 @@ import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.classification.classificationSpec
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
@@ -170,6 +171,25 @@ class SystemOneModelFactoryTest {
 
             assertEquals(null, response.requestFailure)
             assertTrue(body!!.startsWith("""{"state":{"rule":"Declared only.","facts":[{"subject":"Tomato"}]},"model":"model-1","""), body)
+        }
+
+        @Test
+        fun `a structured classification is posted with its state as a JSON object in field order`() {
+            val mocked = mocked()
+            var body: String? = null
+            mocked.server.expect(requestTo("$base/v1/systemone"))
+                .andExpect { request -> body = (request as MockClientHttpRequest).bodyAsString }
+                .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+            val state = mapper.readTree("""{"ticket":{"subject":"Refund"},"priority":2}""")
+            val teams = classificationSpec {
+                asking("Which team should handle `ticket.subject`?")
+                category("billing", "Payments")
+                category("support", "Help")
+            }
+
+            mocked.factory.build().classify(state, teams)
+
+            assertTrue(body!!.startsWith("""{"state":{"ticket":{"subject":"Refund"},"priority":2},"model":"model-1","""), body)
         }
 
         @Test
