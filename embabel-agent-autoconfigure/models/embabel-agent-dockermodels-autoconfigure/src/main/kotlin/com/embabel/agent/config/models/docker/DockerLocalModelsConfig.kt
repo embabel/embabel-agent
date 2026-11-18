@@ -129,7 +129,7 @@ class DockerLocalModelsConfig(
     private val properties: ConfigurableModelProviderProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
     private val localModelDiscoveryProperties: LocalModelDiscoveryProperties,
-) {
+) : AutoCloseable {
     private val logger = LoggerFactory.getLogger(DockerLocalModelsConfig::class.java)
 
     private val discoveryFailures = DiscoveryFailureReporter(logger)
@@ -159,7 +159,7 @@ class DockerLocalModelsConfig(
      * Built lazily on first model creation so a missing endpoint doesn't crash
      * Spring startup (loadModels already swallows the failure).
      */
-    private val openAiClient: OpenAIClient by lazy {
+    private val lazyOpenAiClient = lazy {
         OpenAIOkHttpClient.builder()
             .baseUrl(dockerApiBaseUrl(dockerConnectionProperties.baseUrl, dockerConnectionProperties.apiVersion))
             // The openai-java SDK rejects null/blank API keys even when the
@@ -174,12 +174,26 @@ class DockerLocalModelsConfig(
      * Spring AI builds one from `OPENAI_API_KEY`, and on a machine with no OpenAI key that throws and
      * the chat model is never registered.
      */
-    private val openAiClientAsync: OpenAIClientAsync by lazy {
+    private val lazyOpenAiClientAsync = lazy {
         OpenAIOkHttpClientAsync.builder()
             .baseUrl(dockerApiBaseUrl(dockerConnectionProperties.baseUrl, dockerConnectionProperties.apiVersion))
             .apiKey("no-auth")
             .timeout(timeouts.toSdkTimeout())
             .build()
+    }
+
+    private val openAiClient: OpenAIClient by lazyOpenAiClient
+
+    private val openAiClientAsync: OpenAIClientAsync by lazyOpenAiClientAsync
+
+    /** Close the clients a model was built with. A client that was never built is left unbuilt. */
+    override fun close() {
+        if (lazyOpenAiClient.isInitialized()) closeClient { lazyOpenAiClient.value.close() }
+        if (lazyOpenAiClientAsync.isInitialized()) closeClient { lazyOpenAiClientAsync.value.close() }
+    }
+
+    private fun closeClient(close: () -> Unit) {
+        runCatching(close).onFailure { logger.warn("Could not close a Docker OpenAI client: {}", it.message) }
     }
 
     /**

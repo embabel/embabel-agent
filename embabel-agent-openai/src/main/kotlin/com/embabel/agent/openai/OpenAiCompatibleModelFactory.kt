@@ -106,7 +106,7 @@ open class OpenAiCompatibleModelFactory(
     webClientBuilder: ObjectProvider<WebClient.Builder> = ObjectProviders.empty(),
     private val httpClientCustomizers: ObjectProvider<OpenAiHttpClientBuilderCustomizer> = ObjectProviders.empty(),
     protected val timeouts: OpenAiClientTimeouts,
-) {
+) : AutoCloseable {
 
     /**
      * The constructor as it was before timeouts were configurable, kept so that code compiled
@@ -461,6 +461,16 @@ open class OpenAiCompatibleModelFactory(
     protected val openAiClient: OpenAIClient = buildSyncClient()
     protected val openAiClientAsync: OpenAIClientAsync = buildAsyncClient()
 
+    /** Close both clients. Spring calls this when the context that holds the factory shuts down. */
+    override fun close() {
+        closeClient { openAiClient.close() }
+        closeClient { openAiClientAsync.close() }
+    }
+
+    private fun closeClient(close: () -> Unit) {
+        runCatching(close).onFailure { logger.warn("Could not close an OpenAI client: {}", it.message) }
+    }
+
     private fun resolvedApiKey(): String =
         // SDK rejects null/blank API keys at build time even for no-auth local servers,
         // so substitute a placeholder when apiKey is null.
@@ -521,7 +531,7 @@ open class OpenAiCompatibleModelFactory(
         return builder.build()
     }
 
-    private fun createOpenAiClient(): OpenAIClient {
+    protected open fun createOpenAiClient(): OpenAIClient {
         val builder = OpenAIOkHttpClient.builder()
             .timeout(timeouts.toSdkTimeout())
             .apiKey(resolvedApiKey())
@@ -533,7 +543,7 @@ open class OpenAiCompatibleModelFactory(
         return builder.build()
     }
 
-    private fun createOpenAiClientAsync(): OpenAIClientAsync {
+    protected open fun createOpenAiClientAsync(): OpenAIClientAsync {
         val builder = OpenAIOkHttpClientAsync.builder()
             .timeout(timeouts.toSdkTimeout())
             .apiKey(resolvedApiKey())

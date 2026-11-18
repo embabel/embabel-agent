@@ -28,15 +28,19 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 
 class DockerModelsConfigTest {
 
     private lateinit var server: HttpServer
+
+    private val chatRequests = AtomicInteger()
 
     @BeforeEach
     fun startServer() {
@@ -45,6 +49,13 @@ class DockerModelsConfigTest {
         server.createContext("/engines/v1/models") { exchange ->
             val body = """{"object":"list","data":[{"id":"chat-model"},{"id":"embed-model"}]}""".toByteArray()
             exchange.responseHeaders.set("Content-Type", "application/json")
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.createContext("/engines/v1/chat/completions") { exchange ->
+            chatRequests.incrementAndGet()
+            val body = "data: [DONE]\n\n".toByteArray()
+            exchange.responseHeaders.set("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, body.size.toLong())
             exchange.responseBody.use { it.write(body) }
         }
@@ -58,10 +69,18 @@ class DockerModelsConfigTest {
 
     private fun modelsWith(retryProperties: DockerRetryProperties = DockerRetryProperties()): Map<String, Any> {
         val registered = mutableMapOf<String, Any>()
+        configWith(registered, retryProperties).dockerLocalModelsInitializer()
+        return registered
+    }
+
+    private fun configWith(
+        registered: MutableMap<String, Any>,
+        retryProperties: DockerRetryProperties = DockerRetryProperties(),
+    ): DockerLocalModelsConfig {
         val beanFactory = mockk<ConfigurableBeanFactory> {
             every { registerSingleton(any(), any()) } answers { registered[firstArg()] = secondArg() }
         }
-        DockerLocalModelsConfig(
+        return DockerLocalModelsConfig(
             dockerRetryProperties = retryProperties,
             dockerConnectionProperties = DockerConnectionProperties().apply {
                 baseUrl = "http://localhost:${server.address.port}/engines"
@@ -70,8 +89,25 @@ class DockerModelsConfigTest {
             properties = ConfigurableModelProviderProperties(defaultEmbeddingModel = "embed-model"),
             observationRegistry = ObjectProviders.empty(),
             localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
-        ).dockerLocalModelsInitializer()
-        return registered
+        )
+    }
+
+    @Nested
+    inner class Close {
+
+        @Test
+        fun `a streamed call no longer reaches the runner once the configuration is closed`() {
+            val registered = mutableMapOf<String, Any>()
+            val config = configWith(registered)
+            config.dockerLocalModelsInitializer()
+            val chatModel = (registered.getValue("dockerModel-chat-model") as SpringAiLlmService).chatModel
+            chatModel.stream(Prompt("hello")).collectList().block()
+
+            config.close()
+            runCatching { chatModel.stream(Prompt("hello")).collectList().block() }
+
+            assertEquals(1, chatRequests.get())
+        }
     }
 
     @Nested
