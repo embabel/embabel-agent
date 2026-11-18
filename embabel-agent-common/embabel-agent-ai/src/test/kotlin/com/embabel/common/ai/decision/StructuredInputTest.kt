@@ -272,14 +272,14 @@ class StructuredInputTest {
         @Test
         fun `ask with a state hands a question-set service the structured request`() {
             val service = Recording()
-            service.ask(state(), spec)
+            service.ask(DecisionRequest.of(state(), spec))
             assertEquals(listOf(DecisionRequest.of(state(), spec)), service.requests)
         }
 
         @Test
         fun `an observed service passes the state through to its delegate`() {
             val delegate = Recording()
-            ObservedDecisionService(delegate, ObservationRegistry.create()).ask(state(), spec)
+            ObservedDecisionService(delegate, ObservationRegistry.create()).ask(DecisionRequest.of(state(), spec))
             assertEquals(state(), delegate.requests.single().state)
         }
 
@@ -297,7 +297,7 @@ class StructuredInputTest {
                     return PropositionResult.Answered(true, provenance)
                 }
             }
-            val response = service.ask(state(), spec)
+            val response = service.ask(DecisionRequest.of(state(), spec))
             assertEquals(stateJson, asked.single().input)
             assertEquals(PropositionResult.Answered(true, provenance), response.answer(urgent))
         }
@@ -306,12 +306,12 @@ class StructuredInputTest {
         fun `a stub answers a structured request from its script`() {
             val answer = PropositionResult.Answered(false, provenance)
             val stub = StubDecisionService.builder("stub").proposition("urgent", answer).build()
-            assertEquals(answer, stub.ask(state(), spec).answer(urgent))
+            assertEquals(answer, stub.ask(DecisionRequest.of(state(), spec)).answer(urgent))
         }
 
         @Test
         fun `the no-op service fails a structured request as unavailable`() {
-            assertEquals(FailureReason.UNAVAILABLE, NoOpDecisionService().ask(state(), spec).requestFailure)
+            assertEquals(FailureReason.UNAVAILABLE, NoOpDecisionService().ask(DecisionRequest.of(state(), spec)).requestFailure)
         }
     }
 
@@ -338,13 +338,13 @@ class StructuredInputTest {
 
         @Test
         fun `content capture logs the state as JSON text`() {
-            val lines = trace(contentCapture = true) { Recording().ask(state(), spec) }
+            val lines = trace(contentCapture = true) { Recording().ask(DecisionRequest.of(state(), spec)) }
             assertTrue(lines.any { it.contains("input=$stateJson") }) { "Lines: $lines" }
         }
 
         @Test
         fun `nothing of the state is logged with content capture off`() {
-            val lines = trace(contentCapture = false) { Recording().ask(state(), spec) }
+            val lines = trace(contentCapture = false) { Recording().ask(DecisionRequest.of(state(), spec)) }
             assertTrue(lines.none { it.contains("Tomato") }) { "Lines: $lines" }
         }
     }

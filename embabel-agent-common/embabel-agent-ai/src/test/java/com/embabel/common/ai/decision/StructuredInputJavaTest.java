@@ -49,7 +49,7 @@ class StructuredInputJavaTest {
                         .asking("Does `facts` declare Basil a companion of `intent.subject`?"))
                 .build();
 
-        var response = service.ask(state, spec);
+        var response = service.ask(DecisionRequest.of(state, spec));
         // end::structured[]
 
         var question = (PropositionQuestionSpec) spec.question("is_companion");

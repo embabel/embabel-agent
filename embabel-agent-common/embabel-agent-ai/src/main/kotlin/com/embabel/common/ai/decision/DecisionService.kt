@@ -20,7 +20,6 @@ import com.embabel.common.ai.classification.ClassificationServiceMetadata
 import com.embabel.common.ai.decision.spi.DecisionExecution
 import com.embabel.common.ai.model.ModelType
 import org.jetbrains.annotations.ApiStatus
-import tools.jackson.databind.JsonNode
 import tools.jackson.databind.annotation.JsonDeserialize
 
 /** Pure metadata for the decision family, which also supports classification. */
@@ -76,21 +75,6 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      * answer the spec. No provider call has been made.
      */
     fun ask(input: String, spec: DecisionSpec): DecisionResponse = ask(DecisionRequest.of(input, spec))
-
-    /**
-     * Answers the questions of a spec against a structured state. It behaves as [ask] with a request.
-     *
-     * A System One service sends the state as JSON. Any other service reasons over the state
-     * written out as JSON text.
-     *
-     * @param state the JSON object or array the model reasons over
-     * @param spec the questions to answer
-     * @return one answer per question, in spec order
-     * @throws IllegalArgumentException if the state is not a JSON object or array
-     * @throws com.embabel.common.ai.decision.UnsupportedDecisionException if this service cannot
-     * answer the spec. No provider call has been made.
-     */
-    fun ask(state: JsonNode, spec: DecisionSpec): DecisionResponse = ask(DecisionRequest.of(state, spec))
 
     /**
      * Answers a request.

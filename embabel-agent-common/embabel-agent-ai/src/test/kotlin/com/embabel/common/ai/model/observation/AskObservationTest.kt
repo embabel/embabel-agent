@@ -58,7 +58,6 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.parallel.ResourceLock
 import org.slf4j.LoggerFactory
 import java.util.EnumSet
-import tools.jackson.databind.json.JsonMapper
 
 @ResourceLock("DecisionContentCapture")
 class AskObservationTest {
@@ -270,11 +269,10 @@ class AskObservationTest {
 
             observed.ask(sentinelInput, DecisionSpec.of(urgent))
             observed.ask(oneProposition)
-            observed.ask(JsonMapper.builder().build().readTree("""{"text":"x"}"""), DecisionSpec.of(urgent))
 
-            assertEquals(3, telemetry.recorder.named("embabel.ai.ask").size)
-            assertEquals(3, telemetry.recorder.named("embabel.ai.decision").size)
-            assertEquals(listOf("assess", "assess", "assess"), delegate.calls)
+            assertEquals(2, telemetry.recorder.named("embabel.ai.ask").size)
+            assertEquals(2, telemetry.recorder.named("embabel.ai.decision").size)
+            assertEquals(listOf("assess", "assess"), delegate.calls)
         }
 
         @Test

@@ -284,7 +284,7 @@ An application with a Spring context can take services from the `LlmDecisionServ
 
 ==== Asking
 
-`DecisionService` has three `ask` overloads: `ask(input, spec)` for text, `ask(state, spec)` for a <<reference.decision-execution.structured-input,structured input>>, and `ask(request)`.
+`DecisionService` has two `ask` overloads: `ask(input, spec)` for text and `ask(request)`, which also carries a <<reference.decision-execution.structured-input,structured input>>.
 All return a `DecisionResponse` with one answer per question in spec order.
 Provider failures come back as typed failure outcomes.
 
@@ -306,7 +306,7 @@ Catch `CancellationException` where the caller needs to stop cleanly.
 ===== Structured input
 
 When the context has several parts, pass it as a JSON object or array, not as one string.
-`ask(state, spec)` and `DecisionRequest.of(state, spec)` take a Jackson `JsonNode` from `tools.jackson.databind`.
+Build the request with `DecisionRequest.of(state, spec)`, which takes a Jackson `JsonNode` from `tools.jackson.databind`, and hand it to `ask(request)`.
 A question can then point at a value with a backticked path such as `` `intent.subject` ``.
 
 [source,java]
@@ -320,7 +320,6 @@ Every other service, including the prompted, stub and no-op services and any ser
 
 The state must be a JSON object or array; `DecisionRequest.of` rejects anything else with an `IllegalArgumentException`.
 The request keeps its own snapshot of the state as plain JSON, so changing the node afterwards does not change the request.
-A decorator written with Kotlin interface delegation must override `ask(state, spec)`, or the call goes straight to its delegate.
 A `String` input is always sent as text, even when the text is itself JSON.
 
 `classify` and `assess` take text only.

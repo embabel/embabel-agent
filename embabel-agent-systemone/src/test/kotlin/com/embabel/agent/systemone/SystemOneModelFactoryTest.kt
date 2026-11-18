@@ -166,7 +166,7 @@ class SystemOneModelFactoryTest {
                 .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
             val state = mapper.readTree("""{"rule":"Declared only.","facts":[{"subject":"Tomato"}]}""")
 
-            val response = mocked.factory.build().ask(state, DecisionSpec.of(urgent))
+            val response = mocked.factory.build().ask(DecisionRequest.of(state, DecisionSpec.of(urgent)))
 
             assertEquals(null, response.requestFailure)
             assertTrue(body!!.startsWith("""{"state":{"rule":"Declared only.","facts":[{"subject":"Tomato"}]},"model":"model-1","""), body)

@@ -35,7 +35,6 @@ import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
-import tools.jackson.databind.JsonNode
 
 /**
  * Opt-in observations for decision services, preserving the delegate's DECISION metadata snapshot.
@@ -95,9 +94,6 @@ class ObservedDecisionService @JvmOverloads constructor(
     override fun capabilities(): DecisionCapabilities = delegate.capabilities()
 
     override fun ask(input: String, spec: DecisionSpec): DecisionResponse = ask(DecisionRequest.of(input, spec))
-
-    // Interface delegation would forward this straight to the delegate and skip the observation.
-    override fun ask(state: JsonNode, spec: DecisionSpec): DecisionResponse = ask(DecisionRequest.of(state, spec))
 
     /**
      * Answers a request inside one `embabel.ai.ask` observation. Each provider call is a child
