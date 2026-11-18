@@ -72,6 +72,13 @@ class OpenAiProperties : OpenAiCompatibleClientProperties(), RetryProperties {
     var embeddingsPath: String? = null
 
     /**
+     * Per-model overrides for the OpenAI wire format declared by the bundled catalog.
+     *
+     * Keys are OpenAI model ids and values select Chat Completions or Responses.
+     */
+    var apiFormatOverrides: Map<String, OpenAiApiFormat> = emptyMap()
+
+    /**
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 10
@@ -147,7 +154,7 @@ class OpenAiModelsConfig(
     @Bean
     fun openAiModelsInitializer(): ProviderInitialization {
         val definitions = modelLoader.loadAutoConfigMetadata()
-        val effectiveModels = definitions.effectiveModels()
+        val effectiveModels = definitions.effectiveModels().map(::applyApiFormatOverride)
 
         val registeredLlms = buildList {
             // Register LLM models
@@ -192,6 +199,17 @@ class OpenAiModelsConfig(
             registeredLlms = registeredLlms,
             registeredEmbeddings = registeredEmbeddings
         ).also { logger.info(it.summary()) }
+    }
+
+    private fun applyApiFormatOverride(modelDef: OpenAiModelDefinition): OpenAiModelDefinition {
+        val apiFormat = properties.apiFormatOverrides[modelDef.modelId] ?: return modelDef
+        logger.info(
+            "Overriding OpenAI API format for {}: {} -> {}",
+            modelDef.modelId,
+            modelDef.apiFormat,
+            apiFormat,
+        )
+        return modelDef.copy(apiFormat = apiFormat)
     }
 
     /**

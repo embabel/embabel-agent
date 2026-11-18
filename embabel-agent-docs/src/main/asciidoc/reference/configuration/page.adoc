@@ -530,7 +530,19 @@ From `AgentPlatformProperties.ModelsConfig` - model provider integration configu
 |_unset_
 |Per-attempt response timeout: how long one attempt may take, from request to the whole response. Unset keeps 60 seconds for chat completion and embedding calls and 10 minutes for Responses API models. The client retries a timed-out call twice, so a caller waits up to three times this value
 
+|`embabel.agent.platform.models.openai.api-format-overrides[<model-id>]`
+|Map<String, OpenAiApiFormat>
+|`{}`
+|Overrides the bundled API format for one model. Values are `CHAT_COMPLETIONS` or `RESPONSES`
+
 |===
+
+For example, keep GPT-5.4 Mini on Chat Completions when an application requires streaming:
+
+[source,properties]
+----
+embabel.agent.platform.models.openai.api-format-overrides[gpt-5.4-mini]=CHAT_COMPLETIONS
+----
 
 The same `connect-timeout` and `read-timeout` properties apply to every OpenAI-compatible provider, under its own prefix: `openai.custom`, `lmstudio`, `gemini`, `minimax`, `dashscope`, `zai` and `docker`, each under `embabel.agent.platform.models`.
 

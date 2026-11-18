@@ -40,8 +40,10 @@ import com.embabel.common.ai.model.ModelSelectionContextHolder
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.ProviderCredential
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.beans.factory.support.GenericBeanDefinition
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
@@ -203,6 +205,23 @@ class CredentialEndpointConfigTest {
             assertThat(service?.name).isEqualTo(OpenAiModels.GPT_41_MINI)
             assertThat(service?.provider).isEqualTo(OpenAiModels.PROVIDER)
         }
+    }
+
+    @Test
+    fun `an OpenAI API format override applies to a user key`() {
+        contextRunner
+            .withPropertyValues(
+                "embabel.agent.platform.models.openai.api-format-overrides[${OpenAiModels.GPT_54_MINI}]=CHAT_COMPLETIONS"
+            )
+            .run { context ->
+                val service = build(
+                    factoriesIn(context),
+                    OpenAiModels.PROVIDER,
+                    OpenAiModels.GPT_54_MINI,
+                ) as SpringAiLlmService
+
+                assertInstanceOf(OpenAiChatModel::class.java, service.chatModel)
+            }
     }
 
     @Test

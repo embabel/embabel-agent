@@ -642,8 +642,29 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel,
         provider: String,
         knowledgeCutoffDate: LocalDate? = null,
+    ): LlmService<*> = llm(
+        model = model,
+        pricingModel = pricingModel,
+        provider = provider,
+        knowledgeCutoffDate = knowledgeCutoffDate,
+        apiFormatOverrides = emptyMap(),
+    )
+
+    /**
+     * As above, with [apiFormatOverrides] replacing the catalog transport for application
+     * compatibility. Kept separate so the published Kotlin default-argument method remains binary
+     * compatible.
+     */
+    fun llm(
+        model: String,
+        pricingModel: PricingModel,
+        provider: String,
+        knowledgeCutoffDate: LocalDate?,
+        apiFormatOverrides: Map<String, OpenAiApiFormat>,
     ): LlmService<*> {
-        val definition = catalogDefinitionFor(provider, model)?.takeIf { servesOpenAiCatalog }
+        val definition = catalogDefinitionFor(provider, model)
+            ?.let { it.copy(apiFormat = apiFormatOverrides[model] ?: it.apiFormat) }
+            ?.takeIf { servesOpenAiCatalog }
             ?: return openAiCompatibleLlm(
                 model = model,
                 pricingModel = pricingModel,

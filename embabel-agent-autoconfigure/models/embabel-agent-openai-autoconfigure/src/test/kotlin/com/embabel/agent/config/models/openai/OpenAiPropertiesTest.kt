@@ -17,6 +17,8 @@ package com.embabel.agent.config.models.openai
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
 
 class OpenAiPropertiesTest {
 
@@ -30,6 +32,7 @@ class OpenAiPropertiesTest {
         assertNull(properties.apiKey)
         assertNull(properties.completions)
         assertNull(properties.embeddingsPath)
+        assertTrue(properties.apiFormatOverrides.isEmpty())
         assertEquals(10, properties.maxAttempts)
         assertEquals(5000L, properties.backoffMillis)
         assertEquals(5.0, properties.backoffMultiplier)
@@ -82,6 +85,22 @@ class OpenAiPropertiesTest {
 
         // Assert
         assertEquals("/v1/embeddings", properties.embeddingsPath)
+    }
+
+    @Test
+    fun `should bind API format override for a model id containing dots`() {
+        val properties = Binder(
+            MapConfigurationPropertySource(
+                mapOf(
+                    "${OpenAiProperties.PREFIX}.api-format-overrides[gpt-5.4-mini]" to "CHAT_COMPLETIONS",
+                ),
+            ),
+        ).bindOrCreate(OpenAiProperties.PREFIX, OpenAiProperties::class.java)
+
+        assertEquals(
+            OpenAiApiFormat.CHAT_COMPLETIONS,
+            properties.apiFormatOverrides["gpt-5.4-mini"],
+        )
     }
 
     @Test
@@ -151,6 +170,7 @@ class OpenAiPropertiesTest {
         properties.apiKey = "test-key"
         properties.completions = "/completions"
         properties.embeddingsPath = "/embeddings"
+        properties.apiFormatOverrides = mapOf("gpt-5.4-mini" to OpenAiApiFormat.CHAT_COMPLETIONS)
         properties.maxAttempts = 3
         properties.backoffMillis = 1000L
         properties.backoffMultiplier = 2.0
@@ -161,6 +181,7 @@ class OpenAiPropertiesTest {
         assertEquals("test-key", properties.apiKey)
         assertEquals("/completions", properties.completions)
         assertEquals("/embeddings", properties.embeddingsPath)
+        assertEquals(OpenAiApiFormat.CHAT_COMPLETIONS, properties.apiFormatOverrides["gpt-5.4-mini"])
         assertEquals(3, properties.maxAttempts)
         assertEquals(1000L, properties.backoffMillis)
         assertEquals(2.0, properties.backoffMultiplier)
