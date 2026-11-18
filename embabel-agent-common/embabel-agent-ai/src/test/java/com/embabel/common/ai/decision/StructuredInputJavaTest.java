@@ -98,4 +98,22 @@ class StructuredInputJavaTest {
 
         assertEquals(billing, result);
     }
+
+    @Test
+    void assessTakesAStructuredState() {
+        var refund = new PropositionResult.Answered(true, PROVENANCE);
+        var assessor = StubDecisionService.builder("triage-stub")
+                .assessing("`ticket.subject` asks for a refund", refund)
+                .build();
+
+        // tag::assess[]
+        var ticket = JsonMapper.builder().build().createObjectNode();
+        ticket.putObject("ticket").put("subject", "Refund").put("body", "I was charged twice.");
+        ticket.put("plan", "pro");
+
+        var result = assessor.assess(new PropositionRequest(ticket, "`ticket.subject` asks for a refund"));
+        // end::assess[]
+
+        assertEquals(refund, result);
+    }
 }

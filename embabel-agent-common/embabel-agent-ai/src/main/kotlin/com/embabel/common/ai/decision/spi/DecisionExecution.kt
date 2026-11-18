@@ -379,7 +379,14 @@ internal object DecisionExecution {
                     if (propositionHook) {
                         (service as PropositionAssessment).assess(input, question)
                     } else {
-                        service.assess(PropositionRequest(input, question.instructions))
+                        // A structured request stays structured for the service that assesses it.
+                        service.assess(
+                            if (state == null) {
+                                PropositionRequest(input, question.instructions)
+                            } else {
+                                PropositionRequest(state, question.instructions)
+                            },
+                        )
                     },
                 )
 
