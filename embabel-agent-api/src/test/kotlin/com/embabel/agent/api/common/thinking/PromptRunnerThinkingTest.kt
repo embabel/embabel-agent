@@ -36,14 +36,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 /**
- * Tests that thinking support on a [PromptRunner] is decided by its type, [ThinkingPromptRunner].
+ * Tests that thinking on a [PromptRunner] works when the runner implements `thinking()`, whatever
+ * `supportsThinking()` says, and throws [UnsupportedOperationException] when it does not.
  */
-class ThinkingPromptRunnerTest {
+class PromptRunnerThinkingTest {
 
     /**
      * Builds a [FakePromptRunner] whose options turn thinking on. The tests use it to show that
-     * turning thinking on in the options does not make `thinking()` work on a runner that is
-     * not a [ThinkingPromptRunner].
+     * turning thinking on in the options does not make `thinking()` work on a runner that does
+     * not implement it.
      */
     private fun fakeRunnerWithThinkingEnabled(): FakePromptRunner = FakePromptRunner(
         llm = LlmOptions().withThinking(Thinking.withExtraction()),
@@ -56,23 +57,22 @@ class ThinkingPromptRunnerTest {
     )
 
     @Nested
-    inner class RunnerThatIsNotAThinkingPromptRunner {
+    inner class RunnerThatDoesNotImplementThinking {
 
         @Test
         fun `reports no thinking support by default`() {
             val runner: PromptRunner = fakeRunnerWithThinkingEnabled()
 
-            // FakePromptRunner does not implement ThinkingPromptRunner, so it keeps the default answer
+            // FakePromptRunner does not implement thinking(), so it keeps the default answer
             assertFalse(runner.supportsThinking())
         }
 
         @Test
         fun `that says it supports thinking gets UnsupportedOperationException from thinking`() {
-            // This runner answers true from supportsThinking() but does not implement
-            // ThinkingPromptRunner, so it has no thinking() of its own.
-            // Before ThinkingPromptRunner existed, PromptRunner.thinking() checked supportsThinking()
-            // and the thinking setting in LlmOptions. This runner passes both checks, so the old
-            // code threw IllegalStateException.
+            // This runner answers true from supportsThinking() but has no thinking() of its own.
+            // In 1.5, PromptRunner.thinking() checked supportsThinking() and the thinking setting
+            // in LlmOptions. This runner passes both checks, so the old code threw
+            // IllegalStateException.
             val runner = object : PromptRunner by fakeRunnerWithThinkingEnabled() {
                 override fun supportsThinking(): Boolean = true
 
@@ -82,30 +82,23 @@ class ThinkingPromptRunnerTest {
                 override fun thinking(): PromptRunner.Thinking = super<PromptRunner>.thinking()
             }
 
-            // thinking() throws UnsupportedOperationException, as documented for a runner that is not a ThinkingPromptRunner
+            // thinking() throws UnsupportedOperationException, as documented for a runner that does not implement it
             val failure = assertThrows<UnsupportedOperationException> {
                 runner.thinking()
             }
-            // The message names the one check, the type, and not the deprecated supportsThinking()
+            // The message does not send callers to the deprecated supportsThinking()
             val message = failure.message.orEmpty()
-            assertTrue(message.contains("ThinkingPromptRunner"), message)
             assertFalse(message.contains("supportsThinking"), message)
         }
 
         @Test
-        fun `a custom runner that implements thinking without the type still works, but the type check skips it`() {
-            // A runner written before ThinkingPromptRunner existed overrides both methods itself.
+        fun `a custom runner that overrides thinking returns its own operations`() {
             val operations = mockk<PromptRunner.Thinking>()
             val runner: PromptRunner = object : PromptRunner by fakeRunnerWithThinkingEnabled() {
-                override fun supportsThinking(): Boolean = true
                 override fun thinking(): PromptRunner.Thinking = operations
             }
 
-            // Calling thinking() on it still returns its own operations
             assertSame(operations, runner.thinking())
-            // The documented check skips it, because it is not a ThinkingPromptRunner.
-            // To be found by that check, the runner must implement ThinkingPromptRunner.
-            assertFalse(runner is ThinkingPromptRunner)
         }
     }
 
@@ -113,12 +106,11 @@ class ThinkingPromptRunnerTest {
     inner class SupportsThinkingOnTheRunner {
 
         @Test
-        fun `is deprecated in favour of checking for ThinkingPromptRunner`() {
+        fun `is deprecated because thinking does not consult it`() {
             val deprecated = PromptRunner::class.java.getMethod("supportsThinking").getAnnotation(Deprecated::class.java)
 
-            // The type is the one check, so the method points callers to it
             requireNotNull(deprecated) { "PromptRunner.supportsThinking() should be deprecated" }
-            assertTrue(deprecated.message.contains("ThinkingPromptRunner"), deprecated.message)
+            assertTrue(deprecated.message.contains("Not a gate"), deprecated.message)
         }
     }
 
@@ -128,19 +120,11 @@ class ThinkingPromptRunnerTest {
         private val delegate = mockk<PromptExecutionDelegate>()
 
         @Test
-        fun `is a ThinkingPromptRunner`() {
-            val runner: PromptRunner = DelegatingStreamingPromptRunner(delegate)
-
-            // The runner the platform hands out can be checked with `is`
-            assertTrue(runner is ThinkingPromptRunner)
-        }
-
-        @Test
         fun `takes supportsThinking from the selected model`() {
             every { delegate.supportsThinking() } returns false
             val runner: PromptRunner = DelegatingStreamingPromptRunner(delegate)
 
-            // Being a ThinkingPromptRunner does not override what the selected model reports
+            // The runner passes on what the selected model reports
             assertFalse(runner.supportsThinking())
             verify { delegate.supportsThinking() }
         }
@@ -156,7 +140,7 @@ class ThinkingPromptRunnerTest {
             } returns expected
             val runner: PromptRunner = DelegatingStreamingPromptRunner(delegate)
 
-            val response = (runner as ThinkingPromptRunner).thinking().createObject("question", String::class.java)
+            val response = runner.thinking().createObject("question", String::class.java)
 
             assertEquals(expected, response)
             verify(exactly = 0) { delegate.supportsThinking() }

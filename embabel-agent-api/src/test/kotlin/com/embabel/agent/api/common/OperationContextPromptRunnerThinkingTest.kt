@@ -39,7 +39,7 @@ import kotlin.test.fail
  * Tests for thinking functionality in OperationContextPromptRunner.
  *
  * Focuses on:
- * - withThinking() creates operational PromptRunner.Thinking
+ * - thinking() creates operational PromptRunner.Thinking
  * - Error handling for incompatible LlmOperations implementations
  */
 class OperationContextPromptRunnerThinkingTest {
@@ -79,7 +79,7 @@ class OperationContextPromptRunnerThinkingTest {
     }
 
     @Test
-    fun `withThinking creates operational ThinkingPromptRunnerOperations with ChatClientLlmOperations`() {
+    fun `thinking creates operational thinking operations with ChatClientLlmOperations`() {
         // Given: OperationContext with ChatClientLlmOperations and various LlmOptions scenarios
         val mockChatClientOps = mockk<ChatClientLlmOperations>(relaxed = true)
         every { mockChatClientOps.supportsThinking(any()) } returns true
@@ -110,18 +110,7 @@ class OperationContextPromptRunnerThinkingTest {
     }
 
     @Test
-    fun `this test runner reports thinking support through the ThinkingPromptRunner default`() {
-        // The relaxed mock answers false if asked. The runner never asks it: it is a
-        // ThinkingPromptRunner and keeps that interface's default of true.
-        val mockChatClientOps = mockk<ChatClientLlmOperations>(relaxed = true)
-        val context = createMockOperationContextWithLlmOperations(mockChatClientOps)
-        val runner = createOperationContextPromptRunner(context)
-
-        assertTrue(runner.supportsThinking())
-    }
-
-    @Test
-    fun `withThinking throws UnsupportedOperationException for non-ChatClientLlmOperations`() {
+    fun `thinking throws UnsupportedOperationException for non-ChatClientLlmOperations`() {
         // Given: OperationContext with non-ChatClientLlmOperations
         val unsupportedLlmOps = object : LlmOperations {
             override fun supportsThinking(options: LlmOptions): Boolean = false
