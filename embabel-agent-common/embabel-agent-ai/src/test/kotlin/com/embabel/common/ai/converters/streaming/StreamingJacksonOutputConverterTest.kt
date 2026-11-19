@@ -48,6 +48,7 @@ class StreamingJacksonOutputConverterTest {
         assertTrue(format.contains("Each line must contain exactly one JSON object"))
         assertTrue(format.contains("Do not include markdown code blocks or wrap responses in arrays"))
         assertTrue(format.contains("<think>"))
+        assertTrue(format.contains("DO NOT put thinking blocks and JSON objects on the same line."))
     }
 
     @Test
@@ -581,6 +582,159 @@ class StreamingJacksonOutputConverterTest {
         assertEquals("llama format", thinkingEvents[2].content)
         assertEquals("xml reasoning format", thinkingEvents[3].content)
         assertEquals("legacy format", thinkingEvents[4].content)
+    }
+
+    /**
+     * Reasoning followed by a JSON object on the same line must yield both events (issue #2267).
+     */
+    @Nested
+    inner class ReasoningBeforeJsonOnSameLine {
+
+        private val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
+
+        private fun events(text: String): List<StreamingEvent<SimpleItem>> =
+            converter.convertStreamWithThinking(text).collectList().block()!!
+
+        private fun assertThinking(event: StreamingEvent<SimpleItem>, content: String, state: ThinkingState) {
+            assertTrue(event is StreamingEvent.Thinking, "Expected thinking but was $event")
+            assertEquals(content, (event as StreamingEvent.Thinking).content)
+            assertEquals(state, event.state)
+        }
+
+        private fun assertObject(event: StreamingEvent<SimpleItem>, name: String) {
+            assertTrue(event is StreamingEvent.Object<*>, "Expected object but was $event")
+            assertEquals(name, (event as StreamingEvent.Object<SimpleItem>).item.name)
+        }
+
+        @Test
+        fun `splits plain text followed by JSON`() {
+            val events = events("""I'll check all three options.{"name": "x"}""")
+            assertEquals(2, events.size)
+            assertThinking(events[0], "I'll check all three options.", ThinkingState.CONTINUATION)
+            assertObject(events[1], "x")
+        }
+
+        @Test
+        fun `splits plain text followed by a space and JSON`() {
+            val events = events("""my reasoning {"name": "x"}""")
+            assertEquals(2, events.size)
+            assertThinking(events[0], "my reasoning", ThinkingState.CONTINUATION)
+            assertObject(events[1], "x")
+        }
+
+        @Test
+        fun `splits a think block followed by JSON`() {
+            val events = events("""<think>reason</think>{"name": "x"}""")
+            assertEquals(2, events.size)
+            assertThinking(events[0], "reason", ThinkingState.BOTH)
+            assertObject(events[1], "x")
+        }
+
+        @Test
+        fun `splits a think block followed by a space and JSON`() {
+            val events = events("""<think>reason</think> {"name": "x"}""")
+            assertEquals(2, events.size)
+            assertThinking(events[0], "reason", ThinkingState.BOTH)
+            assertObject(events[1], "x")
+        }
+
+        @Test
+        fun `splits the end of a multi-line think block followed by JSON`() {
+            // The reasoning part must be classified exactly as it is on its own line
+            val endOnly = events("last step</think>").single() as StreamingEvent.Thinking
+            val events = events("""last step</think>{"name": "x"}""")
+            assertEquals(2, events.size)
+            assertThinking(events[0], endOnly.content, endOnly.state)
+            assertObject(events[1], "x")
+        }
+
+        @Test
+        fun `splits at the JSON object when the reasoning holds a brace`() {
+            val events = events("""options {a, b}: {"name": "x"}""")
+            assertEquals(2, events.size)
+            assertThinking(events[0], "options {a, b}:", ThinkingState.CONTINUATION)
+            assertObject(events[1], "x")
+        }
+
+        @Test
+        fun `drops a code fence before JSON on the same line`() {
+            val events = events("""```json {"name": "x"}""")
+            assertEquals(1, events.size)
+            assertObject(events[0], "x")
+        }
+
+        @Test
+        fun `keeps reasoning with a brace and no JSON object as one thinking event`() {
+            val events = events("consider {a, b} options")
+            assertEquals(1, events.size)
+            assertThinking(events[0], "consider {a, b} options", ThinkingState.CONTINUATION)
+        }
+
+        @Test
+        fun `keeps JSON that is not at the end of the line as reasoning`() {
+            val line = """use {"name": "x"} as example"""
+            val events = events(line)
+            assertEquals(1, events.size)
+            assertThinking(events[0], line, ThinkingState.CONTINUATION)
+        }
+
+        @Test
+        fun `does not split JSON inside an unclosed think block`() {
+            val events = events("""<think>example {"name": "x"}""")
+            assertEquals(1, events.size)
+            assertTrue(events[0] is StreamingEvent.Thinking)
+            assertEquals(ThinkingState.START, (events[0] as StreamingEvent.Thinking).state)
+        }
+
+        @Test
+        fun `does not split JSON that does not convert to the target type`() {
+            val line = """note {"other": 1}"""
+            val events = events(line)
+            assertEquals(1, events.size)
+            assertThinking(events[0], line, ThinkingState.CONTINUATION)
+        }
+
+        @Test
+        fun `does not split a legacy THINKING prefix line`() {
+            val events = events("""//THINKING: text {"name": "x"}""")
+            assertEquals(1, events.size)
+            assertThinking(events[0], """text {"name": "x"}""", ThinkingState.BOTH)
+        }
+
+        @Test
+        fun `does not split JSON that the detector classifies as thinking`() {
+            val events = events("""text {"name": "<think>a</think>"}""")
+            assertEquals(1, events.size)
+            assertTrue(events[0] is StreamingEvent.Thinking)
+        }
+
+        @Test
+        fun `keeps stream order around a split line`() {
+            val events = events(
+                """
+                <think>a</think>
+                text{"name": "one"}
+                {"name": "two"}
+                """.trimIndent()
+            )
+            assertEquals(4, events.size)
+            assertThinking(events[0], "a", ThinkingState.BOTH)
+            assertThinking(events[1], "text", ThinkingState.CONTINUATION)
+            assertObject(events[2], "one")
+            assertObject(events[3], "two")
+        }
+
+        @Test
+        fun `convertStream returns the object from plain text followed by JSON`() {
+            val items = converter.convertStream("""text{"name": "x"}""").collectList().block()!!
+            assertEquals(listOf("x"), items.map { it.name })
+        }
+
+        @Test
+        fun `convertStream returns the object from a think block followed by JSON`() {
+            val items = converter.convertStream("""<think>r</think>{"name": "x"}""").collectList().block()!!
+            assertEquals(listOf("x"), items.map { it.name })
+        }
     }
 
     @Nested
