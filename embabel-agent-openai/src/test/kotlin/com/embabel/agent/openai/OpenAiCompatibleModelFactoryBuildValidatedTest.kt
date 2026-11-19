@@ -16,6 +16,8 @@
 package com.embabel.agent.openai
 
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.byok.BLANK_API_KEY_MESSAGE
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.ai.model.PricingModel
@@ -95,7 +97,7 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
     }
 
     @Test
-    fun `buildValidated returns LlmService on 200`() {
+    fun `owned chat service can call the provider after validation and factory close`() {
         // Wildcard root handler — same reasoning as the 401 test above.
         server.createContext("/") { exchange ->
             exchange.requestBody.use { it.readBytes() }
@@ -115,13 +117,20 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
         }
         server.start()
 
-        val service = factory().buildValidated(
-            model = OpenAiModels.GPT_41_MINI,
-            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-            provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = null,
-        )
-        assertNotNull(service)
+        val factory = factory()
+        val service = factory.buildOwnedLlm {
+            buildValidated(
+                model = OpenAiModels.GPT_41_MINI,
+                pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                provider = OpenAiModels.PROVIDER,
+                knowledgeCutoffDate = null,
+            )
+        }
+        factory.close()
+
+        (service as AutoCloseable).use {
+            service.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
+        }
     }
 
     @Test

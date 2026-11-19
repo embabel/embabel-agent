@@ -48,6 +48,7 @@ import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import com.openai.core.ClientOptions
 import com.openai.errors.OpenAIServiceException
 import io.micrometer.observation.ObservationRegistry
+import org.jetbrains.annotations.ApiStatus
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient
 import org.slf4j.Logger
@@ -137,6 +138,10 @@ open class OpenAiCompatibleModelFactory(
     )
 
     companion object {
+        private fun closeClient(logger: Logger, close: () -> Unit) {
+            runCatching(close).onFailure { logger.warn("Could not close an OpenAI client: {}", it.message) }
+        }
+
         private val RESPONSES_OBJECT_MAPPER = ObjectMapper()
         private const val OPENAI_API_HOST = "api.openai.com"
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
@@ -356,12 +361,14 @@ open class OpenAiCompatibleModelFactory(
                 observationRegistry = observationRegistry,
                 timeouts = timeouts,
             )
-                .buildValidated(
-                    model = validationModel,
-                    pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-                    provider = validationProvider,
-                    knowledgeCutoffDate = null,
-                )
+                .buildOwnedLlm {
+                    buildValidated(
+                        model = validationModel,
+                        pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                        provider = validationProvider,
+                        knowledgeCutoffDate = null,
+                    )
+                }
     }
 
     /**
@@ -416,11 +423,13 @@ open class OpenAiCompatibleModelFactory(
                 observationRegistry = observationRegistry,
                 timeouts = timeouts,
             )
-                .buildValidatedEmbeddingService(
-                    model = model,
-                    provider = provider,
-                    pricingModel = pricingModel,
-                )
+                .buildOwnedEmbedding {
+                    buildValidatedEmbeddingService(
+                        model = model,
+                        provider = provider,
+                        pricingModel = pricingModel,
+                    )
+                }
     }
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -459,16 +468,81 @@ open class OpenAiCompatibleModelFactory(
      * chat model.
      */
     protected val openAiClient: OpenAIClient = buildSyncClient()
-    protected val openAiClientAsync: OpenAIClientAsync = buildAsyncClient()
-
-    /** Close both clients. Spring calls this when the context that holds the factory shuts down. */
-    override fun close() {
-        closeClient { openAiClient.close() }
-        closeClient { openAiClientAsync.close() }
+    protected val openAiClientAsync: OpenAIClientAsync = try {
+        buildAsyncClient()
+    } catch (failure: Throwable) {
+        closeClient(logger) { openAiClient.close() }
+        throw failure
     }
 
-    private fun closeClient(close: () -> Unit) {
-        runCatching(close).onFailure { logger.warn("Could not close an OpenAI client: {}", it.message) }
+    private var clientCleanup: Runnable? = ClientCleanup(openAiClient, openAiClientAsync, logger)
+
+    /** Close the clients still owned by this factory, including on Spring context shutdown. */
+    @Synchronized
+    override fun close() {
+        val cleanup = clientCleanup
+        clientCleanup = null
+        cleanup?.run()
+    }
+
+    @ApiStatus.Internal
+    fun buildOwnedLlm(
+        model: String,
+        pricingModel: PricingModel,
+        provider: String,
+        knowledgeCutoffDate: LocalDate?,
+        apiFormatOverrides: Map<String, OpenAiApiFormat>,
+    ): LlmService<*> = buildOwnedLlm {
+        llm(model, pricingModel, provider, knowledgeCutoffDate, apiFormatOverrides)
+    }
+
+    @ApiStatus.Internal
+    fun buildOwnedValidatedEmbedding(
+        model: String,
+        provider: String,
+        pricingModel: PricingModel?,
+    ): EmbeddingService = buildOwnedEmbedding {
+        buildValidatedEmbeddingService(model, provider, pricingModel)
+    }
+
+    /** Build a single chat service with this temporary factory and transfer ownership to its model. */
+    internal fun buildOwnedLlm(build: OpenAiCompatibleModelFactory.() -> LlmService<*>): LlmService<*> =
+        transferClients(build) { service, cleanup ->
+            (service as SpringAiLlmService).registerChatModelCleanup(cleanup)
+        }
+
+    /** Build a single embedding service with this temporary factory and transfer ownership to its model. */
+    internal fun buildOwnedEmbedding(build: OpenAiCompatibleModelFactory.() -> EmbeddingService): EmbeddingService =
+        transferClients(build) { service, cleanup ->
+            ((service as SpringAiEmbeddingService).model as OpenAiCompatibleEmbeddingModel).registerCleanup(cleanup)
+        }
+
+    @Synchronized
+    private fun <T> transferClients(
+        build: OpenAiCompatibleModelFactory.() -> T,
+        registerCleanup: (T, Runnable) -> Unit,
+    ): T {
+        val cleanup = checkNotNull(clientCleanup) { "OpenAI clients are no longer owned by this factory" }
+        try {
+            return build().also { service ->
+                registerCleanup(service, cleanup)
+                clientCleanup = null
+            }
+        } catch (failure: Throwable) {
+            close()
+            throw failure
+        }
+    }
+
+    private class ClientCleanup(
+        private val sync: OpenAIClient,
+        private val async: OpenAIClientAsync,
+        private val logger: Logger,
+    ) : Runnable {
+        override fun run() {
+            closeClient(logger) { sync.close() }
+            closeClient(logger) { async.close() }
+        }
     }
 
     private fun resolvedApiKey(): String =

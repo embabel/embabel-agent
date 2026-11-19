@@ -35,6 +35,8 @@ import org.springframework.ai.embedding.observation.EmbeddingModelObservationDoc
 import org.springframework.ai.model.EmbeddingUtils
 import org.springframework.ai.observation.conventions.AiProvider
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
+import java.lang.ref.Cleaner
+import java.lang.ref.Reference
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -62,9 +64,19 @@ internal class OpenAiCompatibleEmbeddingModel(
     private val options: OpenAiEmbeddingOptions,
     private val observationRegistry: ObservationRegistry,
     private val metadataMode: MetadataMode = MetadataMode.EMBED,
-) : AbstractEmbeddingModel() {
+) : AbstractEmbeddingModel(), AutoCloseable {
 
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    private var cleanup: Cleaner.Cleanable? = null
+
+    fun registerCleanup(action: Runnable) {
+        cleanup = cleaner.register(this, action)
+    }
+
+    override fun close() {
+        cleanup?.clean()
+    }
 
     // Returns the text sent to the provider for a document: its content plus the metadata that
     // [metadataMode] selects. The inherited default returns the content only. The batch path,
@@ -91,12 +103,16 @@ internal class OpenAiCompatibleEmbeddingModel(
             .build()
         // The first argument is a custom observation convention. This class has none, so it
         // passes null and Micrometer uses the default convention given as the second argument.
-        return EmbeddingModelObservationDocumentation.EMBEDDING_MODEL_OPERATION
-            .observation(null, OBSERVATION_CONVENTION, { context }, observationRegistry)
-            .observe<EmbeddingResponse> {
-                responseOf(client.embeddings().create(params, requestOptions))
-                    .also { context.response = it }
-            }
+        return try {
+            EmbeddingModelObservationDocumentation.EMBEDDING_MODEL_OPERATION
+                .observation(null, OBSERVATION_CONVENTION, { context }, observationRegistry)
+                .observe<EmbeddingResponse> {
+                    responseOf(client.embeddings().create(params, requestOptions))
+                        .also { context.response = it }
+                }
+        } finally {
+            Reference.reachabilityFence(this)
+        }
     }
 
     private fun responseOf(response: CreateEmbeddingResponse): EmbeddingResponse {
@@ -147,6 +163,7 @@ internal class OpenAiCompatibleEmbeddingModel(
     }
 
     private companion object {
+        private val cleaner = Cleaner.create()
         const val OMISSION_MESSAGE =
             "Embedding answer from '{}' omits {}: index falls back to position, usage is reported only when sent"
 

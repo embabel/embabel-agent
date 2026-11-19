@@ -15,13 +15,17 @@
  */
 package com.embabel.common.byok
 
+import org.slf4j.LoggerFactory
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 
 /**
  * Concurrently attempts each candidate [ByokFactory] and returns the first service of type [T]
- * that validates successfully. Remaining tasks are cancelled on first success.
+ * that validates successfully. Remaining tasks are cancelled on first success. Unused successful
+ * results are closed if they implement [AutoCloseable].
  *
  * Typical usage — sign-up flow (fan-out across all supported BYOK providers):
  * ```kotlin
@@ -55,10 +59,12 @@ import java.util.concurrent.Executors
 fun <T> detectProvider(vararg candidates: ByokFactory<T>): T {
     require(candidates.isNotEmpty()) { "At least one ByokFactory candidate is required" }
     val exec = Executors.newVirtualThreadPerTaskExecutor()
+    val results = DetectionResults()
+    var selected: T? = null
     try {
         return exec.invokeAny(
-            candidates.map { factory -> Callable { factory.buildValidated() } }
-        )
+            candidates.map { factory -> Callable { factory.buildValidated().also(results::record) } }
+        ).also { selected = it }
     } catch (e: ExecutionException) {
         throw InvalidApiKeyException("Key not valid for any supported provider")
     } catch (e: InterruptedException) {
@@ -66,5 +72,37 @@ fun <T> detectProvider(vararg candidates: ByokFactory<T>): T {
         throw InvalidApiKeyException("Key not valid for any supported provider")
     } finally {
         exec.shutdown()
+        results.finish(selected)
+    }
+}
+
+private class DetectionResults {
+    private val services = Collections.newSetFromMap(IdentityHashMap<AutoCloseable, Boolean>())
+    private var finished = false
+    private var selected: Any? = null
+
+    fun record(service: Any?) {
+        if (service !is AutoCloseable) return
+        val unused = synchronized(this) { services.add(service) && finished && service !== selected }
+        if (unused) close(service)
+    }
+
+    fun finish(selected: Any?) {
+        val unused = synchronized(this) {
+            this.selected = selected
+            finished = true
+            services.filter { it !== selected }
+        }
+        unused.forEach(::close)
+    }
+
+    private fun close(service: AutoCloseable) {
+        runCatching { service.close() }.onFailure {
+            logger.warn("Could not close an unused provider detection service", it)
+        }
+    }
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(DetectionResults::class.java)
     }
 }
