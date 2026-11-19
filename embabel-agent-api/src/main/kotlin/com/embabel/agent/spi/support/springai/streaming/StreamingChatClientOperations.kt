@@ -34,7 +34,6 @@ import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.prompt.Prompt
@@ -354,15 +353,12 @@ internal class StreamingChatClientOperations(
         @Suppress("UNCHECKED_CAST")
         val outputClassAny = outputClass as Class<Any>
         @Suppress("UNCHECKED_CAST")
-        val streamingConverter = object : StreamingJacksonOutputConverter<Any>(
+        val streamingConverter = StreamingJacksonOutputConverter<Any>(
             clazz = outputClassAny,
             objectMapper = chatClientLlmOperations.objectMapper,
             fieldFilter = interaction.fieldFilter,
             thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
-        ) {
-            override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
-                super.schemaGeneratorConfigBuilder().also(chatClientLlmOperations::customizeSchemaGenerator)
-        } as StreamingJacksonOutputConverter<O>  // signature compatibility for downstream Flux<O>/StreamingEvent<O> uses
+        ) as StreamingJacksonOutputConverter<O>  // signature compatibility for downstream Flux<O>/StreamingEvent<O> uses
 
         // Build prompt using helper methods, including streaming format instructions
         val promptContributions = buildPromptContributions(interaction, llm)

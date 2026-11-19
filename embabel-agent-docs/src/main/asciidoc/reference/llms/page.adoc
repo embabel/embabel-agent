@@ -1655,7 +1655,7 @@ static class MonthItem {
 
 - **Required fields**: OpenAI native structured output requires `required` to include every property. Optional Java reference fields are not treated as required unless annotated, for example with `@JsonProperty(required = true)` or `@NotNull`.
 - **Optional values**: Provider-native optionality usually needs nullable required properties, for example `type: ["string", "null"]`, rather than omitting the property from `required`.
-- **Arrays of objects**: Some providers, including OpenAI according to Spring AI documentation, do not support arrays of objects natively. Embabel falls back to normal object construction for unsupported shapes.
+- **Nested and nullable arrays**: In the `DEFAULT` mode, arrays of arrays (`List<List<T>>`) and nullable arrays (`Optional<List<T>>`) fail the compatibility check, so Embabel falls back to normal object construction for them.
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
 - **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Models built on the OpenAI Responses API send the same schema as `text.format`; see <<reference.customizing>> for their `nativeSupport` settings. Anthropic native structured output is currently disabled by default until its semantics are verified.
@@ -1736,10 +1736,11 @@ They can still define the schema of any other enum.
 [[reference.llms.schema-generator-customizer]]
 ===== Customizing the JSON Schema Generator
 
-Embabel generates the JSON Schema for structured output with https://github.com/victools/jsonschema-generator[victools].
-Some types are not described correctly by the default configuration, for example collections and optional values of other JVM languages, or custom value types.
+Embabel generates the JSON Schema for structured output with https://central.sonatype.com/artifact/com.github.victools/jsonschema-generator[victools jsonschema-generator].
+The default configuration already describes Java `Optional<T>` of a scalar or an object as a nullable type, and arrays of scalars and of objects as arrays; native structured output accepts both when the properties are required (see Limitations above).
+Other types are not described correctly by the default configuration, for example collections and optional values of other JVM languages, or custom value types.
 To change how such a type is described, declare a `SchemaGeneratorCustomizer` as a Spring bean.
-It receives the victools `SchemaGeneratorConfigBuilder` for every structured-output call, streaming or not, so it can add victools modules, custom definitions or other settings.
+It receives the victools `SchemaGeneratorConfigBuilder` for structured-output calls, streaming or not, so it can add victools modules, custom definitions or other settings.
 For example, to describe a `Tags` type as an array:
 
 [tabs]
@@ -1772,6 +1773,6 @@ SchemaGeneratorCustomizer tagsAsArray = builder -> builder.forTypesInGeneral()
 ----
 ====
 
-- Customizers are applied in bean order (`@Order`), after Embabel's own configuration. For custom definitions victools uses the first provider that returns one, so an earlier customizer wins.
+- Customizers are applied in bean order (`@Order`), after Embabel's own configuration. When several custom definition providers (victools `CustomDefinitionProviderV2`, registered with `withCustomDefinitionProvider`) return a definition for the same type, victools uses the one registered first, so the earlier customizer wins.
 - Native structured output uses the customized schema; in the `DEFAULT` mode unsupported shapes still fall back to the prompt-based schema (see Limitations above).
 - Tool input schemas are not affected.

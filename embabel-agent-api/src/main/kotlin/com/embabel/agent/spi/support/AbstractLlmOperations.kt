@@ -88,8 +88,8 @@ abstract class AbstractLlmOperations(
         get() = emptyList()
 
     /**
-     * Configures the JSON schema generator of every structured-output converter, streaming or not,
-     * so that a type gets the same schema on every path: [EnumConstantDescriptionProvider] first,
+     * Configures the JSON schema generator of the structured-output converters, streaming or not,
+     * so that a type gets the same schema on both: [EnumConstantDescriptionProvider] first,
      * then the [schemaGeneratorCustomizers] in order.
      */
     internal fun customizeSchemaGenerator(builder: SchemaGeneratorConfigBuilder) {

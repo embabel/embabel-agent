@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support.springai
+package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.spi.ToolDecorator
-import com.embabel.agent.spi.support.DefaultToolDecorator
+import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.JinjavaTemplateRenderer

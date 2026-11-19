@@ -62,7 +62,7 @@ import java.util.concurrent.Executors
 
 /**
  * Checks that [SchemaGeneratorCustomizer]s and [EnumAsOneOf] shape the JSON schema that reaches the model,
- * and that streaming and non-streaming calls send the same schema.
+ * on both streaming and non-streaming calls.
  */
 class ChatClientLlmOperationsSchemaCustomizationTest {
 
@@ -81,7 +81,7 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
 
     data class Ticket(val priority: Priority, val status: Status)
 
-    enum class Call { NON_STREAMING, STREAMING, LEGACY_STREAMING }
+    enum class Call { NON_STREAMING, STREAMING }
 
     private val objectMapper = jacksonObjectMapper()
 
@@ -209,14 +209,9 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
                 schemaIn(fakeChatModel.promptsPassed.single())
             }
 
-            Call.STREAMING, Call.LEGACY_STREAMING -> {
+            Call.STREAMING -> {
                 val chatModel = CountingChatModel { Flux.just(chatResponse("$responseJson\n")) }
-                val llmOperations = chatClientLlmOperations(
-                    chatModel,
-                    customizers,
-                    useLegacyStreaming = call == Call.LEGACY_STREAMING,
-                )
-                val streamed = llmOperations.createStreamingOperations(LlmOptions())
+                val streamed = chatClientLlmOperations(chatModel, customizers).createStreamingOperations(LlmOptions())
                     .createObjectStream(
                         messages = listOf(UserMessage("Describe it")),
                         interaction = interaction(),
@@ -244,7 +239,6 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
     private fun chatClientLlmOperations(
         chatModel: ChatModel,
         customizers: List<SchemaGeneratorCustomizer>,
-        useLegacyStreaming: Boolean = false,
     ): ChatClientLlmOperations {
         val modelProvider = mockk<ModelProvider>()
         every { modelProvider.getLlm(any()) } returns
@@ -258,7 +252,6 @@ class ChatClientLlmOperationsSchemaCustomizationTest {
             embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             schemaGeneratorCustomizers = customizers,
-            useLegacyStreaming = useLegacyStreaming,
         )
     }
 

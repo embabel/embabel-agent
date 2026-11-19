@@ -32,6 +32,7 @@ class SchemaGeneratorCustomizerJavaTest {
     record TaggedDog(String name, Tags tags) {
     }
 
+    // A Java lambda works as a customizer: mapping Tags to an array changes the generated schema.
     @Test
     void lambdaCustomizerChangesTheGeneratedSchema() {
         SchemaGeneratorCustomizer tagsAsArray = builder -> builder.forTypesInGeneral()
