@@ -211,10 +211,16 @@ class ModelRegistry<M : ModelCapability> private constructor(
          * @throws IllegalArgumentException when a registration, default, role or candidate is invalid
          */
         fun build(): ModelRegistry<M> {
+            // 1. Registered models: each name and each instance appears once.
             val models = validatedModels()
             val sources = java.util.List.copyOf(sources)
+            // 2. The names sources serve. Lazy, because listing them asks each provider, and only a
+            // binding to a name no registered model holds, or a selection message, needs them.
             val sourceModels = lazy { sourceModels(sources, models) }
+            // 3. Each declared family, with its default and role bindings checked against its capability.
             val families = declared.values.map { family(it, models, sourceModels) }
+            // 4. Default candidates, such as one a starter offers, must name registered models. A
+            // family with no explicit default takes the one candidate that fits it, if there is one.
             val candidateNames = candidates.distinct()
             candidateNames.forEach { candidate ->
                 require(candidate.isNotBlank()) { "default candidate name must not be blank" }
@@ -278,6 +284,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
             val spec = declared.spec
             val type = declared.type
             val defaultBinding = "${spec.label} default${inParentheses(spec.defaultProperty)}"
+            // Setting the default more than once is allowed only when every setting names the same model.
             val explicitDefault = declared.defaults.distinct().let { distinct ->
                 require(distinct.size <= 1) { "$defaultBinding is set to more than one service: $distinct" }
                 distinct.firstOrNull()
@@ -299,6 +306,8 @@ class ModelRegistry<M : ModelCapability> private constructor(
                 requireEligible(binding, property, name, declared, models, sourceModels)
                 roles[role] = name
             }
+            // A registered model is in the family when it implements the family's interface. Source
+            // models join on lookup, so the family keeps the sources rather than their models.
             return Family(
                 spec = spec,
                 type = type,
