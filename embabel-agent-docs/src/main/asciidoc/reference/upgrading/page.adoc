@@ -123,19 +123,15 @@ The "Shipped in" column is the first release that contained the removed type or 
 |1.5.3
 
 |`ThinkingCapability`, the empty marker interface
-|Check for `ThinkingPromptRunner`. The runner returned by `Ai` is one.
+|`PromptRunner.Thinking`, which `thinking()` returns. The runner returned by `Ai` implements `thinking()`.
 |0.3.2
-
-|A custom `PromptRunner` that overrides `thinking()` without implementing `ThinkingPromptRunner`
-|Implement `ThinkingPromptRunner` as well. Calling `thinking()` on the runner still works, but a caller that checks for `ThinkingPromptRunner` skips it.
-|0.3.3
 
 |`IllegalArgumentException` and `IllegalStateException` from `PromptRunner`'s default `thinking()`
 |Catch `UnsupportedOperationException`. The default now always throws it. It threw `UnsupportedOperationException` before too, but only when `supportsThinking()` was false; otherwise it threw `IllegalArgumentException` when thinking was not enabled in the runner's `LlmOptions`, and `IllegalStateException` when it was. The runner returned by `Ai` implements `thinking()`, so its behaviour has not changed.
 |0.3.3
 
 |`PromptRunner.supportsThinking()` as a check before `thinking()`, now deprecated
-|Check for `ThinkingPromptRunner`. `thinking()` does not consult `supportsThinking()`, which is set per provider and is false for some models that reason.
+|Call `thinking()` on the runner returned by `Ai`; it needs no check. `thinking()` does not consult `supportsThinking()`, which is set per provider and is false for some models that reason.
 |0.3.2
 
 |`ConfigurableModelProvider` constructor parameters `credentialLlmServiceFactories` (1.5.1), `embeddingRoleResolvers` and `credentialEmbeddingServiceFactories` (1.5.3), and the type of `roleResolvers`, which was `List<RoleResolver>`

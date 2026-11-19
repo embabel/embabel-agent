@@ -24,37 +24,18 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Shows that Java code can check a {@link PromptRunner} for {@link ThinkingPromptRunner}
- * and call thinking through it.
+ * Shows that Java code calls thinking on a {@link PromptRunner} directly.
  */
-class ThinkingPromptRunnerJavaTest {
+class PromptRunnerThinkingJavaTest {
 
     @Test
-    void javaCallerChecksTheTypeAndRunsThinking() {
-        PromptExecutionDelegate delegate = mock(PromptExecutionDelegate.class);
-        ThinkingResponse<String> expected = new ThinkingResponse<>("answer", List.of());
-        when(delegate.createObjectWithThinking(anyList(), eq(String.class))).thenReturn(expected);
-        PromptRunner runner = new DelegatingStreamingPromptRunner(delegate);
-
-        // A Java caller checks the type with instanceof, the one check before calling thinking()
-        if (runner instanceof ThinkingPromptRunner thinkingRunner) {
-            ThinkingResponse<String> response = thinkingRunner.thinking().createObject("question", String.class);
-            // The response is the one the delegate produced
-            assertEquals(expected, response);
-        } else {
-            fail("Expected the platform runner to be a ThinkingPromptRunner");
-        }
-    }
-
-    @Test
-    void javaCallerOfThePlatformRunnerCanSkipTheTypeCheck() {
+    void javaCallerRunsThinkingOnThePlatformRunner() {
         PromptExecutionDelegate delegate = mock(PromptExecutionDelegate.class);
         ThinkingResponse<String> expected = new ThinkingResponse<>("answer", List.of());
         // The provider reports no thinking support, which thinking() does not consult
@@ -62,7 +43,7 @@ class ThinkingPromptRunnerJavaTest {
         when(delegate.createObjectWithThinking(anyList(), eq(String.class))).thenReturn(expected);
         PromptRunner runner = new DelegatingStreamingPromptRunner(delegate);
 
-        // The runner from the platform is always a ThinkingPromptRunner, so it can call thinking() directly
+        // The runner from the platform implements thinking(), so the caller needs no check first
         ThinkingResponse<String> response = runner.thinking().createObject("question", String.class);
 
         // The response is the one the delegate produced

@@ -22,18 +22,16 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 - `ThinkingOrigin` — An enum distinguishing how a thinking block was produced: `PROMPT_EXTRACTED` (Embabel parsed reasoning text from the model's prompt response) or `NATIVE` (the provider surfaced reasoning via its API, e.g. Anthropic adaptive thinking blocks).
 - `ThinkingResponse<T>` — A response wrapper that holds both the result object and a list of `ThinkingBlock` instances.
 - `ThinkingException` — An exception that preserves thinking blocks when object instantiation fails, enabling debugging even in error scenarios.
-- `thinking()` — The core `PromptRunner` API method that enables thinking extraction.
-- `ThinkingPromptRunner` — The `PromptRunner` type for runners that implement thinking. The compiler requires it to implement `thinking()`. `PromptRunner`'s default `thinking()` throws `UnsupportedOperationException`. The runner returned by `Ai` is a `ThinkingPromptRunner`.
+- `thinking()` — The core `PromptRunner` API method that enables thinking extraction. The runner returned by `Ai` implements it. `PromptRunner`'s default `thinking()` throws `UnsupportedOperationException`.
 
 ==== Checking for Thinking Support
 
-The type is the one check: a runner that implements thinking is a `ThinkingPromptRunner`, and the compiler requires every `ThinkingPromptRunner` to implement `thinking()`.
+The runner returned by `Ai` on the platform implements `thinking()`, so you need no check before calling it.
 Extraction is prompt based, so it works whatever the selected model is.
 When the model returned no reasoning, `ThinkingResponse.thinkingBlocks` is empty.
 
-The runner returned by `Ai` on the platform is always a `ThinkingPromptRunner`.
-In unit tests, `FakeOperationContext` returns a `FakePromptRunner`, which is not one.
-Check the type before you call `thinking()` when the runner may come from somewhere else:
+A runner that does not implement `thinking()` throws `UnsupportedOperationException` from it.
+In unit tests, `FakeOperationContext` returns a `FakePromptRunner`, which is such a runner.
 
 [tabs]
 ====
@@ -41,22 +39,20 @@ Java::
 +
 [source,java]
 ----
-PromptRunner runner = context.ai().withDefaultLlm();
-if (runner instanceof ThinkingPromptRunner thinkingRunner) {
-    ThinkingResponse<Answer> response = thinkingRunner.thinking().createObject("What is 2 + 2?", Answer.class);
-}
+ThinkingResponse<Answer> response = context.ai().withDefaultLlm()
+        .thinking()
+        .createObject("What is 2 + 2?", Answer.class);
 ----
 
 Kotlin::
 +
 [source,kotlin]
 ----
-val runner = context.ai().withDefaultLlm()
-if (runner is ThinkingPromptRunner) {
-    val response = runner.thinking().createObject("What is 2 + 2?", Answer::class.java)
-    val answer = response.result
-    val reasoning = response.thinkingBlocks
-}
+val response = context.ai().withDefaultLlm()
+    .thinking()
+    .createObject("What is 2 + 2?", Answer::class.java)
+val answer = response.result
+val reasoning = response.thinkingBlocks
 ----
 ====
 

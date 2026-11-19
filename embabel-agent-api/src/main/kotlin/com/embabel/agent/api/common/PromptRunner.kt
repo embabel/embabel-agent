@@ -16,7 +16,6 @@
 package com.embabel.agent.api.common
 
 import com.embabel.agent.api.common.PromptRunner.Creating
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunner
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
@@ -454,23 +453,23 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * What the provider integration reports about thinking for the selected model.
      *
      * This is not a gate, and [thinking] does not consult it. Thinking extraction is prompt
-     * based, so it works on any [ThinkingPromptRunner] whatever this returns. The value is set
+     * based, so it works on any runner that implements [thinking], whatever this returns. The value is set
      * per provider factory, not per model, so it is false for some models that do reason, such
      * as DeepSeek's and Mistral's.
      *
-     * @return what the provider reports, or false for a runner that is not a [ThinkingPromptRunner]
+     * @return what the provider reports, or false for a runner that does not implement [thinking]
      */
     @Deprecated(
-        message = "Not a gate: thinking() does not consult it. Check `runner is ThinkingPromptRunner` before calling thinking().",
+        message = "Not a gate: thinking() does not consult it. The runner returned by Ai implements thinking() for any model; a runner that does not throws UnsupportedOperationException.",
     )
     fun supportsThinking(): Boolean = false
 
     /**
      * Return a [PromptRunner.Thinking] for extracting thinking blocks.
      *
-     * This default throws [UnsupportedOperationException]. A [ThinkingPromptRunner] must implement
-     * it. A custom runner that implements thinking should implement [ThinkingPromptRunner], so that
-     * callers who check for that type find it.
+     * The runner returned by `Ai` implements this for any model, so callers need no check before
+     * calling it. This default throws [UnsupportedOperationException], so a custom runner that
+     * offers thinking overrides it.
      *
      * @return thinking operations returning results with extracted reasoning
      * @throws UnsupportedOperationException if this runner does not implement thinking
@@ -479,8 +478,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
         throw UnsupportedOperationException(
             """
             Thinking not supported by this PromptRunner implementation.
-            A runner that supports thinking implements ThinkingPromptRunner. Before calling thinking(),
-            check that the runner is a ThinkingPromptRunner.
+            A runner that supports thinking overrides thinking(). The runner returned by Ai does.
             """.trimIndent()
         )
     }

@@ -22,7 +22,6 @@ import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.common.support.streaming.StreamingImpl
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunner
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
@@ -72,7 +71,7 @@ internal data class OperationContextPromptRunner(
     private val guardRails: List<GuardRail> = emptyList(),
     private val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
     private val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
-) : StreamingPromptRunner, ThinkingPromptRunner {
+) : StreamingPromptRunner {
 
     val action = (context as? ActionContext)?.action
 
@@ -338,7 +337,7 @@ internal data class OperationContextPromptRunner(
             )
         }
 
-        // Auto-enable thinking extraction when withThinking() is called
+        // Auto-enable thinking extraction when thinking() is called
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
 
         return ThinkingPromptRunnerOperationsImpl(

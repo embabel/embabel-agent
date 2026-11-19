@@ -20,7 +20,6 @@ import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunner
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
@@ -45,12 +44,12 @@ import java.lang.reflect.Field
 import java.util.function.Predicate
 
 /**
- * Implementation of [StreamingPromptRunner] and [ThinkingPromptRunner] that delegates to a
+ * Implementation of [StreamingPromptRunner], with thinking, that delegates to a
  * [PromptExecutionDelegate].
  */
 internal data class DelegatingStreamingPromptRunner(
     internal val delegate: PromptExecutionDelegate,
-) : StreamingPromptRunner, ThinkingPromptRunner {
+) : StreamingPromptRunner {
 
     // Properties
     override val toolObjects: List<ToolObject>
@@ -231,9 +230,8 @@ internal data class DelegatingStreamingPromptRunner(
     }
 
     // The model is chosen per call, so ask the delegate what the selected model supports
-    // instead of using the ThinkingPromptRunner default of true
     @Deprecated(
-        message = "Not a gate: thinking() does not consult it. Check `runner is ThinkingPromptRunner` before calling thinking().",
+        message = "Not a gate: thinking() does not consult it. The runner returned by Ai implements thinking() for any model; a runner that does not throws UnsupportedOperationException.",
     )
     override fun supportsThinking(): Boolean =
         delegate.supportsThinking()
