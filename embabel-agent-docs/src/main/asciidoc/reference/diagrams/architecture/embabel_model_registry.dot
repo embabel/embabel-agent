@@ -1,0 +1,34 @@
+digraph ModelRegistry {
+    ranksep=0.8;
+    nodesep=0.6;
+
+    node [shape=box, style="filled,rounded", fontname="Arial", margin=0.2, fontsize=12];
+    edge [fontname="Arial", fontsize=10];
+
+    ModelRegistry [fillcolor=lightblue, label="ModelRegistry"];
+
+    {rank=same; DecisionFamily; ClassificationFamily; NewFamily;}
+    DecisionFamily [fillcolor=lightgreen, label="Decision family\n(default, roles)"];
+    ClassificationFamily [fillcolor=lightgreen, label="Classification family\n(default, roles)"];
+    NewFamily [fillcolor=white, style="rounded,dashed", fontcolor=grey40, label="A new kind?\n(one more family)"];
+
+    {rank=same; DecisionService; ClassificationService; ModelSource;}
+    DecisionService [fillcolor=lightyellow, label="DecisionService\n(decides and classifies)"];
+    ClassificationService [fillcolor=lightyellow, label="ClassificationService\n(classifies)"];
+    ModelSource [fillcolor=lightgrey, label="ModelSource\n(models by name, on first lookup)"];
+
+    ModelCapability [fillcolor=lightcyan, label="ModelCapability\n(every family's interface extends it)"];
+
+    ModelRegistry -> DecisionFamily [label="select(DecisionService)"];
+    ModelRegistry -> ClassificationFamily [label="select(ClassificationService)"];
+    ModelRegistry -> NewFamily [style=dashed, color=grey60];
+
+    // A model is in every family whose interface it implements.
+    DecisionFamily -> DecisionService [style=dashed, arrowhead=none, label="member"];
+    ClassificationFamily -> DecisionService [style=dashed, arrowhead=none, label="member"];
+    ClassificationFamily -> ClassificationService [style=dashed, arrowhead=none, label="member"];
+    ClassificationFamily -> ModelSource [style=dotted, label="asked when\nits type fits"];
+
+    DecisionService -> ClassificationService [arrowhead=empty, constraint=false, label="extends"];
+    ClassificationService -> ModelCapability [arrowhead=empty, label="extends"];
+}
