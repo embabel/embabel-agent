@@ -29,7 +29,9 @@ import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
@@ -565,9 +567,14 @@ abstract class AbstractLlmOperations(
         return modelProvider.getLlm(crit)
     }
 
+    /**
+     * A model streams only when it implements [StreamingChatCompletion] and says it streams.
+     * Without the type check, a service that overrides `supportsStreaming()` to true but cannot
+     * create a streamer would pass this check and then fail in [createStreamingOperations].
+     */
     override fun supportsStreaming(options: LlmOptions): Boolean {
         val llmService = chooseLlm(withRoleResolved(options))
-        return llmService.supportsStreaming()
+        return llmService is StreamingChatCompletion && llmService.supportsStreaming()
     }
 
     override fun supportsThinking(options: LlmOptions): Boolean {
@@ -581,13 +588,27 @@ abstract class AbstractLlmOperations(
         // and streaming is the chat path, where that tuning matters most.
         val resolved = withRoleResolved(options)
         val llmService = chooseLlm(resolved)
-        val messageStreamer = llmService.createMessageStreamer(resolved)
+        val messageStreamer = messageStreamerOf(llmService, resolved)
         return StreamingLlmOperationsImpl(
             messageStreamer = messageStreamer,
             objectMapper = objectMapper,
             llmService = llmService,
             toolDecorator = toolDecorator,
         )
+    }
+
+    /**
+     * Ask the model's streaming capability for a streamer.
+     *
+     * @throws UnsupportedOperationException when the model cannot stream
+     */
+    private fun messageStreamerOf(llmService: LlmService<*>, options: LlmOptions): LlmMessageStreamer {
+        // A service that does not implement StreamingChatCompletion has no createMessageStreamer method.
+        val streaming = llmService as? StreamingChatCompletion
+            ?: throw UnsupportedOperationException(
+                "LLM service '${llmService.name}' from provider '${llmService.provider}' cannot stream: it does not implement StreamingChatCompletion",
+            )
+        return streaming.createMessageStreamer(options)
     }
 
     protected abstract fun <O> doTransformIfPossible(
