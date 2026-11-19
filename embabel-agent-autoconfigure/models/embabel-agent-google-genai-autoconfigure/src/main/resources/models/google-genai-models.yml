@@ -20,6 +20,16 @@ models:
       usd_per1m_input_tokens: 1.50
       usd_per1m_output_tokens: 7.50
 
+  # Gemini 4 Neon - Between Gemini 4 Carbon and Gemini 4 Hydrogen
+  - name: "gemini_4_neon"
+    model_id: "gemini-4-neon"
+    display_name: "Gemini 4 Neon"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 3.00
+      usd_per1m_output_tokens: 15.00
+
   # Gemini 4 Carbon - Introductory price
   # Price rises to $4.00 / $20.00 on 2026-12-01
   - name: "gemini_4_carbon"
