@@ -39,6 +39,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
+import tools.jackson.core.JacksonException
+import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.DatabindException
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.MapperFeature
@@ -264,6 +266,73 @@ class StructuredInputTest {
                 mapper.readValue("""{"state":"text","spec":$specJson}""", DecisionRequest::class.java)
             }
         }
+
+        @Test
+        fun `decimals in a state read from JSON keep their digits on a default mapper`() {
+            val json = """{"state":{"x":0.12345678901234567890123456789,"big":1E+400},"spec":$specJson}"""
+            val request = mapper.readValue(json, DecisionRequest::class.java)
+            val state = request.state!!
+            assertEquals(BigDecimal("0.12345678901234567890123456789"), state.get("x").decimalValue())
+            assertEquals(BigDecimal("1E+400"), state.get("big").decimalValue())
+        }
+
+        @Test
+        fun `exact decimals survive a write then read on a default mapper`() {
+            val json = """{"state":{"x":0.12345678901234567890123456789,"big":1E+400},"spec":$specJson}"""
+            val request = mapper.readValue(json, DecisionRequest::class.java)
+            assertEquals(request, mapper.readValue(mapper.writeValueAsString(request), DecisionRequest::class.java))
+        }
+
+        @Test
+        fun `a request inside another object reads, and so does the property after it`() {
+            val holder = mapper.readValue("""{"request":$structuredJson,"count":2}""", RequestHolder::class.java)
+            assertEquals(DecisionRequest.of(state(), spec), holder.request)
+            assertEquals(2, holder.count)
+        }
+
+        @Test
+        fun `decimals keep their digits in a request inside another object`() {
+            val json = """{"request":{"state":{"x":0.12345678901234567890123456789,"big":1E+400},"spec":$specJson},"count":2}"""
+            val holder = mapper.readValue(json, RequestHolder::class.java)
+            val state = holder.request!!.state!!
+            assertEquals(BigDecimal("0.12345678901234567890123456789"), state.get("x").decimalValue())
+            assertEquals(BigDecimal("1E+400"), state.get("big").decimalValue())
+            assertEquals(2, holder.count)
+        }
+
+        @Test
+        fun `a request read from a parser already past its opening brace reads every member`() {
+            mapper.createParser(structuredJson).use { parser ->
+                parser.nextToken()
+                parser.nextToken()
+                assertEquals(DecisionRequest.of(state(), spec), mapper.readValue(parser, DecisionRequest::class.java))
+            }
+        }
+
+        // Refuses a JSON object that names the same member twice. Off by default.
+        private val noDuplicates = JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).build()
+
+        @Test
+        fun `a duplicate state is rejected when the mapper refuses duplicate keys`() {
+            assertThrows(DatabindException::class.java) {
+                noDuplicates.readValue("""{"state":{"x":1},"state":{"x":2},"spec":$specJson}""", DecisionRequest::class.java)
+            }
+        }
+
+        @Test
+        fun `a duplicate key inside the state is rejected when the mapper refuses duplicate keys`() {
+            assertThrows(DatabindException::class.java) {
+                noDuplicates.readValue("""{"state":{"x":1,"x":2},"spec":$specJson}""", DecisionRequest::class.java)
+            }
+        }
+
+        @Test
+        fun `a duplicate key inside the state is rejected by a parser that checks for duplicates`() {
+            val strictParser = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build()
+            assertThrows(JacksonException::class.java) {
+                strictParser.readValue("""{"state":{"x":1,"x":2},"spec":$specJson}""", DecisionRequest::class.java)
+            }
+        }
     }
 
     @Nested
@@ -348,4 +417,10 @@ class StructuredInputTest {
             assertTrue(lines.none { it.contains("Tomato") }) { "Lines: $lines" }
         }
     }
+}
+
+/** An object that holds a request with another property after it, for reading a request nested in JSON. */
+private class RequestHolder {
+    var request: DecisionRequest? = null
+    var count: Int = 0
 }

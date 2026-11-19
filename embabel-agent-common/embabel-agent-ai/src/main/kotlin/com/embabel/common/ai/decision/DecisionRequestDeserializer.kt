@@ -16,6 +16,7 @@
 package com.embabel.common.ai.decision
 
 import tools.jackson.core.JsonParser
+import tools.jackson.core.JsonToken
 import tools.jackson.databind.DeserializationContext
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.deser.std.StdDeserializer
@@ -28,7 +29,7 @@ import tools.jackson.databind.deser.std.StdDeserializer
 internal class DecisionRequestDeserializer : StdDeserializer<DecisionRequest>(DecisionRequest::class.java) {
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): DecisionRequest {
-        val tree = context.readTree(parser)
+        val tree = readExactTree(parser, context)
         if (!tree.isObject) return reject(context, "A decision request must be a JSON object")
         return try {
             for ((name, value) in tree.properties()) {
@@ -47,6 +48,33 @@ internal class DecisionRequestDeserializer : StdDeserializer<DecisionRequest>(De
         } catch (e: IllegalArgumentException) {
             reject(context, e.message ?: "The decision request is not valid")
         }
+    }
+
+    /**
+     * Reads the request as a tree with every decimal kept exactly as written. The request is copied
+     * into a buffer that holds decimals as BigDecimal, then read back through the caller's own
+     * context, so the caller's checks, such as refusing duplicate keys, still apply. Only the
+     * request's own tokens are copied, which leaves the parser ready for whatever follows it.
+     *
+     * @param parser the parser, positioned on the request
+     * @param context the read in progress
+     * @return the request as a tree
+     */
+    private fun readExactTree(parser: JsonParser, context: DeserializationContext): JsonNode {
+        val buffer = context.bufferForInputBuffering(parser).forceUseOfBigDecimal(true)
+        var token = parser.currentToken()
+        if (token == JsonToken.PROPERTY_NAME || token == JsonToken.END_OBJECT) {
+            // Jackson can hand over an object it has already opened, so copy the rest of its members.
+            buffer.writeStartObject()
+            while (token == JsonToken.PROPERTY_NAME) {
+                buffer.copyCurrentStructure(parser)
+                token = parser.nextToken()
+            }
+            buffer.writeEndObject()
+        } else {
+            buffer.copyCurrentStructure(parser)
+        }
+        return buffer.asParserOnFirstToken(context, parser).use { context.readTree(it) }
     }
 
     /**
