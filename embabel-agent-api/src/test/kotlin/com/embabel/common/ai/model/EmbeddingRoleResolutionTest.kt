@@ -111,14 +111,14 @@ class EmbeddingRoleResolutionTest {
     private fun provider(
         properties: ConfigurableModelProviderProperties,
         embeddings: List<EmbeddingService>,
-        embeddingRoleResolvers: List<EmbeddingRoleResolver> = emptyList(),
-        credentialEmbeddingServiceFactories: List<CredentialEmbeddingServiceFactory> = emptyList(),
+        roleResolvers: List<RoleResolver<*, *>> = emptyList(),
+        modelPlatforms: List<ModelPlatform> = emptyList(),
     ) = ConfigurableModelProvider(
         llms = listOf(defaultLlm),
         embeddingServices = embeddings,
         properties = properties,
-        embeddingRoleResolvers = embeddingRoleResolvers,
-        credentialEmbeddingServiceFactories = credentialEmbeddingServiceFactories,
+        roleResolvers = roleResolvers,
+        modelPlatforms = modelPlatforms,
     )
 
     /**
@@ -132,13 +132,13 @@ class EmbeddingRoleResolutionTest {
             embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
         ),
         listOf(placeholder),
-        embeddingRoleResolvers = listOf(
-            EmbeddingRoleResolver { _, _ ->
-                EmbeddingRoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
+        roleResolvers = listOf(
+            RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                RoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
             },
         ),
-        credentialEmbeddingServiceFactories = listOf(
-            CredentialEmbeddingServiceFactory { credential, model ->
+        modelPlatforms = listOf(
+            platformBuilding(EmbeddingService.KIND) { credential, model ->
                 FakeEmbeddingService(model, credential.provider, dimensions = LARGE_DIMENSIONS)
             },
         ),
@@ -185,8 +185,8 @@ class EmbeddingRoleResolutionTest {
             val mp = provider(
                 properties,
                 listOf(placeholder),
-                credentialEmbeddingServiceFactories = listOf(
-                    CredentialEmbeddingServiceFactory { credential, model ->
+                modelPlatforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
                         FakeEmbeddingService(model, credential.provider)
                     },
                 ),
@@ -216,9 +216,9 @@ class EmbeddingRoleResolutionTest {
                     embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(placeholder),
-                embeddingRoleResolvers = listOf(
-                    EmbeddingRoleResolver { _, _ ->
-                        storedKey?.let { EmbeddingRoleResolution.Service(FakeEmbeddingService("stored", OPENAI)) }
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                        storedKey?.let { RoleResolution.Service(FakeEmbeddingService("stored", OPENAI)) }
                     },
                 ),
             )
@@ -244,8 +244,8 @@ class EmbeddingRoleResolutionTest {
                     embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
                 ),
                 listOf(placeholder),
-                credentialEmbeddingServiceFactories = listOf(
-                    CredentialEmbeddingServiceFactory { credential, model ->
+                modelPlatforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
                         builds++
                         FakeEmbeddingService(model, credential.provider)
                     },
@@ -264,6 +264,32 @@ class EmbeddingRoleResolutionTest {
                 ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-rotated")),
             ) { mp.getEmbeddingService(criteria) }
             assertEquals(2, builds, "a rotated key must not reuse the service built for the old one")
+        }
+
+        @Test
+        fun `a platform that builds only chat models is not asked to build an embedding model`() {
+            var chatPlatformAsked = false
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+                ),
+                listOf(placeholder),
+                modelPlatforms = listOf(
+                    platformBuilding(LlmService.KIND) { _, _ ->
+                        chatPlatformAsked = true
+                        defaultLlm
+                    },
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
+                        FakeEmbeddingService(model, credential.provider)
+                    },
+                ),
+            )
+            val resolved = ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-user")),
+            ) { mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)) }
+            assertEquals(SMALL_MODEL, resolved.name)
+            assertFalse(chatPlatformAsked, "an embedding key must not reach a platform that builds only chat models")
         }
     }
 
@@ -290,9 +316,9 @@ class EmbeddingRoleResolutionTest {
                     embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(small, mistral),
-                embeddingRoleResolvers = listOf(
-                    EmbeddingRoleResolver { role, _ ->
-                        if (role == DOCUMENTS_ROLE) EmbeddingRoleResolution.Model(MISTRAL_MODEL) else null
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { role, _ ->
+                        if (role == DOCUMENTS_ROLE) RoleResolution.Bound(ModelName(MISTRAL_MODEL)) else null
                     },
                 ),
             )
@@ -332,7 +358,7 @@ class EmbeddingRoleResolutionTest {
 
         /**
          * A chat resolver must never be consulted for an embedding role, which is the whole reason
-         * [EmbeddingRoleResolution] is a separate type from [RoleResolution].
+         * a [RoleResolver] says which [ModelKind] it answers for.
          */
         @Test
         fun `a chat role resolver is not asked about an embedding role of the same name`() {
@@ -345,7 +371,7 @@ class EmbeddingRoleResolutionTest {
                     embeddingServices = mapOf("shared-name" to SMALL_MODEL),
                 ),
                 roleResolvers = listOf(
-                    RoleResolver { _, _ ->
+                    RoleResolver.of(LlmService.KIND) { _, _ ->
                         chatResolverAsked = true
                         RoleResolution.Service(defaultLlm)
                     },
@@ -446,6 +472,52 @@ class EmbeddingRoleResolutionTest {
             // Building can reach the provider to observe the model's width; re-embedding a corpus
             // must not pay for that per call.
             assertSame(first, second)
+        }
+
+        @Test
+        fun `an unregistered name throws when the default role names a model instead of a key`() {
+            // The default role is answered with a model of its own, not with a key. A model of its
+            // own is not the model the caller named, and there is no key to build the named model
+            // on, so asking for that name throws.
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                ),
+                listOf(small),
+                modelPlatforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
+                        FakeEmbeddingService(model, credential.provider)
+                    },
+                ),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            }
+        }
+
+        @Test
+        fun `an unregistered name throws when no model platform builds it on the default role's key`() {
+            // The default role is answered with a key, but the only model platform builds nothing,
+            // so nothing can serve the named model and asking for it throws.
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+                ),
+                listOf(placeholder),
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                        RoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
+                    },
+                ),
+                modelPlatforms = listOf(platformBuilding(EmbeddingService.KIND) { _, _ -> null }),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            }
         }
     }
 
@@ -597,7 +669,7 @@ class EmbeddingRoleResolutionTest {
             }
             val message = events.single { it.level == Level.WARN }.formattedMessage
             assertTrue(message.contains("No embedding model is configured"), message)
-            assertTrue(message.contains("CHOICE not yet made"), message)
+            assertTrue(message.contains("No embedding model has been chosen yet"), message)
             assertFalse(message.contains("provider API key"), message)
         }
 
@@ -610,7 +682,7 @@ class EmbeddingRoleResolutionTest {
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
             assertTrue(
-                events.single { it.level == Level.WARN }.formattedMessage.contains("unset or empty"),
+                events.single { it.level == Level.WARN }.formattedMessage.contains("unset or blank"),
                 "an empty override is how a container passes 'no value', and must not read as a typo",
             )
         }
@@ -628,13 +700,13 @@ class EmbeddingRoleResolutionTest {
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
             assertTrue(
-                events.any { it.formattedMessage.contains("is a role, and will be resolved per call") },
+                events.any { it.formattedMessage.contains("is a role and is resolved on each call") },
                 events.joinToString { it.formattedMessage },
             )
             // Startup still reports that the role's model is not registered yet — that is accurate
             // and useful. What must NOT appear is the fallback blaming the default itself.
             assertTrue(
-                events.none { it.formattedMessage.contains("is not registered; falling back") },
+                events.none { it.formattedMessage.contains("placeholder is used instead") },
                 events.joinToString { it.formattedMessage },
             )
         }
@@ -680,7 +752,7 @@ class EmbeddingRoleResolutionTest {
             )
             assertEquals(
                 1,
-                events.count { it.formattedMessage.contains("is not registered; falling back") },
+                events.count { it.formattedMessage.contains("placeholder is used instead") },
                 "suppression must be per reason, not per process",
             )
         }
@@ -772,15 +844,16 @@ class EmbeddingRoleResolutionTest {
 
         @Test
         fun `the nested map wins over the flat one for the active provider`() {
-            val resolver = ConfigurableEmbeddingRoleResolver(
-                ConfigurableModelProviderProperties(
-                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
-                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(MISTRAL to MISTRAL_MODEL)),
-                ),
-            ) { OPENAI }
-            assertEquals(MISTRAL_MODEL, resolver.configuredModelFor(DOCUMENTS_ROLE, MISTRAL))
-            assertEquals(SMALL_MODEL, resolver.configuredModelFor(DOCUMENTS_ROLE, OPENAI))
-            assertNull(resolver.configuredModelFor("no-such-role", OPENAI))
+            val roles = ConfigurableModelProviderProperties(
+                embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(MISTRAL to MISTRAL_MODEL)),
+            ).embeddingRoleBindings()
+            // Mistral has a nested entry, so that entry is used.
+            assertEquals(MISTRAL_MODEL, roles.configuredFor(DOCUMENTS_ROLE, MISTRAL)?.modelName)
+            // OpenAI has no nested entry for the role, so the flat map answers.
+            assertEquals(SMALL_MODEL, roles.configuredFor(DOCUMENTS_ROLE, OPENAI)?.modelName)
+            // A role in neither map has no binding.
+            assertNull(roles.configuredFor("no-such-role", OPENAI))
         }
     }
 }

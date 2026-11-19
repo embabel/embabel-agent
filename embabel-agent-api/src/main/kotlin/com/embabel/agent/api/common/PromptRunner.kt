@@ -38,7 +38,6 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
-import com.embabel.common.core.thinking.ThinkingCapability
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
@@ -451,47 +450,37 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     }
 
     /**
-     * Check if thinking extraction capabilities are supported by the underlying implementation.
+     * What the provider integration reports about thinking for the selected model.
      *
-     * Thinking capabilities allow extraction of thinking blocks (like `<think>...</think>`)
-     * from LLM responses and provide access to both the result and the extracted thinking content.
-     * Always check this before calling thinking() to avoid exceptions.
+     * This is not a gate, and [thinking] does not consult it. Thinking extraction is prompt
+     * based, so it works on any runner that implements [thinking], whatever this returns. The value is set
+     * per provider factory, not per model, so it is false for some models that do reason, such
+     * as DeepSeek's and Mistral's.
      *
-     * Note: Thinking and streaming capabilities are mutually exclusive.
-     *
-     * @return true if thinking extraction is supported, false if thinking is not available
+     * @return what the provider reports, or false for a runner that does not implement [thinking]
      */
+    @Deprecated(
+        message = "Not a gate: thinking() does not consult it. The runner returned by Ai implements thinking() for any model; a runner that does not throws UnsupportedOperationException.",
+    )
     fun supportsThinking(): Boolean = false
 
     /**
      * Return a [PromptRunner.Thinking] for extracting thinking blocks.
-     * Throws an exception if the underlying LLM does not support thinking extraction.
-     * Use [supportsThinking] to check availability before calling.
+     *
+     * The runner returned by `Ai` implements this for any model, so callers need no check before
+     * calling it. This default throws [UnsupportedOperationException], so a custom runner that
+     * offers thinking overrides it.
      *
      * @return thinking operations returning results with extracted reasoning
-     * @throws UnsupportedOperationException if thinking is not supported
+     * @throws UnsupportedOperationException if this runner does not implement thinking
      */
     fun thinking(): Thinking {
-        if (!supportsThinking()) {
-            throw UnsupportedOperationException(
-                """
-                Thinking not supported by this PromptRunner implementation.
-                Check supportsThinking() before calling withThinking().
-                """.trimIndent()
-            )
-        }
-
-        val thinking = llm?.thinking
-        require(thinking != null && thinking != com.embabel.common.ai.model.Thinking.NONE) {
+        throw UnsupportedOperationException(
             """
-            Thinking capability requires thinking to be enabled in LlmOptions.
-            Use withLlm(LlmOptions.withThinking(Thinking.withExtraction()))
+            Thinking not supported by this PromptRunner implementation.
+            A runner that supports thinking overrides thinking(). The runner returned by Ai does.
             """.trimIndent()
-        }
-
-        // For implementations that support thinking but haven't overridden withThinking(),
-        // they should provide their own implementation
-        error("Implementation error: supportsThinking() returned true but withThinking() not overridden")
+        )
     }
 
     override fun respond(
@@ -803,11 +792,11 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * Provides access to:
      *
      * - Creating objects or text with thinking extraction
-     * - Processing multimodal content with thinkingg
+     * - Processing multimodal content with thinking
      *
      * Instances are obtained via [PromptRunner.thinking].
      */
-    interface Thinking : ThinkingCapability {
+    interface Thinking {
 
         /**
          * Generate text with thinking block extraction.
