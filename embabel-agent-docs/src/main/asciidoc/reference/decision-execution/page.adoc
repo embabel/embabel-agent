@@ -211,9 +211,27 @@ Pass a service built at run time, such as a per-user service, to `using(service)
 A `ModelRegistry` groups registered models into families. Each family is a capability interface that extends `ModelCapability`, declared with `family(type, label)`.
 The label names the family in messages.
 A model is in every family whose interface it implements.
+
+[graphviz, embabel_model_registry.dot, png]
+----
+include::../diagrams/architecture/embabel_model_registry.dot[]
+----
+
+`DecisionService` extends `ClassificationService`, so a decision service is in both families.
+Each selector returns it as that family's type, without a cast:
+
+[source,kotlin]
+----
+val decide: DecisionService = registry.decisions().named("jev")
+val classify: ClassificationService = registry.classifications().named("jev") // the same service
+----
+
+A new kind of model is one more family on the same registry: a capability interface and a `family(type, label)` call, not another registry.
+
 Each family has a default and role bindings that resolve as described above, and `select(type)` returns its `ServiceSelector`.
 A `ModelSource` creates models by name on first lookup. The decision registry wraps each `DecisionModelProvider` in a `ModelSource`.
 A family asks only the sources whose declared `type` has its capability, so declare one source per capability.
+When two sources serve the same name, each family takes it from the first of its own sources, both when the registry checks defaults and roles at build time and when it looks the name up.
 
 [source,kotlin]
 ----
