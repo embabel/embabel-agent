@@ -377,6 +377,30 @@ class ModelRegistryTest {
         assertSame(animator, registry.select(Animation::class.java).named("x"))
     }
 
+    @Test
+    fun `a default naming a model a fitting source serves builds when a source of another type lists the name first`() {
+        // The drawing source lists "x" before the animation source does. Lookup asks only sources that
+        // fit the family, so the build must judge the name the same way.
+        val drawings = NamedSource("drawings", "x")
+        val animator = Animator()
+        val animationSource = object : ModelSource<Drawing> {
+            override val provider = "animations"
+            override val type = Animation::class.java
+            override fun modelNames() = listOf("x")
+            override fun modelNamed(name: String): Drawing? = if (name == "x") animator else null
+        }
+        val registry = builder()
+            .source(drawings)
+            .source(animationSource)
+            .defaultFor(Animation::class.java, "x")
+            .role(Animation::class.java, "fast", "x")
+            .build()
+
+        assertSame(animator, registry.select(Animation::class.java).defaultService())
+        assertSame(animator, registry.select(Animation::class.java).byRole("fast"))
+        assertTrue(drawings.built.isEmpty())
+    }
+
     /** Serves drawing models under the given names, from a provider with the given name. */
     private class NamedSource(override val provider: String, private vararg val names: String) : ModelSource<Drawing> {
         /** The models this source has built, in the order it built them. */

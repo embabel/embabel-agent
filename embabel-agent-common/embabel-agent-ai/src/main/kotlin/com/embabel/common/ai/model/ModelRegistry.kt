@@ -235,19 +235,15 @@ class ModelRegistry<M : ModelCapability> private constructor(
             requireNotNull(declared[type]) { "declare the family for ${type.name} before its defaults and roles" }
 
         /**
-         * Groups model names by source, excluding names held by registered models and keeping names
-         * from the first source that supplies them.
+         * Groups model names by source, excluding names held by registered models. Which source a
+         * shared name belongs to depends on the family, so [SourceModels] decides that per family.
          */
-        private fun sourceModels(sources: List<ModelSource<M>>, models: Map<String, M>): SourceModels {
-            val claimedModelNames = HashSet<String>(models.keys)
-            return SourceModels(
-                // add returns false for a name a registered model or an earlier source already has,
-                // so the filter keeps only names this source is the first to serve.
-                sources.map { source -> SourceGroup(source.provider, source.type, source.modelNames().filter(claimedModelNames::add)) }
-                    // Drop a source whose names are all taken, so messages do not list it with no names.
+        private fun sourceModels(sources: List<ModelSource<M>>, models: Map<String, M>): SourceModels =
+            SourceModels(
+                sources.map { source -> SourceGroup(source.provider, source.type, source.modelNames().filterNot(models::containsKey)) }
+                    // Drop a source whose names are all registered, so messages do not list it with no names.
                     .filter { it.names.isNotEmpty() },
             )
-        }
 
         /**
          * Validates the registrations and turns them into a name-to-model map.
@@ -379,7 +375,17 @@ class ModelRegistry<M : ModelCapability> private constructor(
         /** Lists the models fitting [type] by provider, for example `llm [a, b]; TypeSafe [c]`, or `none`. */
         fun describeFitting(type: Class<*>): String = describe(fitting(type))
 
-        private fun fitting(type: Class<*>) = groups.filter { type.isAssignableFrom(it.type) }
+        /**
+         * The sources whose models have [type], each with only the names no earlier fitting source
+         * serves. Lookup asks fitting sources in order, so a name belongs to the first that serves it.
+         */
+        private fun fitting(type: Class<*>): List<SourceGroup> {
+            val claimed = HashSet<String>()
+            return groups.filter { type.isAssignableFrom(it.type) }
+                // add returns false for a name an earlier fitting source already serves.
+                .map { SourceGroup(it.provider, it.type, it.names.filter(claimed::add)) }
+                .filter { it.names.isNotEmpty() }
+        }
 
         private fun describe(groups: List<SourceGroup>): String =
             if (groups.isEmpty()) "none" else groups.joinToString("; ") { "${it.provider} ${it.names}" }
