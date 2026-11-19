@@ -3,11 +3,12 @@
 
 This section lists the changes to make when you upgrade from a 1.5.x release to 2.0.
 It applies to code that implements the model SPI: a custom `LlmService`, a `RoleResolver`, a factory that builds models from a user's key, or a source of locally served models.
+It also applies to code that calls `thinking()` or implements a `PromptRunner` with thinking.
 
 These things do not change:
 
 - **YAML configuration.** The keys under `embabel.models`, such as `default-llm`, `default-embedding-model`, `llms`, `roles`, `embedding-services` and `embedding-roles`, have the same names and the same meaning.
-- **Calling code.** `Ai`, `PromptRunner`, `ModelProvider` and `EmbeddingService.embed` have the same methods. Code that only calls them compiles and behaves as before. Code that calls a `ServiceSelector`, such as `ai.decisions().named(...)`, must be recompiled; see <<reference.upgrading.service-selector>>.
+- **Calling code.** `Ai`, `PromptRunner`, `ModelProvider` and `EmbeddingService.embed` have the same methods. Code that only calls them compiles and behaves as before, except for the `thinking()` changes in the table below. Code that calls a `ServiceSelector`, such as `ai.decisions().named(...)`, must be recompiled; see <<reference.upgrading.service-selector>>.
 - **`CredentialEndpointResolver`.** A BYOK application that only registers `CredentialEndpointResolver` beans needs no change.
 
 If your application uses none of the types in the table below, there is nothing to migrate.
@@ -120,6 +121,18 @@ The "Shipped in" column is the first release that contained the removed type or 
 |`LocalModelCatalog.servedNames(LocalModelKind)`
 |`LocalModelCatalog.servedNames(ModelKind)`
 |1.5.3
+
+|`ThinkingCapability`, the empty marker interface
+|`PromptRunner.Thinking`, which `thinking()` returns. The runner returned by `Ai` implements `thinking()`.
+|0.3.2
+
+|`IllegalArgumentException` and `IllegalStateException` from `PromptRunner`'s default `thinking()`
+|Catch `UnsupportedOperationException`. The default now always throws it. It threw `UnsupportedOperationException` before too, but only when `supportsThinking()` was false; otherwise it threw `IllegalArgumentException` when thinking was not enabled in the runner's `LlmOptions`, and `IllegalStateException` when it was. The runner returned by `Ai` implements `thinking()`, so its behaviour has not changed.
+|0.3.3
+
+|`PromptRunner.supportsThinking()` as a check before `thinking()`, now deprecated
+|Call `thinking()` on the runner returned by `Ai`; it needs no check. `thinking()` does not consult `supportsThinking()`, which is set per provider and is false for some models that reason.
+|0.3.2
 
 |`ConfigurableModelProvider` constructor parameters `credentialLlmServiceFactories` (1.5.1), `embeddingRoleResolvers` and `credentialEmbeddingServiceFactories` (1.5.3), and the type of `roleResolvers`, which was `List<RoleResolver>`
 |`roleResolvers: List<RoleResolver<*, *>>`, which holds the resolvers of both kinds, and `modelPlatforms: List<ModelPlatform>`

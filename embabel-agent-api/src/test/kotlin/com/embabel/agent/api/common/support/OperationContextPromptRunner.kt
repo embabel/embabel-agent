@@ -324,8 +324,6 @@ internal data class OperationContextPromptRunner(
      * @return PromptRunner.Thinking for executing prompts with thinking extraction
      * @throws UnsupportedOperationException if the underlying LLM operations don't support thinking extraction
      */
-    override fun supportsThinking(): Boolean = true
-
     override fun thinking(): PromptRunner.Thinking {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
@@ -339,7 +337,7 @@ internal data class OperationContextPromptRunner(
             )
         }
 
-        // Auto-enable thinking extraction when withThinking() is called
+        // Auto-enable thinking extraction when thinking() is called
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
 
         return ThinkingPromptRunnerOperationsImpl(

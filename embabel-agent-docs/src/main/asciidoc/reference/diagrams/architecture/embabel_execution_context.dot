@@ -21,7 +21,7 @@ digraph ExecutionContext {
     LlmOptions [fillcolor=lightcyan, label="LlmOptions\n(Model configuration)"];
     
     // Thinking capability
-    ThinkingPromptRunnerOperations [fillcolor=lightsteelblue, label="ThinkingPromptRunnerOperations\n(Thinking-aware operations)"];
+    PromptRunnerThinking [fillcolor=lightsteelblue, label="PromptRunner.Thinking\n(Thinking operations)"];
     ThinkingResponse [fillcolor=lightpink, label="ThinkingResponse\n(Result + thinking blocks)"];
     
     // Tool system
@@ -48,8 +48,8 @@ digraph ExecutionContext {
     PromptRunner -> LlmOptions [label="configured by"];
     
     // Thinking integration
-    PromptRunner -> ThinkingPromptRunnerOperations [label="withThinking()"];
-    ThinkingPromptRunnerOperations -> ThinkingResponse [label="returns"];
+    PromptRunner -> PromptRunnerThinking [label="thinking()"];
+    PromptRunnerThinking -> ThinkingResponse [label="returns"];
     
     // Tool integration relationships
     PromptRunner -> ToolGroup [label="with tool groups"];
