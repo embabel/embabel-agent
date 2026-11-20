@@ -490,6 +490,8 @@ class OllamaOptionsConverter(
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .topK(options.topK)
+            // Ollama's num_predict is the maximum number of tokens to generate
+            // (https://docs.ollama.com/modelfile#valid-parameters-and-values), i.e. max_tokens.
             .numPredict(options.maxTokens)
         toThinkOption(options.thinking)?.let { builder.thinkOption(it) }
         return builder.build()
