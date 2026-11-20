@@ -17,10 +17,21 @@ package com.embabel.agent.tools.file
 
 import com.embabel.common.util.StringTransformer
 
+data class FileToolStats(
+    val numberOfChanges: Int,
+    val bytesReceived: Long,
+)
+
 /**
  * Read and Write file tools. Extend FileReadTools for safe read only use
  */
 interface FileTools : FileReadTools, FileWriteTools {
+
+    val fileToolStats: FileToolStats
+        get() = FileToolStats(
+            numberOfChanges = getChanges().size,
+            bytesReceived = getReads().sumOf { it.bytesReceived },
+        )
 
     override fun getPathsAccessed(): List<String> = (getPathsRead() + getChanges().map { it.path }).distinct()
 
