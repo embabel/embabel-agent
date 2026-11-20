@@ -34,6 +34,7 @@ import com.openai.core.http.Headers
 import com.openai.core.http.HttpClient
 import com.openai.core.http.HttpRequest
 import com.openai.core.http.HttpResponse
+import com.openai.models.responses.EasyInputMessage
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseError
@@ -282,23 +283,25 @@ class OpenAiResponsesChatModelTest {
         }
 
         /**
-         * The Responses API has no system role: a system message carried as an input item is
-         * treated as ordinary user text, quietly losing its authority over the model.
+         * From GPT-6.2 the API appends top-level `instructions` after `input` and never caches them.
+         * The system prompt must lead `input` as a `developer` message so it keeps its place and
+         * its authority, and stays in the cached prefix.
          */
         @Test
-        fun `system messages become instructions, everything else becomes input`() {
+        fun `system messages lead the input as one developer message`() {
             val params = capture(
                 Prompt(
-                    listOf(SystemMessage("You are terse."), UserMessage("Hello")),
-                    OpenAiChatOptions.builder().model(OpenAiModels.GPT_5_PRO).build(),
+                    listOf(UserMessage("Hello"), SystemMessage("You are terse."), SystemMessage("Answer in English.")),
+                    OpenAiChatOptions.builder().model(OpenAiModels.GPT_62_ASTRA).build(),
                 )
             )
 
-            assertEquals("You are terse.", params.instructions().orElse(null))
+            assertTrue(params.instructions().isEmpty, "Top-level instructions follow the input from GPT-6.2")
 
-            val input = params.input().orElseThrow().asResponse()
-            assertEquals(1, input.size, "The system message must not also appear as input")
-            assertEquals("Hello", input.single().easyInputMessage().orElseThrow().content().asTextInput())
+            val input = params.input().orElseThrow().asResponse().map { it.easyInputMessage().orElseThrow() }
+            assertEquals(listOf(EasyInputMessage.Role.DEVELOPER, EasyInputMessage.Role.USER), input.map { it.role() })
+            assertEquals("You are terse.\nAnswer in English.", input[0].content().asTextInput())
+            assertEquals("Hello", input[1].content().asTextInput())
         }
 
         /**
