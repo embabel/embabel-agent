@@ -157,6 +157,7 @@ class GoogleGenAiAllModelsIT(
          */
         private val EXPECTED_CHAT_MODELS = listOf(
             GoogleGenAiModels.GEMINI_4_HYDROGEN,
+            GoogleGenAiModels.GEMINI_4_NEON,
             GoogleGenAiModels.GEMINI_4_CARBON,
             GoogleGenAiModels.GEMINI_4_ARGON,
             GoogleGenAiModels.GEMINI_3_8_FLASH,

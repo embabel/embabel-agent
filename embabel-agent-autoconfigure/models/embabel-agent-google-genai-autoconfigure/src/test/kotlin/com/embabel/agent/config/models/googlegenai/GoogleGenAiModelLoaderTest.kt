@@ -108,6 +108,7 @@ class GoogleGenAiModelLoaderTest {
         val modelIds = result.models.map { it.modelId }
         listOf(
             GoogleGenAiModels.GEMINI_4_HYDROGEN,
+            GoogleGenAiModels.GEMINI_4_NEON,
             GoogleGenAiModels.GEMINI_4_CARBON,
             GoogleGenAiModels.GEMINI_4_ARGON,
             GoogleGenAiModels.GEMINI_3_8_FLASH,
@@ -137,6 +138,15 @@ class GoogleGenAiModelLoaderTest {
 
         assertEquals(1.5, model.pricingModel?.usdPer1mInputTokens)
         assertEquals(7.5, model.pricingModel?.usdPer1mOutputTokens)
+    }
+
+    @Test
+    fun `Gemini 4 Neon should have its price`() {
+        val model = GoogleGenAiModelLoader().loadAutoConfigMetadata().models
+            .single { it.modelId == GoogleGenAiModels.GEMINI_4_NEON }
+
+        assertEquals(3.0, model.pricingModel?.usdPer1mInputTokens)
+        assertEquals(15.0, model.pricingModel?.usdPer1mOutputTokens)
     }
 
     @Test
@@ -431,7 +441,7 @@ class GoogleGenAiModelLoaderTest {
 
     @Test
     @Suppress("DEPRECATION")
-    fun `should load all 15 expected Google GenAI models`() {
+    fun `should load all 16 expected Google GenAI models`() {
 
         // Arrange
         val loader = GoogleGenAiModelLoader()
@@ -440,10 +450,11 @@ class GoogleGenAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(15, result.models.size, "Should load exactly 15 Google GenAI models")
+        assertEquals(16, result.models.size, "Should load exactly 16 Google GenAI models")
 
         val expectedModelIds = listOf(
             GoogleGenAiModels.GEMINI_4_HYDROGEN,
+            GoogleGenAiModels.GEMINI_4_NEON,
             GoogleGenAiModels.GEMINI_4_CARBON,
             GoogleGenAiModels.GEMINI_4_ARGON,
             GoogleGenAiModels.GEMINI_3_8_FLASH,

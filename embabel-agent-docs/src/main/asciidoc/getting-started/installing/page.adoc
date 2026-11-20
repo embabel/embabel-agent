@@ -615,6 +615,7 @@ dependencies {
 
 Available LLM models include:
 
+* `gemini-4-neon` - Gemini 4 model, between Carbon and Hydrogen
 * `gemini-4-carbon` - Latest Gemini 4 model
 * `gemini-4-argon` - Gemini 4 model
 * `gemini-3.8-flash` - Recommended Flash model for new projects
