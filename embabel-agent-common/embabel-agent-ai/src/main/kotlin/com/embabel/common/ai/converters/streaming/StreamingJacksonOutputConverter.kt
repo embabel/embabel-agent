@@ -19,6 +19,7 @@ import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.streaming.support.ThinkingDetector
 import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.streaming.ThinkingState
+import com.embabel.common.core.thinking.ThinkingTags
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
 import org.springframework.core.ParameterizedTypeReference
@@ -82,13 +83,13 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
      * Supports both object lines and thinking blocks.
      * Uses resilient error handling - logs warnings for individual line failures but continues processing.
      *
-     * Before classification, a line holding reasoning followed by a JSON object on the same line
-     * is split into two lines (see [splitReasoningAndTrailingJson]), so the object is emitted
+     * Before classification, a line holding a JSON object directly after a closing thinking tag
+     * is split into two lines (see [splitAfterClosingThinkingTag]), so the object is emitted
      * instead of being lost inside the reasoning. The reactive pipeline below is unchanged:
      * each line still produces at most one event.
      */
     fun convertStreamWithThinking(text: String): Flux<StreamingEvent<T>> {
-        return Flux.fromIterable(text.lines().flatMap { splitReasoningAndTrailingJson(it) })
+        return Flux.fromIterable(text.lines().flatMap { splitAfterClosingThinkingTag(it) })
             .filter { it.isNotBlank() }
             .handle { line, sink ->
                 try {
@@ -119,91 +120,104 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
     }
 
     /**
-     * Splits a line that holds reasoning followed by a JSON object on the same line into two
-     * lines: the reasoning, then the JSON object. See issue #2267.
+     * Splits a line that holds a JSON object directly after a closing thinking tag into two lines:
+     * the reasoning up to and including the tag, then the JSON object. See issue #2267.
      *
      * Two forms are handled:
-     * - plain text before the JSON, e.g. `I'll check all three options.{"name": "x"}`. This
-     *   typically forms in a tool-calling stream: text written before a tool call has no trailing
-     *   line break, so the line buffer joins it to the first JSON object of the next turn.
-     * - a thinking block before the JSON, e.g. `<think>reasoning</think>{"name": "x"}`.
+     * - a complete thinking block, then JSON: `<think>reasoning</think>{"name": "x"}`
+     * - the end of a multi-line thinking block, then JSON: `last step</think>{"name": "x"}`
      *
      * Without the split, the whole line is classified as thinking and the object is lost.
      *
+     * Why only after a closing tag: [ThinkingDetector] is stateless and sees one line at a time,
+     * so it cannot tell whether a thinking block was opened on an earlier line. A closing tag on
+     * the same line proves the block has ended, so whatever follows it is outside any block.
+     * Plain text followed by JSON, e.g. `Consider {"name": "x"}`, may be a line inside an open
+     * block, where the JSON is only an example, so it is left unchanged. Handling it needs state
+     * across lines (see discussion #1881).
+     *
      * The split only inserts the line break the model left out. It adds no classification rules:
      * both parts are classified afterwards by [ThinkingDetector], exactly as if the model had written
-     * them on separate lines. The line is returned unchanged unless [isSplitPoint] accepts a split.
-     *
-     * Candidates are tried from the leftmost `{`, so a `{` inside the reasoning text, such as
-     * `options {a, b}: {"name": "x"}`, does not prevent the split.
+     * them on separate lines. The line is returned unchanged unless [isSplitPoint] accepts the JSON.
      *
      * @param line one complete line of the streamed response
      * @return the line unchanged, or the reasoning line followed by the JSON line
      */
-    private fun splitReasoningAndTrailingJson(line: String): List<String> {
+    private fun splitAfterClosingThinkingTag(line: String): List<String> {
         // Work on the line without surrounding whitespace; rawChunksToLines already trims, tests may not.
         val trimmed = line.trim()
         // Only a line ending with '}' can end with a JSON object; anything else is returned as is.
         if (!trimmed.endsWith('}')) return listOf(line)
         // The detector already classifies this line as JSON: nothing to split.
         if (ThinkingDetector.detectThinkingState(trimmed) == ThinkingState.NONE) return listOf(line)
-        // A legacy "//THINKING:" line is thinking up to its end, so JSON after it belongs to the reasoning.
-        // Same literal as ThinkingDetector, which treats the whole line after the prefix as thinking (BOTH).
-        if (trimmed.startsWith("//THINKING:")) {
-            // Record why a line ending with '}' was kept whole, e.g. "//THINKING: text {"name":"x"}".
-            logger.debug("Legacy thinking line ends with '}', not split: {}", trimmed)
+        // Index just past the last closing thinking tag, or -1 if the line has none.
+        //   "<think>r</think>{"name":"x"}"   -> 16, the index of '{'
+        //   "last step</think>{"name":"x"}"  -> 17, the index of '{'
+        //   "Consider {"name":"x"}"          -> -1, no closing tag
+        val afterTag = indexAfterLastClosingTag(trimmed)
+        // No closing tag: the line may be inside an open thinking block, so it is left unchanged (#1881).
+        if (afterTag < 0) return listOf(line)
+        // Everything up to and including the closing tag is the reasoning, e.g. "<think>r</think>".
+        val reasoning = trimmed.substring(0, afterTag).trim()
+        // Everything after the closing tag must be the whole JSON object, e.g. {"name":"x"}.
+        val json = trimmed.substring(afterTag).trim()
+        // Split only if the JSON part passes every check.
+        if (!isSplitPoint(json)) {
+            // Record why a line with a closing tag was kept whole, e.g. "<think>r</think>{"other":1}".
+            logger.debug("Text after the closing thinking tag is not a JSON object of the target type, not split: {}", trimmed)
             return listOf(line)
         }
-        // First candidate: the first '{' after position 0, so the reasoning part is never empty.
-        var start = trimmed.indexOf('{', startIndex = 1)
-        // Try each '{' from left to right; the leftmost valid one gives the whole trailing object.
-        while (start > 0) {
-            // Everything before the candidate '{' is the reasoning, e.g. "my reasoning".
-            val reasoning = trimmed.substring(0, start).trim()
-            // Everything from the candidate '{' to the end of the line, e.g. {"name":"x"}.
-            val json = trimmed.substring(start)
-            // Split here only if the reasoning/JSON pair passes every check.
-            if (isSplitPoint(reasoning, json)) {
-                // Record the split, e.g. reasoning='my reasoning', json='{"name":"x"}'.
-                logger.debug("Split reasoning and JSON object on the same line: reasoning='{}', json='{}'", reasoning, json)
-                // Reasoning first, then JSON: the order the model wrote them.
-                //   "my reasoning {"name":"x"}" -> ["my reasoning", "{"name":"x"}"]
-                return listOf(reasoning, json)
-            }
-            // This '{' was inside the reasoning, e.g. "options {a, b}: {"name":"x"}"; try the next '{'.
-            start = trimmed.indexOf('{', start + 1)
-        }
-        // No candidate qualified: keep today's behaviour, the whole line is reasoning.
-        // Record it, e.g. "options {a, b}" or "text {"other":1}" (valid JSON, wrong shape for T).
-        logger.debug("Line ends with '}' but no JSON object of the target type follows the reasoning, not split: {}", trimmed)
-        return listOf(line)
+        // Record the split, e.g. reasoning='<think>r</think>', json='{"name":"x"}'.
+        logger.debug("Split reasoning and JSON object on the same line: reasoning='{}', json='{}'", reasoning, json)
+        // Reasoning first, then JSON: the order the model wrote them.
+        //   "<think>r</think>{"name":"x"}" -> ["<think>r</think>", "{"name":"x"}"]
+        return listOf(reasoning, json)
     }
 
     /**
-     * Whether splitting a line into [reasoning] and [json] is safe: after the split, ThinkingDetector
-     * must classify [reasoning] as thinking and [json] as JSON, and [json] must convert to [T].
+     * Returns the index just past the last closing thinking tag in [line], or -1 if there is none.
+     * When several closing tags appear, the rightmost one wins, so everything after it lies outside
+     * any thinking block on this line.
+     */
+    private fun indexAfterLastClosingTag(line: String): Int {
+        // Start with "not found".
+        var result = -1
+        // Check every tag family: </think>, </analysis>, </thought>, ...
+        for (tag in CLOSING_TAGS) {
+            // Where this tag last occurs, e.g. "</think>" in "<think>r</think>{...}" -> 8; -1 if absent.
+            val tagStart = line.lastIndexOf(tag)
+            // This tag doesn't occur in the line: try the next family.
+            if (tagStart < 0) continue
+            // Position right after the tag, e.g. 8 + "</think>".length (8) -> 16.
+            val tagEnd = tagStart + tag.length
+            // Keep the rightmost end seen so far, e.g. "<analysis>a</analysis><think>b</think>{...}" -> after </think>.
+            if (tagEnd > result) result = tagEnd
+        }
+        // -1 if no closing tag was found, otherwise the index where the JSON candidate starts.
+        return result
+    }
+
+    /**
+     * Whether [json], the text after the closing thinking tag, can be split off safely:
+     * ThinkingDetector must classify it as JSON, and it must convert to [T].
      * Each check returns false (no split) as soon as one fails.
      */
-    private fun isSplitPoint(reasoning: String, json: String): Boolean {
-        // 1. The reasoning must not leave a thinking block open; JSON inside an open block belongs to it.
-        //      "my reasoning"       -> CONTINUATION (no tags)  -> pass
-        //      "<think>r</think>"   -> BOTH (block closed)     -> pass
-        //      "<think>example"     -> START (block open)      -> fail
-        if (ThinkingDetector.detectThinkingState(reasoning) == ThinkingState.START) return false
-
-        // 2. The detector must classify the JSON part as JSON, because handle uses the same detector.
-        //    The detector checks for thinking tags before JSON, so valid JSON holding a tag is thinking to it.
-        //      {"name":"x"}                  -> NONE -> pass
-        //      {"name":"<think>a</think>"}   -> BOTH -> fail (handle would emit Thinking anyway)
+    private fun isSplitPoint(json: String): Boolean {
+        // 1. The detector must classify the JSON part as JSON, because handle uses the same detector.
+        //    Text after the closing tag that is not a whole JSON object is not JSON to it.
+        //      {"name":"x"}                  -> NONE         -> pass
+        //      so <think>b {"name":"x"}      -> CONTINUATION -> fail (text that opens a new block)
+        //      "}                            -> CONTINUATION -> fail (the last closing tag was inside
+        //                                       the JSON, e.g. <think>r</think>{"name":"<think>a</think>"})
         if (ThinkingDetector.detectThinkingState(json) != ThinkingState.NONE) return false
 
-        // 3. The JSON part must parse as a non-empty JSON object. Cheap and silent, so braces in
-        //    ordinary reasoning are rejected before conversion, which logs an ERROR when it fails.
+        // 2. The JSON part must parse as a non-empty JSON object. Cheap and silent, so malformed text
+        //    is rejected before conversion, which logs an ERROR when it fails.
         //      {"name":"x"}   -> pass
         //      {a, b}         -> fail (not JSON)
         if (!isJsonObject(json)) return false
 
-        // 4. The JSON part must convert to T. handle converts it again, and a failure there would end
+        // 3. The JSON part must convert to T. handle converts it again, and a failure there would end
         //    the stream with an error, so splitting only on success adds no new error path.
         //      {"name":"x"}   -> pass
         //      {"other":1}    -> fail (valid JSON, wrong shape for T)
@@ -213,8 +227,8 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
     /**
      * Whether [candidate] parses as a non-empty JSON object.
      *
-     * Used as a cheap filter before [convertsToTarget], so that braces in ordinary reasoning
-     * text, such as `{a, b}`, are rejected without attempting conversion. Conversion failures
+     * Used as a cheap filter before [convertsToTarget], so that text after the closing tag that
+     * is not JSON, such as `{a, b}`, is rejected without attempting conversion. Conversion failures
      * are logged as errors by the parent converter, so this keeps the logs clean.
      */
     private fun isJsonObject(candidate: String): Boolean =
@@ -228,7 +242,7 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
      * Whether [candidate] converts to [T] with this converter's own conversion.
      *
      * Ensures a split only happens when the JSON part will later be emitted as an object,
-     * so valid JSON of a different shape stays in the reasoning as before.
+     * so valid JSON of a different shape leaves the line unchanged, as before.
      */
     private fun convertsToTarget(candidate: String): Boolean =
         try {
@@ -277,5 +291,16 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
            |```${getJsonSchema()}```
            |$exampleFormat
            |""".trimMargin()
+    }
+
+    private companion object {
+        /**
+         * Closing thinking tags, e.g. </think>, </analysis>. Same source and filter as ThinkingDetector:
+         * the legacy prefix and no-prefix entries are not block tags.
+         */
+        val CLOSING_TAGS: List<String> = ThinkingTags.TAG_DEFINITIONS
+            .filterKeys { it !in listOf("legacy_prefix", "no_prefix") }
+            .values
+            .map { it.second }
     }
 }
