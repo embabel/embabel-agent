@@ -15,6 +15,8 @@
  */
 package com.embabel.common.ai.decision
 
+import com.embabel.common.ai.classification.ClassificationRequest
+import com.embabel.common.ai.classification.ClassificationSpec
 import tools.jackson.core.JsonParser
 import tools.jackson.core.JsonToken
 import tools.jackson.databind.DeserializationContext
@@ -22,13 +24,39 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.deser.std.StdDeserializer
 
 /**
- * Reads a decision request from JSON by looking at the whole object. A request has an input or a
- * state, never both, and a creator with one parameter for each would be refused by a mapper that
- * insists on every creator property being present.
+ * Reads a request from JSON by looking at the whole object. A request has an input or a state,
+ * never both, and a creator with one parameter for each would be refused by a mapper that insists
+ * on every creator property being present.
+ *
+ * @param R the request type
+ * @param S the spec type the request holds
+ * @param type the request class
+ * @param specType the spec class
  */
-internal class DecisionRequestDeserializer : StdDeserializer<DecisionRequest>(DecisionRequest::class.java) {
+internal abstract class RequestDeserializer<R : DecisionRequest, S : DecisionSpec>(
+    type: Class<R>,
+    private val specType: Class<S>,
+) : StdDeserializer<R>(type) {
 
-    override fun deserialize(parser: JsonParser, context: DeserializationContext): DecisionRequest {
+    /**
+     * Builds a text request.
+     *
+     * @param input the text the model reasons over
+     * @param spec the questions to answer
+     * @return the request
+     */
+    protected abstract fun text(input: String, spec: S): R
+
+    /**
+     * Builds a structured request.
+     *
+     * @param state the JSON object or array the model reasons over
+     * @param spec the questions to answer
+     * @return the request
+     */
+    protected abstract fun structured(state: JsonNode, spec: S): R
+
+    override fun deserialize(parser: JsonParser, context: DeserializationContext): R {
         val tree = readExactTree(parser, context)
         if (!tree.isObject) return reject(context, "A decision request must be a JSON object")
         return try {
@@ -39,11 +67,11 @@ internal class DecisionRequestDeserializer : StdDeserializer<DecisionRequest>(De
             val input = present(tree, "input")
             val state = present(tree, "state")
             require((input == null) != (state == null)) { "A decision request needs exactly one of 'input' or 'state'" }
-            val questions = context.readTreeAsValue(spec, DecisionSpec::class.java)
+            val questions = context.readTreeAsValue(spec, specType)
             if (state != null) {
-                DecisionRequest.of(state, questions)
+                structured(state, questions)
             } else {
-                DecisionRequest.of(context.readTreeAsValue(input, String::class.java), questions)
+                text(context.readTreeAsValue(input, String::class.java), questions)
             }
         } catch (e: IllegalArgumentException) {
             reject(context, e.message ?: "The decision request is not valid")
@@ -93,9 +121,31 @@ internal class DecisionRequestDeserializer : StdDeserializer<DecisionRequest>(De
      * @param message what is wrong with the request
      */
     private fun reject(context: DeserializationContext, message: String): Nothing =
-        context.reportInputMismatch<Nothing>(DecisionRequest::class.java, "%s", message)
+        context.reportInputMismatch<Nothing>(handledType(), "%s", message)
 
     private companion object {
         private val MEMBERS = setOf("input", "state", "spec")
     }
+}
+
+/** Reads a decision request. */
+internal class DecisionRequestDeserializer :
+    RequestDeserializer<DecisionRequest, DecisionSpec>(DecisionRequest::class.java, DecisionSpec::class.java) {
+
+    override fun text(input: String, spec: DecisionSpec): DecisionRequest = DecisionRequest.of(input, spec)
+
+    override fun structured(state: JsonNode, spec: DecisionSpec): DecisionRequest = DecisionRequest.of(state, spec)
+}
+
+/** Reads a classification request, whose spec must be one choice question. */
+internal class ClassificationRequestDeserializer :
+    RequestDeserializer<ClassificationRequest, ClassificationSpec>(
+        ClassificationRequest::class.java,
+        ClassificationSpec::class.java,
+    ) {
+
+    override fun text(input: String, spec: ClassificationSpec): ClassificationRequest = ClassificationRequest.of(input, spec)
+
+    override fun structured(state: JsonNode, spec: ClassificationSpec): ClassificationRequest =
+        ClassificationRequest.of(state, spec)
 }

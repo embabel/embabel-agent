@@ -17,8 +17,13 @@ package com.embabel.common.ai.decision;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.embabel.common.ai.classification.ClassificationRequest;
+import com.embabel.common.ai.classification.ClassificationResult;
+import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.support.StubDecisionService;
+
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -68,5 +73,29 @@ class StructuredInputJavaTest {
         assertEquals(state, request.getState());
         assertEquals("{\"rule\":\"r\",\"facts\":[1,2]}", request.getInput());
         assertNull(DecisionRequest.of("text", spec).getState());
+    }
+
+    @Test
+    void classifyTakesAStructuredState() {
+        var billing = new ClassificationResult.Selected("billing", PROVENANCE);
+        var classifier = StubDecisionService.builder("triage-stub")
+                .classifying(Set.of("billing", "technical"), billing)
+                .build();
+
+        // tag::classify[]
+        var ticket = JsonMapper.builder().build().createObjectNode();
+        ticket.putObject("ticket").put("subject", "Refund").put("body", "I was charged twice.");
+        ticket.put("plan", "pro");
+
+        var departments = ClassificationSpec.builder()
+                .asking("Which team should handle `ticket.subject`?")
+                .category("billing", "Payments, invoicing, refunds")
+                .category("technical", "Bugs, outages, integrations")
+                .build();
+
+        var result = classifier.classify(ClassificationRequest.of(ticket, departments));
+        // end::classify[]
+
+        assertEquals(billing, result);
     }
 }

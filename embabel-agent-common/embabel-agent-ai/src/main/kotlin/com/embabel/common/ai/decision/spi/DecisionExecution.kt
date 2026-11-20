@@ -362,6 +362,7 @@ internal object DecisionExecution {
     private fun runPerQuestion(service: DecisionService, request: DecisionRequest, propositionHook: Boolean): DecisionResponse {
         val builder = DecisionResponse.builder(request.spec)
         val input = request.input
+        val state = request.state
         for (question in request.spec.questions) {
             if (Thread.currentThread().isInterrupted) {
                 logger.debug(
@@ -385,7 +386,11 @@ internal object DecisionExecution {
                 is ChoiceQuestionSpec -> builder.answer(
                     question,
                     validated(service, question, ClassificationResult.Failure(FailureReason.INVALID_RESPONSE)) {
-                        question.validate(service.classify(ClassificationRequest.of(input, ClassificationSpec.of(question))))
+                        val spec = ClassificationSpec.of(question)
+                        // A structured request stays structured for the service that classifies it.
+                        val classification =
+                            if (state == null) ClassificationRequest.of(input, spec) else ClassificationRequest.of(state, spec)
+                        question.validate(service.classify(classification))
                     },
                 )
 
