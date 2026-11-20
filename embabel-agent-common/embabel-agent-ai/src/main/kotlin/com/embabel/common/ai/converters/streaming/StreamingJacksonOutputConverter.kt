@@ -42,7 +42,7 @@ import java.util.function.Predicate
  * The converter requests JSONL format from LLMs and parses each line as a separate
  * JSON object, emitting them as reactive stream events as they become available.
  */
-class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter<T> {
+open class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter<T> {
 
     private val thinkingEnabled: Boolean
 

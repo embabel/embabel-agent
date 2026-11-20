@@ -34,6 +34,8 @@ import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.EnumConstantDescriptionProvider
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.model.AutoModelSelectionCriteria
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
@@ -43,6 +45,7 @@ import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import tools.jackson.databind.ObjectMapper
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
@@ -80,6 +83,19 @@ abstract class AbstractLlmOperations(
 ) : LlmOperations, StreamingLlmOperationsFactory {
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
+
+    internal open val schemaGeneratorCustomizers: List<SchemaGeneratorCustomizer>
+        get() = emptyList()
+
+    /**
+     * Configures the JSON schema generator of the structured-output converters, streaming or not,
+     * so that a type gets the same schema on both: [EnumConstantDescriptionProvider] first,
+     * then the [schemaGeneratorCustomizers] in order.
+     */
+    internal fun customizeSchemaGenerator(builder: SchemaGeneratorConfigBuilder) {
+        builder.with(EnumConstantDescriptionProvider(objectMapper))
+        schemaGeneratorCustomizers.forEach { it.customize(builder) }
+    }
 
     /**
      * Get timeout in milliseconds from options or default.
@@ -587,6 +603,7 @@ abstract class AbstractLlmOperations(
             objectMapper = objectMapper,
             llmService = llmService,
             toolDecorator = toolDecorator,
+            schemaGeneratorCustomizer = SchemaGeneratorCustomizer(::customizeSchemaGenerator),
         )
     }
 
