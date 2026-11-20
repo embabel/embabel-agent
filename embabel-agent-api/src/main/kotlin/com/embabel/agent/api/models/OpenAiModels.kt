@@ -29,10 +29,12 @@ class OpenAiModels {
 
         // =====================================================================
         // GPT-6 FAMILY (Current Flagship)
-        // Astra is the flagship, 6.1 Sol balances cost, 6.1 Terra is the fast,
-        // efficient tier, Luna is the high-volume tier.
+        // 6.2 Astra is the flagship, 6.2 Sol balances cost, 6.1 Terra is the
+        // fast, efficient tier, Luna is the high-volume tier.
         // =====================================================================
 
+        const val GPT_62_ASTRA = "gpt-6.2-astra"
+        const val GPT_62_SOL = "gpt-6.2-sol"
         const val GPT_6_ASTRA = "gpt-6-astra"
         const val GPT_61_SOL = "gpt-6.1-sol"
         const val GPT_61_TERRA = "gpt-6.1-terra"

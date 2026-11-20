@@ -67,7 +67,7 @@ class OpenAiModelLoaderTest {
             assertFalse(modelNames.contains("gpt53chat"), "GPT-5.3 Chat is retired and must not be listed")
             assertFalse(modelNames.contains("gpt41nano"), "GPT-4.1 Nano is retired and must not be listed")
             assertTrue(
-                modelNames.containsAll(listOf("gpt6astra", "gpt61sol", "gpt61terra", "gpt6sol", "gpt6luna")),
+                modelNames.containsAll(listOf("gpt62astra", "gpt62sol", "gpt6astra", "gpt61sol", "gpt61terra", "gpt6sol", "gpt6luna")),
                 "Should include the GPT-6 family",
             )
 
@@ -75,6 +75,10 @@ class OpenAiModelLoaderTest {
                 shippedCatalogue.models.any { it.pricingModel != null },
                 "At least one model should have pricing information",
             )
+
+            val astra = shippedCatalogue.models.single { it.name == "gpt62astra" }.pricingModel!!
+            assertEquals(0.40, astra.usdPer1mCacheReadInputTokens, "GPT-6.2 Astra bills cached input at its cache rate")
+            assertEquals(10.0, astra.usdPer1mCacheWriteInputTokens)
         }
 
         /**
@@ -702,6 +706,7 @@ class OpenAiModelLoaderTest {
                     OpenAiModels.GPT_5_PRO, OpenAiModels.GPT_52_PRO, OpenAiModels.GPT_54_PRO, OpenAiModels.GPT_55_PRO,
                     OpenAiModels.GPT_54, OpenAiModels.GPT_54_MINI,
                     OpenAiModels.GPT_56_SOL, OpenAiModels.GPT_56_TERRA, OpenAiModels.GPT_56_LUNA,
+                    OpenAiModels.GPT_62_ASTRA, OpenAiModels.GPT_62_SOL,
                     OpenAiModels.GPT_6_ASTRA, OpenAiModels.GPT_61_SOL, OpenAiModels.GPT_61_TERRA, OpenAiModels.GPT_6_SOL, OpenAiModels.GPT_6_LUNA,
                 ),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
@@ -763,6 +768,8 @@ class OpenAiModelLoaderTest {
 
             assertEquals(
                 mapOf(
+                    OpenAiModels.GPT_62_ASTRA to OpenAiApiFormat.RESPONSES,
+                    OpenAiModels.GPT_62_SOL to OpenAiApiFormat.RESPONSES,
                     "gpt-6-astra" to OpenAiApiFormat.RESPONSES,
                     "gpt-6.1-sol" to OpenAiApiFormat.RESPONSES,
                     OpenAiModels.GPT_61_TERRA to OpenAiApiFormat.RESPONSES,

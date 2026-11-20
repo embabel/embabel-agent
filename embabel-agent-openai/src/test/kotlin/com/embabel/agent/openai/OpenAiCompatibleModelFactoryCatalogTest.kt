@@ -109,10 +109,10 @@ class OpenAiCompatibleModelFactoryCatalogTest {
 
     @Test
     fun `a GPT-6 model is served over Responses without the temperature it refuses`() {
-        val service = llm(OpenAiModels.GPT_6_ASTRA)
+        val service = llm(OpenAiModels.GPT_62_ASTRA)
 
         assertTrue(service.chatModel is OpenAiResponsesChatModel)
-        val request = callAtZeroTemperature(service, OpenAiModels.GPT_6_ASTRA)
+        val request = callAtZeroTemperature(service, OpenAiModels.GPT_62_ASTRA)
         assertEquals("/v1/responses", request.path)
         assertFalse(request.body.has("temperature"))
         assertFalse(request.body.has("max_tokens"))
