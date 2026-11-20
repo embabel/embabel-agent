@@ -79,7 +79,7 @@ class AutonomyA2ARequestHandlerObservationTest {
         every { autonomy.agentPlatform } returns mockk<AgentPlatform>(relaxed = true)
         every { autonomy.chooseAndRunAgent(any(), any()) } returns mockk(relaxed = true)
         justRun { agenticEventListener.onPlatformEvent(any()) }
-        justRun { streamingHandler.sendStreamEvent(any(), any(), any()) }
+        justRun { streamingHandler.publishTaskEvent(any(), any()) }
         justRun { streamingHandler.closeStream(any()) }
         registry = TestObservationRegistry.create()
         handler = AutonomyA2ARequestHandler(
@@ -130,7 +130,7 @@ class AutonomyA2ARequestHandlerObservationTest {
 
     @Test
     fun `handleJsonRpcStream delegates to streamingHandler and returns SseEmitter`() {
-        every { streamingHandler.createStream(any(), any(), any()) } returns SseEmitter()
+        every { streamingHandler.createStream(any(), any(), any(), any()) } returns SseEmitter()
 
         val builder = Message.Builder()
             .messageId(UUID.randomUUID().toString())
@@ -150,7 +150,7 @@ class AutonomyA2ARequestHandlerObservationTest {
         var capturedContextId: String? = null
         val latch = java.util.concurrent.CountDownLatch(1)
 
-        every { streamingHandler.createStream(any(), any(), any()) } returns SseEmitter()
+        every { streamingHandler.createStream(any(), any(), any(), any()) } returns SseEmitter()
         every { autonomy.chooseAndRunAgent(any(), any()) } answers {
             // Capture the key value as seen from inside the virtual thread
             capturedContextId = Context.current().get(A2A_CONTEXT_ID_KEY)
