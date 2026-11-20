@@ -202,7 +202,11 @@ internal object ThinkingDetector {
         //   so <think>b {"name":"x"}    -> CONTINUATION -> no split (text that opens a new block)
         //   "}                          -> CONTINUATION -> no split (the last closing tag was inside
         //                                  the JSON, e.g. <think>r</think>{"name":"<think>a</think>"})
-        if (detectThinkingState(json) != ThinkingState.NONE) return null
+        if (detectThinkingState(json) != ThinkingState.NONE) {
+            // Record why a line with a closing tag was kept whole, e.g. "<think>a</think> so <think>b {"name":"x"}".
+            logger.debug("Text after the closing thinking tag is not a JSON object, not split: {}", trimmed)
+            return null
+        }
         // Reasoning first, then JSON: the order the model wrote them.
         return reasoning to json
     }
