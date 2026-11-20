@@ -243,13 +243,18 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             credentialLlmServicesClosed = true
             credentialLlmServices.values.toList().also { credentialLlmServices.clear() }
         }
-        services.forEach(::closeCredentialLlmService)
+        val embeddingServices = synchronized(credentialEmbeddingServices) {
+            credentialEmbeddingServicesClosed = true
+            credentialEmbeddingServices.values.toList().also { credentialEmbeddingServices.clear() }
+        }
+        services.forEach(::closeCredentialService)
+        embeddingServices.forEach(::closeCredentialService)
     }
 
-    private fun closeCredentialLlmService(service: LlmService<*>) {
+    private fun closeCredentialService(service: ModelMetadata) {
         if (service is AutoCloseable) {
             runCatching { service.close() }.onFailure {
-                logger.warn("Could not close credential LLM service '{}'", service.name, it)
+                logger.warn("Could not close credential service '{}'", service.name, it)
             }
         }
     }
@@ -293,6 +298,9 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, EmbeddingService>) =
                 size > properties.credentialServiceCacheSize
         }.let { Collections.synchronizedMap(it) }
+
+    // Guarded by credentialEmbeddingServices, including the check when caching a completed build.
+    private var credentialEmbeddingServicesClosed = false
 
     /**
      * The registered service `default-llm` names directly, or null when it names a role - or a
@@ -564,20 +572,28 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     /**
      * The cached service for this (provider, key, model), or one freshly built and cached.
      *
-     * Read then put rather than computeIfAbsent, for the reason spelled out in the LLM
-     * counterpart: building can reach the provider to observe the model's width, and holding the
-     * map's lock across that would block every unrelated lookup for every other user. A race costs
-     * one redundant build and never a wrong service.
+     * Build outside the cache lock because observing the model's width can reach the provider.
+     * If two requests build the same service, close the one that was never cached.
      *
      * Shared by the two ways a credential reaches a model - a role that named it, and a caller
      * that named it - so the cache is one cache and the locking argument is made once.
      */
     private fun credentialEmbeddingService(credential: ProviderCredential, model: String): EmbeddingService? {
         val key = CredentialModelKey.of(credential, model)
-        return credentialEmbeddingServices[key]
+        return synchronized(credentialEmbeddingServices) {
+            check(!credentialEmbeddingServicesClosed) { "Credential embedding services are closed" }
+            credentialEmbeddingServices[key]
+        }
             ?: credentialEmbeddingServiceFactories
                 .firstNotNullOfOrNull { it.createEmbeddingService(credential, model) }
-                ?.also { credentialEmbeddingServices[key] = it }
+                ?.let { built ->
+                    val cachedService = synchronized(credentialEmbeddingServices) {
+                        if (credentialEmbeddingServicesClosed) null
+                        else credentialEmbeddingServices.getOrPut(key) { built }
+                    }
+                    if (cachedService !== built) closeCredentialService(built)
+                    checkNotNull(cachedService) { "Credential embedding services are closed" }
+                }
     }
 
     /**
@@ -1115,7 +1131,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                         if (credentialLlmServicesClosed) null
                         else credentialLlmServices.getOrPut(key) { built }
                     }
-                    if (chosen !== built) closeCredentialLlmService(built)
+                    if (chosen !== built) closeCredentialService(built)
                     checkNotNull(chosen) { "Credential LLM services are closed" }
                 }
         if (llmService == null) {

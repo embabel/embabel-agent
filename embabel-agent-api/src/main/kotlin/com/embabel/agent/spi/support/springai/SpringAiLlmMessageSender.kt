@@ -32,6 +32,7 @@ import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.tool.ToolCallback
+import java.lang.ref.Reference
 
 /**
  * Spring AI implementation of [LlmMessageSender].
@@ -95,7 +96,11 @@ internal class SpringAiLlmMessageSender(
         )
 
         // Call LLM - returns response which may include tool call requests
-        val response: ChatResponse = chatModel.call(prompt)
+        val response: ChatResponse = try {
+            chatModel.call(prompt)
+        } finally {
+            Reference.reachabilityFence(chatModel)
+        }
 
         logger.debug("Prompt: {}\nResponse: {}", prompt, response)
 

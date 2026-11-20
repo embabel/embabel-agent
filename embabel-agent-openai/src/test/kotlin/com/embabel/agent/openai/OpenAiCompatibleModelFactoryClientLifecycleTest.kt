@@ -15,18 +15,22 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.byok.InvalidApiKeyException
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.context.support.GenericApplicationContext
 import java.util.function.Supplier
 
 class OpenAiCompatibleModelFactoryClientLifecycleTest {
 
-    private class RecordingFactory : OpenAiCompatibleModelFactory(baseUrl = null, apiKey = "test-key") {
+    private class RecordingFactory(apiKey: String = "test-key") :
+        OpenAiCompatibleModelFactory(baseUrl = null, apiKey = apiKey) {
         override fun createOpenAiClient(): OpenAIClient = mockk(relaxed = true)
         override fun createOpenAiClientAsync(): OpenAIClientAsync = mockk(relaxed = true)
         val sync get() = openAiClient
@@ -62,6 +66,67 @@ class OpenAiCompatibleModelFactoryClientLifecycleTest {
 
         context.close()
 
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `closing an owned chat service closes both clients exactly once`() {
+        val factory = RecordingFactory()
+        val service = factory.buildOwnedLlm {
+            llm("test-model", PricingModel.ALL_YOU_CAN_EAT, "test-provider")
+        } as AutoCloseable
+
+        factory.close()
+        verify(exactly = 0) { factory.sync.close() }
+        verify(exactly = 0) { factory.async.close() }
+
+        service.close()
+        service.close()
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `failed validation closes both clients of a temporary factory`() {
+        val factory = RecordingFactory(apiKey = " ")
+
+        assertThrows<InvalidApiKeyException> {
+            factory.buildOwnedLlm {
+                buildValidated("test-model", PricingModel.ALL_YOU_CAN_EAT, "test-provider", null)
+            }
+        }
+
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `failed async construction closes the sync client`() {
+        val sync = mockk<OpenAIClient>(relaxed = true)
+
+        assertThrows<IllegalStateException> {
+            object : OpenAiCompatibleModelFactory(baseUrl = null, apiKey = "test-key") {
+                override fun createOpenAiClient(): OpenAIClient = sync
+                override fun createOpenAiClientAsync(): OpenAIClientAsync = error("async construction failed")
+            }
+        }
+
+        verify(exactly = 1) { sync.close() }
+    }
+
+    @Test
+    fun `closing an owned embedding service closes both clients`() {
+        val factory = RecordingFactory()
+        val service = factory.buildOwnedEmbedding {
+            openAiCompatibleEmbeddingService("test-model", "test-provider", configuredDimensions = 3)
+        } as AutoCloseable
+
+        factory.close()
+        verify(exactly = 0) { factory.sync.close() }
+
+        service.close()
+        service.close()
         verify(exactly = 1) { factory.sync.close() }
         verify(exactly = 1) { factory.async.close() }
     }

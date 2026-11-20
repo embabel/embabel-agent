@@ -159,7 +159,7 @@ class CredentialEndpointConfig @Autowired constructor(
                     apiKey = credential.apiKey,
                     timeouts = openAiTimeouts.forProvider(it.provider),
                 )
-                    .llm(
+                    .buildOwnedLlm(
                         model = model,
                         pricingModel = it.pricingModel,
                         provider = it.provider,
@@ -203,7 +203,7 @@ class CredentialEndpointConfig @Autowired constructor(
                     apiKey = credential.apiKey,
                     timeouts = openAiTimeouts.forProvider(it.provider),
                 )
-                    .buildValidatedEmbeddingService(
+                    .buildOwnedValidatedEmbedding(
                         model = model,
                         provider = it.provider,
                         pricingModel = it.pricingModel,

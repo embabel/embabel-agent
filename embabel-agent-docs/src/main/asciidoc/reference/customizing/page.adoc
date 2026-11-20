@@ -328,6 +328,18 @@ Cache eviction only removes the cached reference. A caller can still use an evic
 Once the chat model is eligible for garbage collection, a cleaner can close its clients.
 This automatic cleanup can happen later.
 
+===== Closing OpenAI-compatible BYOK services
+
+OpenAI-compatible BYOK chat and embedding services own the SDK clients created for them.
+Validation uses the same client pair as the returned service and releases it if validation fails.
+Programmatic callers can close the returned service through `AutoCloseable` after all work using
+its model is finished, including calls from service copies or senders and streams that have yet to
+complete or be cancelled.
+
+The BYOK starter closes unused duplicate builds and closes cached credential services on shutdown.
+Cache eviction drops the cached reference so an evicted model can still serve callers holding it.
+Automatic cleanup can occur later, when the model becomes unreachable.
+
 ===== Auto-detecting the provider
 
 Use this when a user pastes a key without specifying a provider — for example, a sign-up flow
