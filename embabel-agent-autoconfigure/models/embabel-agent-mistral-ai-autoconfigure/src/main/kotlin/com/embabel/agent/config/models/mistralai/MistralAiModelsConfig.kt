@@ -302,5 +302,7 @@ object MistralAiOptionsConverter : OptionsConverter {
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens)
+            .presencePenalty(options.presencePenalty)
+            .frequencyPenalty(options.frequencyPenalty)
             .build()
 }
