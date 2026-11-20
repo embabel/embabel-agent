@@ -11,8 +11,9 @@
 # Note: undated aliases (e.g. "gpt-5.4") resolve to OpenAI's current recommended
 #       pinned version and may change over time. Use dated model IDs in the
 #       OpenAiModels constants if reproducibility is required.
-# Note: cached_input pricing is intentionally omitted — PerTokenPricingModel
-#       only supports usd_per1m_input_tokens and usd_per1m_output_tokens.
+# Note: cache rates (usd_per1m_cache_read_input_tokens,
+#       usd_per1m_cache_write_input_tokens) are set for GPT-6.2 only; a model
+#       without them bills cached tokens at its input rate.
 
 native_support_defaults:
   structured_output:
@@ -43,9 +44,9 @@ models:
   # ========================================
   # GPT-6 FAMILY (Current Flagship)
   # Model pages and pricing verified: developers.openai.com 2026-10-05
-  # Astra is the flagship, 6.1 Sol balances intelligence and cost, 6.1 Terra
-  # is the fast, efficient tier, Luna is the high-volume tier. GPT-6 Sol is
-  # the previous Sol, superseded by 6.1 Sol.
+  # 6.2 Astra is the flagship, 6.2 Sol balances intelligence and cost, 6.1
+  # Terra is the fast, efficient tier, Luna is the high-volume tier. GPT-6
+  # Astra, 6.1 Sol and 6 Sol are the previous generations.
   # Prices are the short-context tier (<272K); long context is billed higher.
   #
   # Same transport constraint as GPT-5.6: Astra, 6.1 Sol and 6.1 Terra take
@@ -53,6 +54,44 @@ models:
   # on Chat Completions only at reasoning effort `none`. All five are pinned
   # to Responses for the reason given under GPT-5.6 below.
   # ========================================
+
+  # Pricing and transport: developers.openai.com/api/docs/models/gpt-6.2-astra
+  # and /gpt-6.2-sol (2026-11-18). Cache writes are the 30-minute retention rate.
+  - name: "gpt62astra"
+    model_id: "gpt-6.2-astra"
+    api_format: "RESPONSES"
+    display_name: "GPT-6.2 Astra"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 8.00
+      usd_per1m_output_tokens: 40.00
+      usd_per1m_cache_read_input_tokens: 0.40
+      usd_per1m_cache_write_input_tokens: 10.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt62sol"
+    model_id: "gpt-6.2-sol"
+    api_format: "RESPONSES"
+    display_name: "GPT-6.2 Sol"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 10.00
+      usd_per1m_cache_read_input_tokens: 0.10
+      usd_per1m_cache_write_input_tokens: 2.50
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt6astra"
     model_id: "gpt-6-astra"

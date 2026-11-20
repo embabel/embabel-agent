@@ -43,8 +43,9 @@ import javax.imageio.ImageIO
 
 /**
  * A GPT-6 model built from a key supplied at runtime does what Embabel Me asks of it: validates,
- * calls a tool at `temperature: 0.0`, answers from the tool's result, reads an image, and answers
- * in the JSON a schema asks for. Each test makes three or four requests per model.
+ * calls a tool when the caller asks for `temperature: 0.0` (which these models reject, so it is
+ * not sent), answers from the tool's result, reads an image, and answers in the JSON a schema asks
+ * for. Each test makes three or four requests per model.
  */
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 class Gpt6ByokIT {
@@ -57,8 +58,8 @@ class Gpt6ByokIT {
         service.optionsConverter.convertOptions(LlmOptions.withModel(model).withTemperature(0.0), model) as OpenAiChatOptions
 
     @ParameterizedTest
-    @ValueSource(strings = [OpenAiModels.GPT_6_LUNA, OpenAiModels.GPT_61_SOL, OpenAiModels.GPT_6_ASTRA])
-    fun `a GPT-6 BYOK model calls tools and reads images at temperature 0`(model: String) {
+    @ValueSource(strings = [OpenAiModels.GPT_6_LUNA, OpenAiModels.GPT_62_SOL, OpenAiModels.GPT_62_ASTRA])
+    fun `a GPT-6 BYOK model asked for temperature 0 still calls tools and reads images`(model: String) {
         val service = serviceFor(model)
 
         val withTool = optionsFor(service, model).mutate().toolCallbacks(listOf(TIME_TOOL)).build()
@@ -75,7 +76,7 @@ class Gpt6ByokIT {
 
     /** Embabel runs the tool loop itself: it replays the call and its result, and the model answers from them. */
     @ParameterizedTest
-    @ValueSource(strings = [OpenAiModels.GPT_6_LUNA, OpenAiModels.GPT_61_SOL, OpenAiModels.GPT_6_ASTRA])
+    @ValueSource(strings = [OpenAiModels.GPT_6_LUNA, OpenAiModels.GPT_62_SOL, OpenAiModels.GPT_62_ASTRA])
     fun `a GPT-6 BYOK model answers from a tool result and in typed JSON`(model: String) {
         val service = serviceFor(model)
         val question = UserMessage("What time is it? Use the tool, then answer with the time.")
@@ -118,9 +119,10 @@ class Gpt6ByokIT {
             override fun call(toolInput: String): String = "12:00"
         }
 
+        /** 512 px: at 64 px the image is a handful of tokens and Astra now and then reads red as blue. */
         fun redPng(): ByteArray {
-            val image = BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB)
-            image.createGraphics().apply { color = Color.RED; fillRect(0, 0, 64, 64); dispose() }
+            val image = BufferedImage(512, 512, BufferedImage.TYPE_INT_RGB)
+            image.createGraphics().apply { color = Color.RED; fillRect(0, 0, 512, 512); dispose() }
             return ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
         }
     }
