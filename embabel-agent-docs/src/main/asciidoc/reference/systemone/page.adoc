@@ -20,6 +20,7 @@ An endpoint answers question sets at `POST /v1/systemone` and lists its models a
 A request names the state, the model and the questions.
 Questions are keyed `q1` to `qN` in spec order, replacing the application's question names in the JSON sent to the model endpoint.
 The state, question instructions and criteria are still sent.
+The state is a string for a text input, and a JSON object or array for a <<reference.decision-execution.structured-input,structured input>>.
 
 [source,json]
 ----
@@ -173,7 +174,7 @@ Jev is a hosted TypeSafe model with no local build.
 |===
 
 Both need Ollama 0.35.1 or later.
-The integration sends text state only.
+The integration sends text or JSON state, not images.
 
 . Install Ollama and check its version with `ollama --version`.
 . Pull a model:

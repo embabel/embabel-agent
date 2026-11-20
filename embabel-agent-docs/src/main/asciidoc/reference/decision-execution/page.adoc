@@ -284,8 +284,8 @@ An application with a Spring context can take services from the `LlmDecisionServ
 
 ==== Asking
 
-`DecisionService` has two `ask` overloads: `ask(input, spec)` and `ask(request)`.
-Both return a `DecisionResponse` with one answer per question in spec order.
+`DecisionService` has two `ask` overloads: `ask(input, spec)` for text and `ask(request)`, which also carries a <<reference.decision-execution.structured-input,structured input>>.
+All return a `DecisionResponse` with one answer per question in spec order.
 Provider failures come back as typed failure outcomes.
 
 A service that implements `QuestionSetExecution` answers the whole spec in one `askQuestionSet` call.
@@ -301,6 +301,29 @@ include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api
 `ask`, `assess` and `classify` throw no checked exception.
 An interruption surfaces as an unchecked `java.util.concurrent.CancellationException` whose cause is the `InterruptedException`, and the thread's interrupt flag stays set.
 Catch `CancellationException` where the caller needs to stop cleanly.
+
+[[reference.decision-execution.structured-input]]
+===== Structured input
+
+When the context has several parts, pass it as a JSON object or array, not as one string.
+Build the request with `DecisionRequest.of(state, spec)`, which takes a Jackson `JsonNode` from `tools.jackson.databind`, and hand it to `ask(request)`.
+A question can then point at a value with a backticked path such as `` `intent.subject` ``.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/StructuredInputJavaTest.java[tag=structured,indent=0]
+----
+
+A System One service, which covers TypeSafe and Cloudflare, sends the state as a JSON `state` object or array.
+Fields and array elements go out in the order they were added to the node, because the order of state fields can change an answer.
+Every other service, including the prompted, stub and no-op services and any service that answers one question per call, reads the same state as compact JSON text through `request.getInput()`.
+
+The state must be a JSON object or array; `DecisionRequest.of` rejects anything else with an `IllegalArgumentException`.
+The request keeps its own snapshot of the state as plain JSON, so changing the node afterwards does not change the request.
+A `String` input is always sent as text, even when the text is itself JSON.
+
+`classify` and `assess` take text only.
+Logs and observations treat a structured input as they treat text: nothing of it is recorded unless <<reference.decision-execution.capture,content capture>> is on, and then it is logged as the JSON text.
 
 ===== Capabilities and hooks
 
