@@ -394,23 +394,27 @@ class AutonomyActionLeakageTest {
         // Get the prune method
         val pruneMethod = getPruneMethod(autonomy)
 
-        // Test pruning Agent1 with goal1
+        // Prune Agent1 for both goals, retaining actions enabled by later condition changes.
         val prunedAgent1 = pruneMethod.invoke(autonomy, agent1, userInput) as Agent
 
         // Verify no action leakage from Agent2 to Agent1
-        assertEquals(1, prunedAgent1.actions.size, "Pruned agent should only have 1 action")
-        assertEquals("action1", prunedAgent1.actions[0].name, "Pruned agent should contain only action1")
+        assertEquals(
+            setOf("action1", "action2"), prunedAgent1.actions.map { it.name }.toSet(),
+            "Pruned agent should retain actions for both of its goals"
+        )
         assertFalse(
             prunedAgent1.actions.any { it.name == "action3" || it.name == "action4" },
             "Agent1 should not contain any actions from Agent2"
         )
 
-        // Test pruning Agent2 with goal3
+        // Prune Agent2 for both goals, retaining actions enabled by later condition changes.
         val prunedAgent2 = pruneMethod.invoke(autonomy, agent2, userInput) as Agent
 
         // Verify no action leakage from Agent1 to Agent2
-        assertEquals(1, prunedAgent2.actions.size, "Pruned agent should only have 1 action")
-        assertEquals("action3", prunedAgent2.actions[0].name, "Pruned agent should contain only action3")
+        assertEquals(
+            setOf("action3", "action4"), prunedAgent2.actions.map { it.name }.toSet(),
+            "Pruned agent should retain actions for both of its goals"
+        )
         assertFalse(
             prunedAgent2.actions.any { it.name == "action1" || it.name == "action2" },
             "Agent2 should not contain any actions from Agent1"

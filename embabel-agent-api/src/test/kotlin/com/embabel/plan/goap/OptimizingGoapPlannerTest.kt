@@ -28,6 +28,85 @@ import org.junit.jupiter.api.Test
 class OptimizingGoapPlannerTest {
 
     @Nested
+    inner class PlanningSystemPruningTests {
+
+        @Test
+        fun `pruning retains more expensive alternative paths`() {
+            val direct = ConditionAction("direct", pre = listOf("input"), post = listOf("done"), cost = { 0.1 })
+            val clarify = ConditionAction("clarify", pre = listOf("input"), post = listOf("clarified"), cost = { 0.5 })
+            val alternative = ConditionAction("alternative", pre = listOf("clarified"), post = listOf("done"), cost = { 0.5 })
+            val unrelated = ConditionAction("unrelated", pre = listOf("input"), post = listOf("other"))
+            val goal = ConditionGoal("goal", pre = listOf("done"))
+            val planner = AStarGoapPlanner(WorldStateDeterminer.fromMap(mapOf("input" to ConditionDetermination.TRUE)))
+
+            val pruned = planner.prune(ConditionPlanningSystem(listOf(direct, clarify, alternative, unrelated), goal))
+
+            assertEquals(setOf(direct, clarify, alternative), pruned.actions)
+            assertEquals(setOf(goal), pruned.goals)
+        }
+
+        @Test
+        fun `pruned actions allow re-planning after an unexpected outcome`() {
+            val attempt = ConditionAction("attempt", pre = listOf("input"), post = listOf("done"))
+            val clarify = ConditionAction("clarify", pre = listOf("needsClarification"), post = listOf("clarified"))
+            val finish = ConditionAction("finish", pre = listOf("clarified"), post = listOf("done"))
+            val goal = ConditionGoal("goal", pre = listOf("done"))
+            val planner = AStarGoapPlanner(WorldStateDeterminer.fromMap(mapOf("input" to ConditionDetermination.TRUE)))
+            val pruned = planner.prune(ConditionPlanningSystem(listOf(attempt, clarify, finish), goal))
+            val reroutingPlanner = AStarGoapPlanner(
+                WorldStateDeterminer.fromMap(
+                    mapOf("input" to ConditionDetermination.FALSE, "needsClarification" to ConditionDetermination.TRUE)
+                )
+            )
+
+            val plan = reroutingPlanner.planToGoal(pruned.actions, goal)
+
+            assertNotNull(plan)
+            assertEquals(listOf(clarify, finish), plan!!.actions)
+        }
+
+        @Test
+        fun `pruning matches condition values for every goal`() {
+            val clear = ConditionAction("clear", effects = mapOf("blocked" to ConditionDetermination.FALSE))
+            val block = ConditionAction("block", post = listOf("blocked"))
+            val unknown = ConditionAction("unknown", effects = mapOf("status" to ConditionDetermination.UNKNOWN))
+            val known = ConditionAction("known", post = listOf("status"))
+            val goals = setOf(
+                ConditionGoal("unblocked", preconditions = mapOf("blocked" to ConditionDetermination.FALSE)),
+                ConditionGoal("unknownStatus", preconditions = mapOf("status" to ConditionDetermination.UNKNOWN)),
+            )
+            val planner = AStarGoapPlanner(WorldStateDeterminer.fromMap())
+
+            val pruned = planner.prune(ConditionPlanningSystem(setOf(clear, block, unknown, known), goals))
+
+            assertEquals(setOf(clear, unknown), pruned.actions)
+            assertEquals(goals, pruned.goals)
+        }
+
+        @Test
+        fun `pruning preserves actions for goals already satisfied in the current state`() {
+            val finish = ConditionAction("finish", post = listOf("done"))
+            val planner = AStarGoapPlanner(WorldStateDeterminer.fromMap(mapOf("done" to ConditionDetermination.TRUE)))
+            val system = ConditionPlanningSystem(listOf(finish), ConditionGoal("done"))
+
+            assertEquals(setOf(finish), planner.prune(system).actions)
+        }
+
+        @Test
+        fun `pruning retains cyclic dependencies without keeping unrelated cycles`() {
+            val finish = ConditionAction("finish", pre = listOf("ready"), post = listOf("done"))
+            val prepare = ConditionAction("prepare", pre = listOf("available"), post = listOf("ready"))
+            val restore = ConditionAction("restore", pre = listOf("ready"), post = listOf("available"))
+            val unrelated = ConditionAction("unrelated", pre = listOf("other"), post = listOf("other"))
+            val planner = AStarGoapPlanner(WorldStateDeterminer.fromMap(mapOf("ready" to ConditionDetermination.TRUE)))
+            val system = ConditionPlanningSystem(listOf(finish, prepare, restore, unrelated), ConditionGoal("done"))
+
+            assertEquals(setOf(finish, prepare, restore), planner.prune(system).actions)
+            assertTrue(planner.prune(system.copy(goals = emptySet())).actions.isEmpty())
+        }
+    }
+
+    @Nested
     inner class CyclicDependencyTests {
 
         @Test

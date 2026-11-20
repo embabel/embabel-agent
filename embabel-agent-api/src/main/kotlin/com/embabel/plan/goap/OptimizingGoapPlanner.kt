@@ -60,20 +60,26 @@ abstract class OptimizingGoapPlanner(
     }
 
     override fun prune(planningSystem: ConditionPlanningSystem): ConditionPlanningSystem {
-        val allPlans = plansToGoals(planningSystem)
+        // Preserve alternative routes, including those enabled by unexpected action outcomes.
+        val requiredConditions = planningSystem.goals.flatMap { it.preconditions.toList() }.toMutableSet()
+        val relevantActions = mutableSetOf<ConditionAction>()
+        do {
+            val newlyRelevantActions = planningSystem.actions.filter { action ->
+                action !in relevantActions && action.effects.any { (condition, value) ->
+                    (condition to value) in requiredConditions
+                }
+            }
+            relevantActions.addAll(newlyRelevantActions)
+            newlyRelevantActions.forEach { requiredConditions.addAll(it.preconditions.toList()) }
+        } while (newlyRelevantActions.isNotEmpty())
+
         loggerFor<OptimizingGoapPlanner>().info(
-            "${allPlans.size} plan(s) to consider in pruning{}",
-            if (allPlans.isEmpty())
-                ""
-            else
-                ":" + allPlans.joinToString("\n") { it.infoString(true, 1) }
+            "Pruning retained {} of {} actions relevant to goals",
+            relevantActions.size,
+            planningSystem.actions.size,
         )
         return planningSystem.copy(
-            actions = planningSystem.actions.filter { action ->
-                allPlans.any { plan ->
-                    plan.actions.contains(action)
-                }
-            }.toSet(),
+            actions = planningSystem.actions.filter { it in relevantActions }.toSet(),
         )
     }
 
