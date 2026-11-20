@@ -299,6 +299,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 size > properties.credentialServiceCacheSize
         }.let { Collections.synchronizedMap(it) }
 
+    // Guarded by credentialEmbeddingServices, including the check when caching a completed build.
     private var credentialEmbeddingServicesClosed = false
 
     /**
@@ -586,12 +587,12 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             ?: credentialEmbeddingServiceFactories
                 .firstNotNullOfOrNull { it.createEmbeddingService(credential, model) }
                 ?.let { built ->
-                    val chosen = synchronized(credentialEmbeddingServices) {
+                    val cachedService = synchronized(credentialEmbeddingServices) {
                         if (credentialEmbeddingServicesClosed) null
                         else credentialEmbeddingServices.getOrPut(key) { built }
                     }
-                    if (chosen !== built) closeCredentialService(built)
-                    checkNotNull(chosen) { "Credential embedding services are closed" }
+                    if (cachedService !== built) closeCredentialService(built)
+                    checkNotNull(cachedService) { "Credential embedding services are closed" }
                 }
     }
 

@@ -138,10 +138,6 @@ open class OpenAiCompatibleModelFactory(
     )
 
     companion object {
-        private fun closeClient(logger: Logger, close: () -> Unit) {
-            runCatching(close).onFailure { logger.warn("Could not close an OpenAI client: {}", it.message) }
-        }
-
         private val RESPONSES_OBJECT_MAPPER = ObjectMapper()
         private const val OPENAI_API_HOST = "api.openai.com"
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
@@ -475,15 +471,10 @@ open class OpenAiCompatibleModelFactory(
         throw failure
     }
 
-    private var clientCleanup: Runnable? = ClientCleanup(openAiClient, openAiClientAsync, logger)
+    private val clientOwnership = OpenAiClientOwnership(openAiClient, openAiClientAsync, logger)
 
     /** Close the clients still owned by this factory, including on Spring context shutdown. */
-    @Synchronized
-    override fun close() {
-        val cleanup = clientCleanup
-        clientCleanup = null
-        cleanup?.run()
-    }
+    override fun close() = clientOwnership.close()
 
     @ApiStatus.Internal
     fun buildOwnedLlm(
@@ -507,43 +498,11 @@ open class OpenAiCompatibleModelFactory(
 
     /** Build a single chat service with this temporary factory and transfer ownership to its model. */
     internal fun buildOwnedLlm(build: OpenAiCompatibleModelFactory.() -> LlmService<*>): LlmService<*> =
-        transferClients(build) { service, cleanup ->
-            (service as SpringAiLlmService).registerChatModelCleanup(cleanup)
-        }
+        clientOwnership.buildChatService { build(this) }
 
     /** Build a single embedding service with this temporary factory and transfer ownership to its model. */
     internal fun buildOwnedEmbedding(build: OpenAiCompatibleModelFactory.() -> EmbeddingService): EmbeddingService =
-        transferClients(build) { service, cleanup ->
-            ((service as SpringAiEmbeddingService).model as OpenAiCompatibleEmbeddingModel).registerCleanup(cleanup)
-        }
-
-    @Synchronized
-    private fun <T> transferClients(
-        build: OpenAiCompatibleModelFactory.() -> T,
-        registerCleanup: (T, Runnable) -> Unit,
-    ): T {
-        val cleanup = checkNotNull(clientCleanup) { "OpenAI clients are no longer owned by this factory" }
-        try {
-            return build().also { service ->
-                registerCleanup(service, cleanup)
-                clientCleanup = null
-            }
-        } catch (failure: Throwable) {
-            close()
-            throw failure
-        }
-    }
-
-    private class ClientCleanup(
-        private val sync: OpenAIClient,
-        private val async: OpenAIClientAsync,
-        private val logger: Logger,
-    ) : Runnable {
-        override fun run() {
-            closeClient(logger) { sync.close() }
-            closeClient(logger) { async.close() }
-        }
-    }
+        clientOwnership.buildEmbeddingService { build(this) }
 
     private fun resolvedApiKey(): String =
         // SDK rejects null/blank API keys at build time even for no-auth local servers,

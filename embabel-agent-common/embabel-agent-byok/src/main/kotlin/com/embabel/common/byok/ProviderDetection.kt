@@ -77,23 +77,26 @@ fun <T> detectProvider(vararg candidates: ByokFactory<T>): T {
 }
 
 private class DetectionResults {
-    private val services = Collections.newSetFromMap(IdentityHashMap<AutoCloseable, Boolean>())
-    private var finished = false
-    private var selected: Any? = null
+    private val successfulServices = Collections.newSetFromMap(IdentityHashMap<AutoCloseable, Boolean>())
+    private var detectionFinished = false
+    private var winningService: Any? = null
 
     fun record(service: Any?) {
         if (service !is AutoCloseable) return
-        val unused = synchronized(this) { services.add(service) && finished && service !== selected }
-        if (unused) close(service)
+        // A cancelled candidate can still return after the winner has been handed to the caller.
+        val isLateLosingService = synchronized(this) {
+            successfulServices.add(service) && detectionFinished && service !== winningService
+        }
+        if (isLateLosingService) close(service)
     }
 
-    fun finish(selected: Any?) {
-        val unused = synchronized(this) {
-            this.selected = selected
-            finished = true
-            services.filter { it !== selected }
+    fun finish(winner: Any?) {
+        val losingServices = synchronized(this) {
+            winningService = winner
+            detectionFinished = true
+            successfulServices.filter { it !== winner }
         }
-        unused.forEach(::close)
+        losingServices.forEach(::close)
     }
 
     private fun close(service: AutoCloseable) {

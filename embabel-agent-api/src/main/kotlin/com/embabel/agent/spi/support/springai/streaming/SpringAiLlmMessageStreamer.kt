@@ -131,6 +131,9 @@ internal class SpringAiLlmMessageStreamer(
                 }
 
             Flux.mergeSequential(content, completion)
-        }.doFinally { Reference.reachabilityFence(chatModel) }
+        }.doFinally {
+            // Keep the model reachable until the stream terminates so cleanup cannot close its clients mid-stream.
+            Reference.reachabilityFence(chatModel)
+        }
     }
 }
