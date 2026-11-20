@@ -22,11 +22,8 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
-import tools.jackson.core.JacksonException
-import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.annotation.JsonDeserialize
-import tools.jackson.databind.json.JsonMapper
 import java.util.Objects
 import java.util.function.Consumer
 
@@ -289,7 +286,7 @@ open class DecisionRequest private constructor(
     internal constructor(input: String, spec: DecisionSpec) : this(input, spec, null)
 
     // A classification request is built through this one, so it checks and copies the state the same way.
-    internal constructor(state: JsonNode, spec: DecisionSpec) : this(checkedSnapshot(state), spec, Unit)
+    internal constructor(state: JsonNode, spec: DecisionSpec) : this(structuredSnapshot(state), spec, Unit)
 
     // The last parameter only tells this constructor apart from the others.
     private constructor(snapshot: JsonNode, spec: DecisionSpec, @Suppress("UNUSED_PARAMETER") own: Unit) :
@@ -372,35 +369,6 @@ open class DecisionRequest private constructor(
          */
         @JvmStatic
         fun of(state: JsonNode, spec: DecisionSpec): DecisionRequest = DecisionRequest(state, spec)
-
-        // Reads decimals back exactly, so a snapshot keeps the digits the caller gave.
-        private val snapshotMapper: JsonMapper = JsonMapper.builder()
-            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
-            .build()
-
-        /**
-         * Checks that the state is an object or array, then writes it out and reads it back, which
-         * leaves a tree of plain JSON values that shares nothing with the caller's node.
-         *
-         * @param state the caller's node
-         * @return the request's own tree
-         * @throws IllegalArgumentException if the state is not a JSON object or array, or cannot be
-         * written as JSON
-         */
-        private fun checkedSnapshot(state: JsonNode): JsonNode {
-            require(state.isObject || state.isArray) {
-                "A structured decision input must be a JSON object or array, but was ${state.nodeType}. " +
-                    "Pass text as a String."
-            }
-            return try {
-                snapshotMapper.readTree(snapshotMapper.writeValueAsString(state))
-            } catch (_: JacksonException) {
-                // The writer's message can quote the state, so it is dropped.
-                throw IllegalArgumentException(
-                    "A structured decision input could not be written as JSON. Build it from plain JSON values.",
-                )
-            }
-        }
 
         /**
          * Returns a request built from a structured state and the given questions, in the given order.

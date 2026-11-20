@@ -60,6 +60,15 @@ class PromptedPropositionTest {
         }
 
         @Test
+        fun `a structured state reaches the user message as JSON text in field order`() {
+            val stateJson = """{"ticket":{"subject":"Refund"},"priority":2}"""
+            val structured = PropositionRequest(mapper.readTree(stateJson), proposition)
+            val (system, user) = PromptedProposition.messages(structured)
+            assertEquals(inputEnvelope(stateJson), user.content)
+            assertFalse(system.content.contains("Refund"))
+        }
+
+        @Test
         fun `injected instructions appear only in the user message`() {
             val (system, user) = PromptedProposition.messages(request)
             assertTrue(user.content.contains(injection))

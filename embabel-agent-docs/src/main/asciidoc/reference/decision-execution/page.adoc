@@ -323,8 +323,9 @@ The request keeps its own snapshot of the state as plain JSON, so changing the n
 A `String` input is always sent as text, even when the text is itself JSON.
 
 `ClassificationRequest.of(state, spec)` takes a structured state the same way.
-When a structured `ask` reaches a service that answers one question per call, each choice question arrives as a structured classification request.
-`assess` takes text only.
+`new PropositionRequest(state, proposition)` does the same for `assess`.
+When a structured `ask` reaches a service that answers one question per call, each choice question arrives as a structured classification request and each proposition question as a structured proposition request.
+The `PropositionAssessment` and `RatingAssessment` hooks take text, so a service that implements them reads the state as JSON text.
 Logs and observations treat a structured input as they treat text: nothing of it is recorded unless <<reference.decision-execution.capture,content capture>> is on, and then it is logged as the JSON text.
 
 ===== Capabilities and hooks
