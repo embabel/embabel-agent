@@ -733,6 +733,20 @@ class StreamingJacksonOutputConverterTest {
         }
 
         @Test
+        fun `does not split malformed JSON after a closing tag and keeps the stream going`() {
+            // JSON-shaped for the detector, but conversion fails: the line stays whole, no stream error
+            val events = events(
+                """
+                <think>r</think>{"name": }
+                {"name": "next"}
+                """.trimIndent()
+            )
+            assertEquals(2, events.size)
+            assertThinking(events[0], "r", ThinkingState.BOTH)
+            assertObject(events[1], "next")
+        }
+
+        @Test
         fun `does not split when JSON is not at the end of the line`() {
             val events = events("""<think>r</think>{"name": "x"} trailing""")
             assertEquals(1, events.size)
