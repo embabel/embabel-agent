@@ -20,6 +20,7 @@ import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.autoconfigure.models.googlegenai.AgentGoogleGenAiAutoConfiguration
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -106,6 +107,19 @@ class GoogleGenAiChatIntegrationIT(
         assertTrue(response.contains("READY", ignoreCase = true), "Expected $modelId to reply with READY, got: $response")
     }
 
+    @ParameterizedTest(name = "calls real Google GenAI API for {0} at each reasoning effort")
+    @MethodSource("thinkingLevelModelIds")
+    fun `calls real Google GenAI API at each reasoning effort`(modelId: String) {
+        listOf(ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH).forEach { effort ->
+            val response = runGoogleCall(modelId) {
+                ai.withLlm(LlmOptions(modelId).withReasoningEffort(effort))
+                    .generateText("Reply with exactly the word READY.").trim()
+            }
+
+            assertTrue(response.contains("READY", ignoreCase = true), "Expected $modelId to reply with READY at $effort, got: $response")
+        }
+    }
+
     @Test
     fun `supports thinking mode for google genai prompt runner`() {
         val runner = ai.withLlm(
@@ -185,6 +199,27 @@ class GoogleGenAiChatIntegrationIT(
             GoogleGenAiModels.GEMINI_2_5_PRO,
             GoogleGenAiModels.GEMINI_2_5_FLASH,
             GoogleGenAiModels.GEMINI_2_5_FLASH_LITE,
+        )
+
+        /**
+         * The models that take a thinking level. Gemini 2.5 takes a budget only and is left out, since Google is
+         * retiring it (2.5 Pro and 2.5 Flash shut down on 2026-12-01).
+         */
+        @JvmStatic
+        fun thinkingLevelModelIds(): List<String> = listOf(
+            GoogleGenAiModels.GEMINI_4_HYDROGEN,
+            GoogleGenAiModels.GEMINI_4_NEON,
+            GoogleGenAiModels.GEMINI_4_CARBON,
+            GoogleGenAiModels.GEMINI_4_ARGON,
+            GoogleGenAiModels.GEMINI_3_8_FLASH,
+            GoogleGenAiModels.GEMINI_3_6_FLASH,
+            GoogleGenAiModels.GEMINI_3_5_FLASH_LITE,
+            GoogleGenAiModels.GEMINI_3_5_FLASH,
+            GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW,
+            GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
+            GoogleGenAiModels.GEMINI_3_FLASH_PREVIEW,
+            GoogleGenAiModels.GEMINI_3_1_FLASH_LITE,
+            GoogleGenAiModels.GEMINI_3_1_FLASH_LITE_PREVIEW,
         )
     }
 }
