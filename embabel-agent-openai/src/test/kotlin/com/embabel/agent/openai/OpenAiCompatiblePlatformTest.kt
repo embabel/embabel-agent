@@ -27,7 +27,11 @@ import com.embabel.common.ai.model.ModelKind
 import com.embabel.common.ai.model.ModelName
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.ProviderCredential
+import com.openai.client.OpenAIClient
+import com.openai.client.OpenAIClientAsync
 import com.sun.net.httpserver.HttpServer
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -305,6 +309,34 @@ class OpenAiCompatiblePlatformTest {
                  "data":[{"object":"embedding","index":0,"embedding":[$vector]}],
                  "usage":{"prompt_tokens":1,"total_tokens":1}}
             """.trimIndent()
+        }
+    }
+
+    @Nested
+    inner class ClientOwnership {
+
+        private inner class RecordingFactory :
+            OpenAiCompatibleModelFactory(baseUrl = GATEWAY_URL, apiKey = TEST_API_KEY) {
+            override fun createOpenAiClient(): OpenAIClient = mockk(relaxed = true)
+            override fun createOpenAiClientAsync(): OpenAIClientAsync = mockk(relaxed = true)
+            val sync get() = openAiClient
+            val async get() = openAiClientAsync
+        }
+
+        @Test
+        fun `a chat model closes the clients of the factory built for it, once, when it is closed`() {
+            // BYOK builds a factory per credential and model, and nothing else holds it.
+            val factory = RecordingFactory()
+            val endpoint = CredentialEndpoint.OpenAiCompatible(provider = GATEWAY_PROVIDER, baseUrl = GATEWAY_URL)
+
+            val chat = OpenAiCompatiblePlatform.ownedModel(factory, endpoint, LlmService.KIND, "some-model", emptyMap())
+            verify(exactly = 0) { factory.sync.close() }
+
+            (chat as AutoCloseable).close()
+            chat.close()
+
+            verify(exactly = 1) { factory.sync.close() }
+            verify(exactly = 1) { factory.async.close() }
         }
     }
 }

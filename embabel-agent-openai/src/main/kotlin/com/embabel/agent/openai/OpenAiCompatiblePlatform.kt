@@ -175,8 +175,21 @@ open class OpenAiCompatiblePlatform @JvmOverloads constructor(
             apiFormatOverrides: Map<String, OpenAiApiFormat> = emptyMap(),
         ): C? {
             if (kind != LlmService.KIND && kind != EmbeddingService.KIND) return null
-            // The factory exists for this one model, so the model takes over its clients.
             val factory = OpenAiCompatibleModelFactory(baseUrl = endpoint.baseUrl, apiKey = apiKey, timeouts = timeouts)
+            return ownedModel(factory, endpoint, kind, model, apiFormatOverrides)
+        }
+
+        /**
+         * A chat or embedding model built by [factory], which exists for this one model: the model
+         * takes over the factory's OpenAI clients and closes them when it is closed.
+         */
+        internal fun <C : ModelCapability> ownedModel(
+            factory: OpenAiCompatibleModelFactory,
+            endpoint: CredentialEndpoint.OpenAiCompatible,
+            kind: ModelKind<C, *>,
+            model: String,
+            apiFormatOverrides: Map<String, OpenAiApiFormat>,
+        ): C {
             val built: ModelCapability = if (kind == LlmService.KIND) {
                 // Chat: no test call. A wrong model fails the call that uses it and nothing else.
                 // llm() builds a catalog model the way the catalog declares it (the Responses API for GPT-6).
