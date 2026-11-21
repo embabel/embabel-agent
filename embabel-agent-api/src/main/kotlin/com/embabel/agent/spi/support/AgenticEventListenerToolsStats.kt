@@ -20,30 +20,32 @@ import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.ToolCallResponseEvent
+import java.util.concurrent.ConcurrentHashMap
 
 class AgenticEventListenerToolsStats : AgenticEventListener, ToolsStats {
 
-    private val _stats: MutableMap<String, ToolStats> = mutableMapOf()
+    private val _stats = ConcurrentHashMap<String, ToolStats>()
 
     override val toolsStats: Map<String, ToolStats>
         get() = _stats.toSortedMap()
 
     private fun record(e: ToolCallResponseEvent) {
-        val existing = _stats[e.request.tool]
-        if (existing != null) {
-            _stats[e.request.tool] = ToolStats(
-                name = e.request.tool,
-                calls = existing.calls + 1,
-                failures = existing.failures + if (e.result.isFailure) 1 else 0,
-                averageResponseTime = (existing.averageResponseTime * existing.calls + e.runningTime.toMillis()) / (existing.calls + 1)
-            )
-        } else {
-            _stats[e.request.tool] = ToolStats(
-                name = e.request.tool,
-                calls = 1,
-                averageResponseTime = e.runningTime.toMillis(),
-                failures = if (e.result.isFailure) 1 else 0
-            )
+        _stats.compute(e.request.tool) { tool, existing ->
+            if (existing != null) {
+                ToolStats(
+                    name = tool,
+                    calls = existing.calls + 1,
+                    failures = existing.failures + if (e.result.isFailure) 1 else 0,
+                    averageResponseTime = (existing.averageResponseTime * existing.calls + e.runningTime.toMillis()) / (existing.calls + 1)
+                )
+            } else {
+                ToolStats(
+                    name = tool,
+                    calls = 1,
+                    averageResponseTime = e.runningTime.toMillis(),
+                    failures = if (e.result.isFailure) 1 else 0
+                )
+            }
         }
     }
 
