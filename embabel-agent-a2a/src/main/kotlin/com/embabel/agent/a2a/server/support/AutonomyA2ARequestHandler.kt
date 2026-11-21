@@ -32,10 +32,12 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.ProcessOptions
 import io.a2a.spec.*
 import io.a2a.spec.InternalError
+import io.a2a.util.Utils
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import io.opentelemetry.context.Context
 import org.slf4j.LoggerFactory
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.OffsetDateTime
@@ -60,22 +62,12 @@ class AutonomyA2ARequestHandler(
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
 
     override fun handleJsonRpcStream(request: StreamingJSONRPCRequest<*>): SseEmitter {
+        // StreamingJSONRPCRequest is sealed: these are the only streaming requests
         return when (request) {
+            // message/stream: runs an agent and streams the task's events as they happen
             is SendStreamingMessageRequest -> handleMessageStream(request)
-            else -> throw UnsupportedOperationException("Method ${request.method} is not supported for streaming")
-        }
-    }
-
-    /**
-     * Handles streaming JSON-RPC requests that are not part of the standard SDK
-     */
-    fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: tools.jackson.databind.ObjectMapper): SseEmitter {
-        return when (method) {
-            TaskResubscriptionRequest.METHOD -> {
-                val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
-                handleTaskResubscribe(request)
-            }
-            else -> throw UnsupportedOperationException("Method $method is not supported for streaming")
+            // tasks/resubscribe: replays an existing task's events, then streams the ones still to come
+            is TaskResubscriptionRequest -> handleTaskResubscribe(request)
         }
     }
 
@@ -170,15 +162,16 @@ class AutonomyA2ARequestHandler(
                 .history(listOfNotNull(params.message))
                 .artifacts(listOf(createResultArtifact(result, params.configuration?.acceptedOutputModes)))
                 .build()
-            taskStateManager.recordEvent(taskId, task)
+            streamingHandler.publishTaskEvent(taskId, task)
 
             val jSONRPCResponse = request.successResponseWith(result = task)
             logger.info("Handled message send request, response={}", jSONRPCResponse)
             return jSONRPCResponse
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable, not Exception: an Error must still fail the task, or it stays working and its streams stay open
             logger.error("Error handling message send request", e)
             observation.error(e)
-            taskStateManager.recordEvent(
+            streamingHandler.publishTaskEvent(
                 taskId,
                 Task.Builder()
                     .id(taskId)
@@ -224,26 +217,24 @@ class AutonomyA2ARequestHandler(
             val observationScope = observation.openScope()
             try {
                 // Send initial status event
-                streamingHandler.sendStreamEvent(
-                    streamId,
+                streamingHandler.publishTaskEvent(
+                    taskId,
                     TaskStatusUpdateEvent.Builder()
                         .taskId(taskId)
                         .contextId(contextId)
                         .status(createWorkingTaskStatus(params, "Task started..."))
                         .build(),
-                    taskId
                 )
 
                 val intent = intentOf(params.message).ifEmpty { "Task $taskId" }
 
-                streamingHandler.sendStreamEvent(
-                    streamId,
+                streamingHandler.publishTaskEvent(
+                    taskId,
                     TaskStatusUpdateEvent.Builder()
                         .taskId(taskId)
                         .contextId(contextId)
                         .status(createWorkingTaskStatus(params, "Processing task..."))
                         .build(),
-                    taskId
                 )
 
                 // Execute the task using autonomy service
@@ -259,29 +250,27 @@ class AutonomyA2ARequestHandler(
                 // Send FINAL status update with content
                 // Per A2A spec: final status-update with final=true is sufficient for completion
                 // Task objects in streaming should only appear at the beginning, not at the end
-                streamingHandler.sendStreamEvent(
-                    streamId,
+                streamingHandler.publishTaskEvent(
+                    taskId,
                     TaskStatusUpdateEvent.Builder()
                         .taskId(taskId)
                         .contextId(contextId)
                         .status(createCompletedTaskStatus(params, statusMessage))
                         .isFinal(true)
                         .build(),
-                    taskId
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 logger.error("Streaming error", e)
                 observation.error(e)
                 try {
-                    streamingHandler.sendStreamEvent(
-                        streamId,
+                    streamingHandler.publishTaskEvent(
+                        taskId,
                         TaskStatusUpdateEvent.Builder()
                             .taskId(taskId)
                             .contextId(contextId)
                             .status(createFailedTaskStatus(params, e))
                             .isFinal(true)
                             .build(),
-                        taskId
                     )
                 } catch (sendError: Exception) {
                     logger.error("Error sending error event", sendError)
@@ -310,9 +299,15 @@ class AutonomyA2ARequestHandler(
         return try {
             streamingHandler.resubscribeToTask(taskId, streamId)
         } catch (e: IllegalArgumentException) {
-            logger.error("Task not found: {}", taskId, e)
+            logger.warn("Task not found for resubscribe: {}", taskId)
             val emitter = SseEmitter(Long.MAX_VALUE)
-            emitter.completeWithError(e)
+            emitter.send(
+                SseEmitter.event()
+                    // Written with the A2A SDK's own mapper, which serializes the error as a JSON-RPC error
+                    // rather than as an exception with its stack trace
+                    .data(Utils.toJsonString(JSONRPCErrorResponse(request.id, TaskNotFoundError())), MediaType.APPLICATION_JSON)
+            )
+            emitter.complete()
             emitter
         } catch (e: Exception) {
             logger.error("Error resubscribing to task: {}", taskId, e)
@@ -342,7 +337,7 @@ class AutonomyA2ARequestHandler(
 
     private fun createFailedTaskStatus(
         params: MessageSendParams,
-        e: Exception,
+        e: Throwable,
     ): TaskStatus = TaskStatus(
         TaskState.FAILED,
         Message.Builder()

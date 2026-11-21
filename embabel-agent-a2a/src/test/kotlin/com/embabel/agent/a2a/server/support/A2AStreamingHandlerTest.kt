@@ -96,7 +96,7 @@ class A2AStreamingHandlerTest {
     }
 
     @Test
-    fun `should record events when sending with task ID`() {
+    fun `should record events when publishing for a task`() {
         // Given
         streamingHandler.createStream("stream-1", "task-1", "ctx-1")
         val statusUpdate = TaskStatusUpdateEvent.Builder()
@@ -106,7 +106,7 @@ class A2AStreamingHandlerTest {
             .build()
 
         // When
-        streamingHandler.sendStreamEvent("stream-1", statusUpdate, "task-1")
+        streamingHandler.publishTaskEvent("task-1", statusUpdate)
 
         // Then
         val events = taskStateManager.getTaskEvents("task-1")

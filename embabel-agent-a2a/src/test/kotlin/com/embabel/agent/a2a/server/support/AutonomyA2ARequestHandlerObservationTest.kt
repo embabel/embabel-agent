@@ -79,7 +79,7 @@ class AutonomyA2ARequestHandlerObservationTest {
         every { autonomy.agentPlatform } returns mockk<AgentPlatform>(relaxed = true)
         every { autonomy.chooseAndRunAgent(any(), any()) } returns mockk(relaxed = true)
         justRun { agenticEventListener.onPlatformEvent(any()) }
-        justRun { streamingHandler.sendStreamEvent(any(), any(), any()) }
+        justRun { streamingHandler.publishTaskEvent(any(), any()) }
         justRun { streamingHandler.closeStream(any()) }
         registry = TestObservationRegistry.create()
         handler = AutonomyA2ARequestHandler(
