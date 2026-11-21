@@ -19,6 +19,9 @@ import com.embabel.agent.sandbox.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assumptions.assumeTrue
+import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -28,6 +31,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class DockerSessionIoTest {
+    @TempDir
+    lateinit var root: Path
     private val config = SandboxConfig(enabled = true, image = "alpine:latest", network = false, propagateEnv = emptyList())
     @BeforeEach fun requireDocker() {
         assumeTrue(DockerExecutor.isDockerAvailable() && DockerExecutor.imageExists(config.image))
@@ -136,6 +141,34 @@ class DockerSessionIoTest {
                 assertEquals(0, assertIs<ExecutionResult.Completed>(result).exitCode)
                 assertEquals(SandboxSession.SessionState.CLOSED, session.state)
             } finally { workers.shutdownNow() }
+        }
+    }
+
+    @Test
+    fun `callback can copy a file without deadlocking`() {
+        DockerSandboxSession("callback-copy", config, ttl = 1.hours).use { session ->
+            val destination = root.resolve("copied.txt")
+            val result = session.execute(ExecutionRequest(listOf("sh", "-s"),
+                stdin = "printf content > /tmp/report.txt; echo ready", timeout = 10.seconds,
+                stdoutCallback = { session.copyFrom("/tmp/report.txt", destination) }))
+            assertEquals(0, assertIs<ExecutionResult.Completed>(result).exitCode)
+            assertEquals("content", Files.readString(destination))
+        }
+    }
+
+    @Test
+    fun `long callback lines are truncated without failing the session command`() {
+        DockerSandboxSession("callback-long-line", config, ttl = 1.hours).use { session ->
+            val seen = mutableListOf<String>()
+            val result = session.execute(ExecutionRequest(listOf("sh", "-s"),
+                stdin = "head -c 70000 /dev/zero | tr '\\000' x; printf '\\nlast'", timeout = 10.seconds,
+                stdoutCallback = { seen.add(it) }))
+            assertEquals(0, assertIs<ExecutionResult.Completed>(result).exitCode)
+            assertEquals("x".repeat(70000) + "\nlast", result.stdout)
+            assertEquals(2, seen.size)
+            assertTrue(seen.first().length < 66_000)
+            assertContains(seen.first(), "[stdout callback line truncated after 65536 characters]")
+            assertEquals("last", seen.last())
         }
     }
 

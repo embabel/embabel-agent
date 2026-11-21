@@ -215,6 +215,7 @@ data class ExecutionRequest(
      * Enables real-time progress reporting while the command runs.
      * Runs independently of [captureOutput]. Captured output may be truncated by the executor;
      * disabling capture still drains both streams and delivers callbacks.
+     * Oversized callback lines may be truncated independently of the captured output.
      */
     val stdoutCallback: ((String) -> Unit)? = null,
 )

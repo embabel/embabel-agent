@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -55,6 +56,9 @@ class ProcessExecutionTest {
                             System.out.println("ready"); System.out.flush(); Thread.sleep(30000); break;
                         case "environment": System.out.print(System.getenv("SANDBOX_TEST_VALUE")); break;
                         case "reject": System.err.print("rejected"); System.exit(42); break;
+                        case "long-lines": System.out.print("x".repeat(65537) + "\nlast"); break;
+                        case "boundary": System.out.print("x".repeat(65536)); break;
+                        case "boundary-crlf": System.out.print("x".repeat(65536) + "\r\n"); break;
                     }
                 }
             }
@@ -109,11 +113,44 @@ class ProcessExecutionTest {
         }
 
         @Test
-        fun `callback cannot retain an unbounded line`() {
+        fun `oversized callback line is truncated while execution and capture complete`() {
+            val lines = mutableListOf<String>()
             val result = ProcessExecutor().execute(ExecutionRequest(command("large"), timeout = 20.seconds,
-                stdoutCallback = {}))
-            assertIs<ExecutionResult.Failed>(result)
-            assertContains(result.error, "callback line exceeded")
+                stdoutCallback = { lines.add(it) }))
+            assertIs<ExecutionResult.Completed>(result)
+            assertEquals(0, result.exitCode)
+            assertEquals(1, lines.size)
+            assertTrue(lines.single().length < 66_000)
+            assertContains(lines.single(), "[stdout callback line truncated after 65536 characters]")
+            assertContains(result.stdout, "[stdout truncated after 1048576 characters]")
+        }
+
+        @Test
+        fun `callback truncation resets at newline and is independent of capture`() {
+            for (capture in listOf(true, false)) {
+                val lines = mutableListOf<String>()
+                val result = ProcessExecutor().execute(ExecutionRequest(command("long-lines"), timeout = 20.seconds,
+                    captureOutput = capture, stdoutCallback = { lines.add(it) }))
+                assertIs<ExecutionResult.Completed>(result)
+                assertEquals(0, result.exitCode)
+                assertEquals(2, lines.size)
+                assertTrue(lines.first().startsWith("x".repeat(65536)))
+                assertContains(lines.first(), "[stdout callback line truncated")
+                assertEquals("last", lines.last())
+                assertEquals(if (capture) "x".repeat(65537) + "\nlast" else "", result.stdout)
+            }
+        }
+
+        @Test
+        fun `callback line at the boundary is not truncated`() {
+            for (mode in listOf("boundary", "boundary-crlf")) {
+                val lines = mutableListOf<String>()
+                val result = ProcessExecutor().execute(ExecutionRequest(command(mode), timeout = 20.seconds,
+                    stdoutCallback = { lines.add(it) }))
+                assertIs<ExecutionResult.Completed>(result)
+                assertEquals(0, result.exitCode)
+                assertEquals(listOf("x".repeat(65536)), lines, mode)
+            }
         }
 
         @Test
@@ -130,6 +167,17 @@ class ProcessExecutionTest {
 
     @Nested
     inner class Bounds {
+        @Test
+        fun `process completion hook runs exactly once on startup failure and timeout`() {
+            for (timeout in listOf(20.seconds, 0.milliseconds)) {
+                val calls = AtomicInteger()
+                val request = ExecutionRequest(listOf(root.resolve("missing").toString()), timeout = timeout)
+                val result = ProcessExecution.run(ProcessBuilder(request.command), request) { calls.incrementAndGet() }
+                assertTrue(result is ExecutionResult.Failed || result is ExecutionResult.TimedOut)
+                assertEquals(1, calls.get())
+            }
+        }
+
         @Test
         fun `nonzero exit is preserved when a child closes stdin before consuming input`() {
             val result = ProcessExecutor().execute(ExecutionRequest(command("reject"),

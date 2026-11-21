@@ -31,10 +31,19 @@ import kotlin.time.TimeSource
 internal object ProcessExecution {
     private const val MAX_CAPTURED_CHARS = 1_048_576
     private const val MAX_CALLBACK_LINE_CHARS = 65_536
+    private val endOfCallbacks = Any()
     private val logger = LoggerFactory.getLogger(ProcessExecution::class.java)
 
-    fun run(builder: ProcessBuilder, request: ExecutionRequest): ExecutionResult {
+    /** [onProcessFinished] runs on the caller before awaiting callbacks, including on failure. */
+    fun run(builder: ProcessBuilder, request: ExecutionRequest, onProcessFinished: () -> Unit = {}): ExecutionResult {
         val started = TimeSource.Monotonic.markNow()
+        var processFinished = false
+        fun finishProcess() {
+            if (!processFinished) {
+                processFinished = true
+                onProcessFinished()
+            }
+        }
         fun remainingNanos(): Long {
             if (Thread.currentThread().isInterrupted) throw InterruptedException("Execution interrupted")
             val remaining = (request.timeout - started.elapsedNow()).inWholeNanoseconds
@@ -46,9 +55,10 @@ internal object ProcessExecution {
         val failure = AtomicReference<Exception?>()
         val inputFailure = AtomicReference<Exception?>()
         val callbacksFinished = AtomicBoolean()
-        val lines = ArrayBlockingQueue<String>(64)
+        val lines = request.stdoutCallback?.let { ArrayBlockingQueue<Any>(64) }
         val workers = mutableListOf<Thread>()
         var process: Process? = null
+        var callbackWorker: Thread? = null
         return try {
             remainingNanos()
             val running = builder.start().also { process = it }
@@ -58,13 +68,15 @@ internal object ProcessExecution {
                 workers.add(this)
                 start()
             }
-            val callbackWorker = request.stdoutCallback?.let { callback ->
-                worker("callback") {
+            if (lines != null) {
+                val callback = requireNotNull(request.stdoutCallback)
+                callbackWorker = Thread {
                     try {
                         while (!callbacksFinished.get() || lines.isNotEmpty()) {
-                            val line = lines.poll(50, TimeUnit.MILLISECONDS) ?: continue
+                            val line = lines.take()
+                            if (line === endOfCallbacks) break
                             try {
-                                callback(line)
+                                callback(line as String)
                             } catch (e: InterruptedException) {
                                 Thread.currentThread().interrupt()
                                 break
@@ -75,11 +87,11 @@ internal object ProcessExecution {
                     } catch (_: InterruptedException) {
                         Thread.currentThread().interrupt()
                     }
-                }
+                }.apply { isDaemon = true; name = "sandbox-callback"; start() }
             }
             val stdoutWorker = worker("stdout") {
                 try {
-                    read(running.inputStream, stdout, request.stdoutCallback?.let {
+                    read(running.inputStream, stdout, lines?.let {
                         { line ->
                             if (!lines.offer(line, remainingNanos(), TimeUnit.NANOSECONDS)) {
                                 throw TimeoutException("Stdout callback delivery timed out")
@@ -91,6 +103,8 @@ internal object ProcessExecution {
                     running.destroyForcibly()
                 } finally {
                     callbacksFinished.set(true)
+                    // Wake an idle callback worker. If the queue is full, it will drain and exit.
+                    lines?.offer(endOfCallbacks)
                 }
             }
             val stderrWorker = worker("stderr") {
@@ -109,13 +123,18 @@ internal object ProcessExecution {
                 }
             }
             if (!running.waitFor(remainingNanos(), TimeUnit.NANOSECONDS)) throw TimeoutException()
-            for (worker in listOfNotNull(stdoutWorker, stderrWorker, stdinWorker, callbackWorker)) {
+            for (worker in listOf(stdoutWorker, stderrWorker, stdinWorker)) {
                 if (worker.isAlive) TimeUnit.NANOSECONDS.timedJoin(worker, remainingNanos())
                 if (worker.isAlive) throw TimeoutException()
             }
             failure.get()?.let { throw it }
             // Preserve a nonzero command exit when the child deliberately closes stdin early.
             if (running.exitValue() == 0) inputFailure.get()?.let { throw IOException("Command input failed", it) }
+            finishProcess()
+            if (callbackWorker?.isAlive == true) {
+                TimeUnit.NANOSECONDS.timedJoin(callbackWorker, remainingNanos())
+                if (callbackWorker.isAlive) throw TimeoutException()
+            }
             ExecutionResult.Completed(running.exitValue(), stdout.text(), stderr.text(), started.elapsedNow())
         } catch (e: TimeoutException) {
             ExecutionResult.TimedOut(stderr.text().takeIf(String::isNotEmpty), started.elapsedNow())
@@ -127,6 +146,7 @@ internal object ProcessExecution {
         } finally {
             callbacksFinished.set(true)
             process?.destroyForcibly()
+            callbackWorker?.interrupt()
             workers.filter(Thread::isAlive).forEach(Thread::interrupt)
             val interrupted = Thread.interrupted()
             try {
@@ -141,12 +161,21 @@ internal object ProcessExecution {
                 Thread.currentThread().interrupt()
             } finally {
                 if (interrupted) Thread.currentThread().interrupt()
+                finishProcess()
             }
         }
     }
 
     private fun read(stream: InputStream, capture: Capture, callback: ((String) -> Unit)? = null) {
         val line = callback?.let { StringBuilder() }
+        var lineTruncated = false
+        fun deliverLine() {
+            val current = line ?: return
+            val suffix = if (lineTruncated) " [stdout callback line truncated after $MAX_CALLBACK_LINE_CHARS characters]" else ""
+            callback?.invoke(current.toString().trimEnd('\r') + suffix)
+            current.setLength(0)
+            lineTruncated = false
+        }
         stream.reader().use { reader ->
             val buffer = CharArray(4096)
             while (true) {
@@ -156,19 +185,16 @@ internal object ProcessExecution {
                 if (line != null) {
                     for (i in 0 until count) {
                         if (buffer[i] == '\n') {
-                            callback.invoke(line.toString().trimEnd('\r'))
-                            line.setLength(0)
+                            deliverLine()
                         } else {
-                            if (line.length >= MAX_CALLBACK_LINE_CHARS) {
-                                throw IOException("Stdout callback line exceeded $MAX_CALLBACK_LINE_CHARS characters")
-                            }
-                            line.append(buffer[i])
+                            if (line.length < MAX_CALLBACK_LINE_CHARS) line.append(buffer[i])
+                            else if (buffer[i] != '\r') lineTruncated = true
                         }
                     }
                 }
             }
         }
-        if (line != null && line.isNotEmpty()) callback.invoke(line.toString().trimEnd('\r'))
+        if (line != null && line.isNotEmpty()) deliverLine()
     }
 
     private class Capture(private val name: String, private val enabled: Boolean) {

@@ -107,6 +107,8 @@ Stdout and stderr capture are each limited to 1,048,576 characters, with a
 truncation marker when exceeded. Disabling capture still drains output and
 delivers stdout callbacks. These bounds apply to persistent sessions,
 `DockerExecutor`, and `ProcessExecutor`.
+Callback lines longer than 65,536 characters are truncated with a marker without
+failing the command or truncating the separately captured stdout at that boundary.
 
 Use `ScratchTool` when the model must write commands or code and work across
 several executions. Use the <<reference.agent_skills,skill script engines>> when

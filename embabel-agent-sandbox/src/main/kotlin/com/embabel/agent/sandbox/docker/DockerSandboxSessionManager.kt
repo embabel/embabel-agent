@@ -47,8 +47,10 @@ class DockerSandboxSessionManager @JvmOverloads constructor(
     private val logger = LoggerFactory.getLogger(DockerSandboxSessionManager::class.java)
 
     private val sessions = ConcurrentHashMap<String, DockerSandboxSession>()
+    private val creationLock = Any()
+    private val pendingStarts = mutableMapOf<String?, Int>()
+    private var generation = 0L
 
-    @Synchronized
     override fun create(
         label: String,
         config: SandboxConfig,
@@ -56,44 +58,63 @@ class DockerSandboxSessionManager @JvmOverloads constructor(
         ttl: Duration,
         metadata: Map<String, String>,
     ): SandboxSession {
-        sessions.entries.removeIf { it.value.state == SandboxSession.SessionState.CLOSED }
-        // Enforce limits
-        if (maxTotalSessions > 0 && sessions.size >= maxTotalSessions) {
+        val reservedGeneration = reserveSlot(owner) ?: run {
+            // Eviction may call Docker, so it must also run outside the admission lock.
             evictExpired()
-            if (sessions.size >= maxTotalSessions) {
-                throw IllegalStateException(
-                    "Maximum total sessions ($maxTotalSessions) reached. Close existing sessions first."
-                )
+            reserveSlot(owner) ?: throw IllegalStateException(
+                "Maximum total sessions ($maxTotalSessions) reached. Close existing sessions first."
+            )
+        }
+        var session: DockerSandboxSession? = null
+        var registered = false
+        try {
+            val started = DockerSandboxSession(
+                label = label,
+                config = config,
+                owner = owner,
+                ttl = ttl,
+                metadata = metadata,
+                artifactExport = artifactExport,
+            ).also { session = it }
+            synchronized(creationLock) {
+                check(reservedGeneration == generation) { "Session creation cancelled by closeAll" }
+                sessions[started.id] = started
+                releaseSlot(owner)
+                registered = true
+            }
+            logger.info("Created session '{}' (id={}, owner={}, ttl={})", label, started.id, owner ?: "none", ttl)
+            return started
+        } finally {
+            if (!registered) {
+                try {
+                    session?.close()
+                } finally {
+                    synchronized(creationLock) { releaseSlot(owner) }
+                }
             }
         }
+    }
 
+    private fun reserveSlot(owner: String?): Long? = synchronized(creationLock) {
+        sessions.entries.removeIf { it.value.state == SandboxSession.SessionState.CLOSED }
+        if (maxTotalSessions > 0 && sessions.size + pendingStarts.values.sum() >= maxTotalSessions) {
+            return@synchronized null
+        }
         if (owner != null && maxSessionsPerOwner > 0) {
             val ownerCount = sessions.values.count {
                 it.owner == owner && it.state != SandboxSession.SessionState.CLOSED
-            }
-            if (ownerCount >= maxSessionsPerOwner) {
-                throw IllegalStateException(
-                    "Maximum sessions per owner ($maxSessionsPerOwner) reached for '$owner'."
-                )
+            } + pendingStarts.getOrDefault(owner, 0)
+            check(ownerCount < maxSessionsPerOwner) {
+                "Maximum sessions per owner ($maxSessionsPerOwner) reached for '$owner'."
             }
         }
+        pendingStarts[owner] = pendingStarts.getOrDefault(owner, 0) + 1
+        generation
+    }
 
-        val session = DockerSandboxSession(
-            label = label,
-            config = config,
-            owner = owner,
-            ttl = ttl,
-            metadata = metadata,
-            artifactExport = artifactExport,
-        )
-
-        sessions[session.id] = session
-        logger.info(
-            "Created session '{}' (id={}, owner={}, ttl={})",
-            label, session.id, owner ?: "none", ttl,
-        )
-
-        return session
+    private fun releaseSlot(owner: String?) {
+        val remaining = pendingStarts.getValue(owner) - 1
+        if (remaining == 0) pendingStarts.remove(owner) else pendingStarts[owner] = remaining
     }
 
     override fun get(id: String): SandboxSession? {
@@ -121,14 +142,20 @@ class DockerSandboxSessionManager @JvmOverloads constructor(
     }
 
     override fun closeAll() {
-        logger.info("Closing all {} sandbox sessions", sessions.size)
-        for ((id, session) in sessions) {
+        val closing = synchronized(creationLock) {
+            // In-flight starts keep their reservations until they can close and release them.
+            generation++
+            sessions.values.toList()
+        }
+        logger.info("Closing all {} sandbox sessions", closing.size)
+        for (session in closing) {
             try {
                 session.close()
             } catch (e: Exception) {
-                logger.warn("Failed to close session '{}': {}", id, e.message)
+                logger.warn("Failed to close session '{}': {}", session.id, e.message)
+            } finally {
+                sessions.remove(session.id, session)
             }
         }
-        sessions.clear()
     }
 }

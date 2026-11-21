@@ -26,20 +26,15 @@ import com.embabel.agent.sandbox.SandboxSession
 import com.embabel.agent.sandbox.process.ProcessExecution
 import org.slf4j.LoggerFactory
 import java.io.OutputStream
-import java.io.InputStream
 import java.nio.file.Path
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 import java.io.IOException
-import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 
@@ -159,55 +154,36 @@ class DockerSandboxSession(
     }
 
     override fun execute(request: ExecutionRequest): ExecutionResult {
-        // Callbacks run while output streams, but never on a thread that execute waits for
-        // while holding operationLock. A callback may itself call close or copyFrom.
         val started = TimeSource.Monotonic.markNow()
-        val callbacks = request.stdoutCallback?.let { StdoutCallbacks(it) }
-        val effectiveRequest = callbacks?.let { callback ->
-            request.copy(stdoutCallback = { line ->
-                val remaining = (request.timeout - started.elapsedNow()).inWholeNanoseconds
-                if (remaining <= 0) throw TimeoutException("Stdout callback delivery timed out")
-                callback.submit(line, remaining)
-            })
-        } ?: request
         var locked = false
-        val result = try {
+        fun finishProcess() {
+            if (locked) {
+                lastActiveAt = Instant.now()
+                operationLock.unlock()
+                locked = false
+            }
+        }
+        return try {
             locked = operationLock.tryLock(request.timeout.inWholeNanoseconds.coerceAtLeast(0), TimeUnit.NANOSECONDS)
             val remaining = request.timeout - started.elapsedNow()
             if (!locked || !remaining.isPositive()) ExecutionResult.TimedOut(duration = started.elapsedNow())
-            else executeLocked(effectiveRequest.copy(timeout = remaining))
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-            ExecutionResult.Failed("Session execution interrupted", cause = e)
-        } finally {
-            if (locked) operationLock.unlock()
-            callbacks?.finish()
-        }
-        try {
-            if (callbacks != null && !callbacks.await(request.timeout - started.elapsedNow())) {
-                return ExecutionResult.TimedOut(duration = started.elapsedNow())
+            else {
+                check(state == SandboxSession.SessionState.ACTIVE) {
+                    "Cannot execute in session '$id' with state $state"
+                }
+                // A callback may close the session or copy a file, so release its lock before awaiting callbacks.
+                when (val result = executeCommand(request.copy(timeout = remaining), ::finishProcess)) {
+                    is ExecutionResult.Completed -> result.copy(duration = started.elapsedNow())
+                    is ExecutionResult.TimedOut -> result.copy(duration = started.elapsedNow())
+                    is ExecutionResult.Failed -> result.copy(duration = started.elapsedNow())
+                    is ExecutionResult.Denied -> result.copy(duration = started.elapsedNow())
+                }
             }
         } catch (e: InterruptedException) {
-            callbacks?.cancel()
             Thread.currentThread().interrupt()
-            return ExecutionResult.Failed("Session execution interrupted", cause = e)
-        }
-        return result
-    }
-
-    private fun executeLocked(request: ExecutionRequest): ExecutionResult {
-        check(state == SandboxSession.SessionState.ACTIVE) {
-            "Cannot execute in session '$id' with state $state"
-        }
-        return try {
-            executeCommand(request)
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-            ExecutionResult.Failed("Session execution interrupted", cause = e)
-        } catch (e: Exception) {
-            ExecutionResult.Failed("Session execution failed: ${e.message}", cause = e)
+            ExecutionResult.Failed("Session execution interrupted", cause = e, duration = started.elapsedNow())
         } finally {
-            lastActiveAt = Instant.now()
+            finishProcess()
         }
     }
 
@@ -279,9 +255,6 @@ class DockerSandboxSession(
     }
 
     private companion object {
-        private const val MAX_CAPTURED_CHARS = 1_048_576
-        private const val MAX_CALLBACK_LINE_CHARS = 65_536
-        private const val CALLBACK_QUEUE_SIZE = 64
         private val COPY_TIMEOUT = 30.seconds
 
         // POSIX sh only: no Python, hashing utility, or temporary container file required.
@@ -308,88 +281,7 @@ class DockerSandboxSession(
         """.trimIndent()
     }
 
-    private class CallbackOutputLimitException(message: String) : IOException(message)
-
-    private class StdoutCallbacks(private val callback: (String) -> Unit) {
-        private val finished = AtomicBoolean()
-        private val lines = ArrayBlockingQueue<String>(CALLBACK_QUEUE_SIZE)
-        private val worker = Thread {
-            while (true) {
-                val next = try { lines.poll(50, TimeUnit.MILLISECONDS) } catch (_: InterruptedException) { break }
-                if (next == null) {
-                    if (finished.get() && lines.isEmpty()) break
-                    continue
-                }
-                try {
-                    callback(next)
-                } catch (_: InterruptedException) {
-                    break
-                } catch (_: Exception) {
-                    // Callback failures must not prevent stdout from being drained.
-                }
-            }
-        }.apply { isDaemon = true; name = "sandbox-stdout-callback"; start() }
-
-        fun submit(line: String, remainingNanos: Long) {
-            if (!lines.offer(line, remainingNanos, TimeUnit.NANOSECONDS)) {
-                throw TimeoutException("Stdout callback delivery timed out")
-            }
-        }
-
-        fun finish() {
-            finished.set(true)
-        }
-
-        fun cancel() = worker.interrupt()
-
-        fun await(remaining: Duration): Boolean {
-            if (remaining.isPositive()) TimeUnit.NANOSECONDS.timedJoin(worker, remaining.inWholeNanoseconds)
-            if (worker.isAlive) {
-                worker.interrupt()
-                return false
-            }
-            return true
-        }
-    }
-
-    private fun readStdout(stream: InputStream, request: ExecutionRequest): String {
-        val captured = StringBuilder()
-        val callbackLine = request.stdoutCallback?.let { StringBuilder() }
-        var truncated = false
-        stream.reader().use { reader ->
-            val buffer = CharArray(4096)
-            while (true) {
-                val count = reader.read(buffer)
-                if (count < 0) break
-                for (i in 0 until count) {
-                    val char = buffer[i]
-                    if (request.captureOutput) {
-                        if (captured.length < MAX_CAPTURED_CHARS) captured.append(char)
-                        else truncated = true
-                    }
-                    if (callbackLine != null) {
-                        if (char == '\n') {
-                            request.stdoutCallback?.invoke(callbackLine.toString().trimEnd('\r'))
-                            callbackLine.setLength(0)
-                        } else {
-                            if (callbackLine.length >= MAX_CALLBACK_LINE_CHARS) {
-                                throw CallbackOutputLimitException("Stdout callback line exceeded $MAX_CALLBACK_LINE_CHARS characters")
-                            }
-                            callbackLine.append(char)
-                        }
-                    }
-                }
-            }
-        }
-        if (callbackLine != null && callbackLine.isNotEmpty()) {
-            request.stdoutCallback?.invoke(callbackLine.toString().trimEnd('\r'))
-        }
-        if (!request.captureOutput) return ""
-        val text = captured.toString().replace("\r\n", "\n").removeSuffix("\n").trimEnd('\r')
-        return if (truncated) "$text\n[stdout truncated after $MAX_CAPTURED_CHARS characters]" else text
-    }
-
-    private fun executeCommand(request: ExecutionRequest): ExecutionResult {
+    private fun executeCommand(request: ExecutionRequest, onProcessFinished: () -> Unit): ExecutionResult {
         check(state == SandboxSession.SessionState.ACTIVE) {
             "Cannot execute in session '$id' with state $state"
         }
@@ -414,79 +306,10 @@ class DockerSandboxSession(
 
         logger.debug("Session '{}' exec: {}", id, request.command.joinToString(" ").take(100))
 
-        val started = TimeSource.Monotonic.markNow()
-        var process: Process? = null
-        val stdout = AtomicReference("")
-        val stderr = StringBuffer()
-        fun remainingNanos(): Long {
-            val remaining = (request.timeout - started.elapsedNow()).inWholeNanoseconds
-            if (remaining <= 0) throw TimeoutException("Command timed out")
-            return remaining
-        }
-        return try {
-            remainingNanos()
-            val running = ProcessBuilder(execCmd).start().also { process = it }
-            val ioFailure = AtomicReference<Exception?>()
-            val stdoutThread = Thread {
-                try {
-                    stdout.set(readStdout(running.inputStream, request))
-                } catch (e: Exception) {
-                    ioFailure.compareAndSet(null, e)
-                    running.destroyForcibly()
-                }
-            }.apply { isDaemon = true; name = "sandbox-stdout"; start() }
-            val stderrThread = Thread {
-                try {
-                    running.errorStream.reader().use { reader ->
-                        val buffer = CharArray(4096)
-                        val characters = java.nio.CharBuffer.wrap(buffer)
-                        var truncated = false
-                        while (true) {
-                            val count = reader.read(buffer)
-                            if (count < 0) break
-                            if (request.captureOutput) {
-                                val retained = minOf(count, MAX_CAPTURED_CHARS - stderr.length)
-                                if (retained > 0) stderr.appendRange(characters, 0, retained)
-                                if (retained < count) truncated = true
-                            }
-                        }
-                        if (truncated) stderr.append("\n[stderr truncated after $MAX_CAPTURED_CHARS characters]")
-                    }
-                } catch (e: Exception) { ioFailure.compareAndSet(null, e) }
-            }.apply { isDaemon = true; name = "sandbox-stderr"; start() }
-            // Write concurrently with draining both output streams. A child may produce
-            // output before consuming all input, or may never consume its input at all.
-            val stdinThread = Thread {
-                try {
-                    running.outputStream.bufferedWriter().use { writer -> request.stdin?.let { writer.write(it) } }
-                } catch (e: Exception) { ioFailure.compareAndSet(null, e) }
-            }.apply { isDaemon = true; name = "sandbox-stdin"; start() }
-            if (!running.waitFor(remainingNanos(), TimeUnit.NANOSECONDS)) throw TimeoutException()
-            for (worker in listOf(stdoutThread, stderrThread, stdinThread)) {
-                TimeUnit.NANOSECONDS.timedJoin(worker, remainingNanos())
-                if (worker.isAlive) throw TimeoutException()
-            }
-            // Preserve an actual nonzero command exit even if it closed stdin early.
-            val failure = ioFailure.get()
-            if (failure is TimeoutException) throw failure
-            if (failure is CallbackOutputLimitException || running.exitValue() == 0) {
-                failure?.let { throw IOException("Command I/O failed: ${it.message}", it) }
-            }
-            ExecutionResult.Completed(running.exitValue(), stdout.get(),
-                stderr.toString(), started.elapsedNow())
-        } catch (e: TimeoutException) {
-            ExecutionResult.TimedOut(partialStderr = stderr.toString().takeIf { it.isNotBlank() },
-                duration = started.elapsedNow())
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-            ExecutionResult.Failed("Session execution interrupted", cause = e)
-        } catch (e: Exception) {
-            logger.error("Session '{}' execution failed: {}", id, e.message, e)
-            ExecutionResult.Failed("Execution failed: ${e.message}", cause = e)
-        } finally {
-            process?.destroyForcibly()
-            lastActiveAt = Instant.now()
-        }
+        val result = ProcessExecution.run(ProcessBuilder(execCmd), request, onProcessFinished)
+        return if (result is ExecutionResult.Completed) result.copy(
+            stdout = result.stdout.replace("\r\n", "\n").removeSuffix("\n").trimEnd('\r'),
+        ) else result
     }
 
     override fun copyFrom(containerPath: String, hostPath: Path) = withFileTransfer { cid, run ->

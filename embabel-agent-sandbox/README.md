@@ -180,13 +180,18 @@ The publication limits bound one batch, not total storage or concurrent sessions
 Command stdout and stderr are each retained up to 1,048,576 characters, then
 marked as truncated while the pipes continue draining. `captureOutput=false`
 returns empty streams while still delivering stdout callbacks. Callback delivery
-uses a 64-line queue; if a callback cannot keep up or one line exceeds 65,536
-characters, execution fails or times out rather than retaining unbounded lines.
+uses a 64-line queue. Lines longer than 65,536 characters are truncated with a
+marker for the callback; captured stdout is bounded separately and is unaffected
+by callback-line truncation. A callback that cannot keep up can time out execution.
 These output and callback bounds also apply to `DockerExecutor` and `ProcessExecutor`.
 `SandboxConfig.createExecutor()` applies `runtimeEnv` and `extraHosts` to Docker.
 Runtime environment values override propagated and mapped host values, and
 request environment values override runtime values. Closed sessions release
 capacity on the next creation; paused sessions continue counting against limits.
+In-flight container starts also count against both applicable limits. Capacity
+is reserved under a short lock, while container startup runs outside that lock.
+Failed starts release their reservations. `closeAll()` prevents in-flight starts
+from registering and closes their containers when startup completes.
 
 Scratch command timeouts return `Tool.Result.Error` with a reminder to check for
 side effects before retrying. The native tool loop sends this error back to the
