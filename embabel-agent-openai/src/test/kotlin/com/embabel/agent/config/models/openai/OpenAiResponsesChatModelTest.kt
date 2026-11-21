@@ -123,9 +123,9 @@ class OpenAiResponsesChatModelTest {
         return params.captured
     }
 
-    private fun respondWith(response: Response) {
+    private fun respondWith(vararg responses: Response) {
         every { client.responses() } returns responseService
-        every { responseService.create(any<ResponseCreateParams>()) } returns response
+        every { responseService.create(any<ResponseCreateParams>()) } returnsMany responses.toList()
     }
 
     @Nested
@@ -279,6 +279,21 @@ class OpenAiResponsesChatModelTest {
                 val params = capture(Prompt(listOf(UserMessage("Hi")), options))
                 assertEquals(effort, params.reasoning().orElseThrow().effort().orElseThrow().asString())
             }
+        }
+
+        @Test
+        fun `previous response id is added to response create params`() {
+            val params = capture(
+                Prompt(
+                    listOf(UserMessage("Continue")),
+                    OpenAiChatOptions.builder()
+                        .model("gpt-5-pro")
+                        .extraBody(mapOf(OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID to "resp_previous"))
+                        .build(),
+                )
+            )
+
+            assertEquals("resp_previous", params.previousResponseId().orElse(null))
         }
 
         /**
@@ -649,6 +664,20 @@ class OpenAiResponsesChatModelTest {
 
     @Nested
     inner class ResponseMapping {
+
+        @Test
+        fun `each response id is reported in standard response metadata`() {
+            respondWith(
+                textResponse("one", responseId = "resp_1"),
+                textResponse("two", responseId = "resp_2"),
+                textResponse("three", responseId = "resp_3"),
+            )
+
+            assertEquals(
+                listOf("resp_1", "resp_2", "resp_3"),
+                List(3) { model.call(Prompt("Hi")).metadata.id },
+            )
+        }
 
         @Test
         fun `text output becomes the assistant message`() {
@@ -1025,7 +1054,11 @@ class OpenAiResponsesChatModelTest {
             .totalTokens(inputTokens + outputTokens)
             .build()
 
-    private fun textResponse(text: String, usage: ResponseUsage? = null): Response =
+    private fun textResponse(
+        text: String,
+        usage: ResponseUsage? = null,
+        responseId: String = "resp_1",
+    ): Response =
         response(
             ResponseOutputItem.ofMessage(
                 ResponseOutputMessage.builder()
@@ -1035,6 +1068,7 @@ class OpenAiResponsesChatModelTest {
                     .build()
             ),
             usage = usage,
+            responseId = responseId,
         )
 
     private fun response(
@@ -1043,9 +1077,10 @@ class OpenAiResponsesChatModelTest {
         status: ResponseStatus? = null,
         error: ResponseError? = null,
         incompleteDetails: Response.IncompleteDetails? = null,
+        responseId: String = "resp_1",
     ): Response =
         Response.builder()
-            .id("resp_1")
+            .id(responseId)
             .createdAt(0.0)
             .model(OpenAiModels.GPT_5_PRO)
             .output(output.toList())
