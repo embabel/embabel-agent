@@ -20,6 +20,7 @@ import org.springframework.boot.ExitCodeGenerator;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.Ordered;
 
@@ -45,6 +46,7 @@ class ShellExitListenerTest {
         GenericApplicationContext context = new GenericApplicationContext();
         context.registerBean(ExitCodeGenerator.class, () -> () -> 3);
         context.refresh();
+        listener.setApplicationContext(context);
 
         // Act
         listener.onApplicationEvent(readyEvent(context));
@@ -60,12 +62,64 @@ class ShellExitListenerTest {
         GenericApplicationContext context = new GenericApplicationContext();
         context.refresh();
         context.close();
+        listener.setApplicationContext(context);
 
         // Act
         listener.onApplicationEvent(readyEvent(context));
 
         // Assert
         assertThat(exitCodes).containsExactly(0);
+    }
+
+    @Test
+    void ignoresReadyEventPropagatedFromChildContext() {
+        try (GenericApplicationContext parent = new GenericApplicationContext();
+             GenericApplicationContext child = new GenericApplicationContext(parent)) {
+            parent.registerBean(ShellExitListener.class, () -> listener);
+            parent.refresh();
+            child.refresh();
+
+            child.publishEvent(readyEvent(child));
+
+            assertThat(parent.isActive()).isTrue();
+            assertThat(child.isActive()).isTrue();
+            assertThat(exitCodes).isEmpty();
+        }
+    }
+
+    @Test
+    void exitsForOwnReadyEventWhenContextHasParent() {
+        try (GenericApplicationContext parent = new GenericApplicationContext();
+             GenericApplicationContext child = new GenericApplicationContext(parent)) {
+            parent.refresh();
+            child.registerBean(ShellExitListener.class, () -> listener);
+            child.refresh();
+
+            child.publishEvent(readyEvent(child));
+
+            assertThat(parent.isActive()).isTrue();
+            assertThat(child.isActive()).isFalse();
+            assertThat(exitCodes).containsExactly(0);
+        }
+    }
+
+    @Test
+    void publishesContextClosedEventBeforeExitingProcess() {
+        List<String> events = new ArrayList<>();
+        try (GenericApplicationContext context = new GenericApplicationContext()) {
+            context.addApplicationListener(event -> {
+                if (event instanceof ContextClosedEvent) {
+                    events.add("closed");
+                }
+            });
+            context.refresh();
+            ShellExitListener exitListener = new ShellExitListener(code -> events.add("exit"));
+            exitListener.setApplicationContext(context);
+
+            exitListener.onApplicationEvent(readyEvent(context));
+
+            assertThat(events).containsExactly("closed", "exit");
+        }
     }
 
     @Test

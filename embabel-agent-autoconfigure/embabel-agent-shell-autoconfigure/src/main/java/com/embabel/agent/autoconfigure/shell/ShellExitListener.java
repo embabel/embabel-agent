@@ -19,6 +19,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
@@ -36,13 +38,15 @@ import java.util.function.IntConsumer;
  * with the context's exit code.
  *
  * <p>Ordered first so it runs while the context is still active, before Spring Shell's own
- * listener closes it.
+ * listener closes it. Only ready events from the context owning this listener trigger exit.
  */
-public class ShellExitListener implements ApplicationListener<ApplicationReadyEvent>, Ordered {
+public class ShellExitListener implements ApplicationListener<ApplicationReadyEvent>, ApplicationContextAware, Ordered {
 
     private static final Logger logger = LoggerFactory.getLogger(ShellExitListener.class);
 
     private final IntConsumer exitProcess;
+
+    private ApplicationContext applicationContext;
 
     public ShellExitListener() {
         this(System::exit);
@@ -53,8 +57,17 @@ public class ShellExitListener implements ApplicationListener<ApplicationReadyEv
     }
 
     @Override
+    public void setApplicationContext(ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
+    }
+
+    @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
         ConfigurableApplicationContext context = event.getApplicationContext();
+        // Child context events also propagate to listeners in the parent.
+        if (context != applicationContext) {
+            return;
+        }
         int exitCode = context.isActive() ? SpringApplication.exit(context) : 0;
         logger.debug("Shell finished - exiting with code {}", exitCode);
         exitProcess.accept(exitCode);

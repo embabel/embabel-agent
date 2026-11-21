@@ -16,7 +16,9 @@
 package com.embabel.agent.autoconfigure.shell;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.SearchStrategy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 
@@ -39,6 +41,7 @@ import org.springframework.context.annotation.ComponentScan;
 public class AgentShellAutoConfiguration {
 
     @Bean
+    @ConditionalOnMissingBean(search = SearchStrategy.CURRENT)
     @ConditionalOnProperty(name = "spring.shell.context.close", havingValue = "true")
     public ShellExitListener shellExitListener() {
         return new ShellExitListener();

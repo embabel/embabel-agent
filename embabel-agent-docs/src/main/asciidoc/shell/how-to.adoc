@@ -22,13 +22,26 @@ If you are using the Embabel example or template projects, use the provided conv
 
 ==== Exiting the Shell
 
-Type `quit` or `exit` at the shell prompt to stop the application.
-Spring Shell ends its input loop, then Embabel closes the application context and terminates the JVM with `System.exit`, so threads still running outside Spring's control do not keep the process alive.
+Type `quit` or `exit` at the shell prompt to end the interactive shell.
+When context closing is enabled, Embabel closes the application context and terminates the JVM with `System.exit`, so threads still running outside Spring's control do not keep the process alive.
 The application's exit code comes from any `ExitCodeGenerator` beans, as with `SpringApplication.exit`.
 
-This is controlled by `spring.shell.context.close`, which Embabel defaults to `true`.
-Set it to `false` explicitly if your application must keep running after the shell exits (for example, to keep serving web requests).
-`EmbabelMockitoIntegrationTest` sets it to `false` so the test context stays open.
+Set `embabel.agent.shell.interactive.enabled=false` to disable interactive mode.
+If you explicitly set `spring.shell.interactive.enabled`, Embabel uses that value so applications already configured through Spring Shell keep their chosen setting.
+Here, unset means the property is absent from the environment. Both `true` and `false` are explicit settings.
+With neither interactive property set, interactive mode defaults to `true`.
+
+Embabel checks the following settings in order to decide whether to close the context after application runners finish:
+
+. An explicit `spring.shell.context.close` value. This preserves the application's existing Spring Shell configuration.
+. An explicit `embabel.agent.shell.context-close` value. The name maps to the single `contextClose` field in `AgentShellProperties`.
+. The effective interactive setting. By default, the context closes in interactive mode and stays open when interactive mode is disabled.
+
+The first configured close setting wins. A value of `true` requests shutdown even with interactive mode disabled, while `false` keeps the context open.
+For either setting pair, Spring `false` with Embabel `true` resolves to `false`, and Spring `true` with Embabel `false` resolves to `true`.
+When both close properties are absent, the close value equals the effective interactive value, so enabled means close and disabled means keep open.
+For example, set `spring.shell.context.close=false` to keep serving web requests after the shell ends.
+`EmbabelMockitoIntegrationTest` uses that setting to keep the test context open.
 
 ==== Navigating the Shell
 
