@@ -180,7 +180,6 @@ internal object ThinkingDetector {
      *         or null when the line should stay whole
      */
     fun splitAfterClosingTag(line: String): Pair<String, String>? {
-        // Work on the line without surrounding whitespace.
         val trimmed = line.trim()
         // Fast path: only a line ending with '}' can end with a JSON object.
         if (!trimmed.endsWith('}')) return null
@@ -203,11 +202,9 @@ internal object ThinkingDetector {
         //   "}                          -> CONTINUATION -> no split (the last closing tag was inside
         //                                  the JSON, e.g. <think>r</think>{"name":"<think>a</think>"})
         if (detectThinkingState(json) != ThinkingState.NONE) {
-            // Record why a line with a closing tag was kept whole, e.g. "<think>a</think> so <think>b {"name":"x"}".
             logger.debug("Text after the closing thinking tag is not a JSON object, not split: {}", trimmed)
             return null
         }
-        // Reasoning first, then JSON: the order the model wrote them.
         return reasoning to json
     }
 
@@ -217,20 +214,16 @@ internal object ThinkingDetector {
      * any thinking block on this line.
      */
     private fun indexAfterLastClosingTag(line: String): Int {
-        // Start with "not found".
         var result = -1
-        // Check every tag family: </think>, </analysis>, </thought>, ...
         for (tag in endTags) {
             // Where this tag last occurs, e.g. "</think>" in "<think>r</think>{...}" -> 8; -1 if absent.
             val tagStart = line.lastIndexOf(tag)
-            // This tag doesn't occur in the line: try the next family.
             if (tagStart < 0) continue
             // Position right after the tag, e.g. 8 + "</think>".length (8) -> 16.
             val tagEnd = tagStart + tag.length
             // Keep the rightmost end seen so far, e.g. "<analysis>a</analysis><think>b</think>{...}" -> after </think>.
             if (tagEnd > result) result = tagEnd
         }
-        // -1 if no closing tag was found, otherwise the index where the JSON candidate starts.
         return result
     }
 

@@ -139,29 +139,21 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
         //   {"name":"x"}   -> pass
         //   {"other":1}    -> fail (valid JSON, wrong shape for T)
         if (!convertsToTarget(json)) {
-            // Record why a line with a closing tag was kept whole, e.g. "<think>r</think>{"other":1}".
             logger.debug("Text after the closing thinking tag is not a JSON object of the target type, not split: {}", line)
             return listOf(line)
         }
-        // Record the split, e.g. reasoning='<think>r</think>', json='{"name":"x"}'.
         logger.debug("Split reasoning and JSON object on the same line: reasoning='{}', json='{}'", reasoning, json)
-        // Reasoning first, then JSON: the order the model wrote them.
         return listOf(reasoning, json)
     }
 
     /**
-     * Whether [candidate] converts to [T] with this converter's own conversion.
+     * Whether [candidate] converts to a non-null [T] with this converter's own conversion.
      *
      * Ensures a split only happens when the JSON part will later be emitted as an object,
      * so valid JSON of a different shape leaves the line unchanged, as before.
+     * Uses [convertOrNull], so a failed probe does not log an error.
      */
-    private fun convertsToTarget(candidate: String): Boolean =
-        try {
-            super.convert(candidate)
-            true
-        } catch (_: RuntimeException) {
-            false
-        }
+    private fun convertsToTarget(candidate: String): Boolean = convertOrNull(candidate) != null
 
     /**
      * Override format to request JSONL instead of single JSON.

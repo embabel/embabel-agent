@@ -23,6 +23,7 @@ import tools.jackson.module.kotlin.kotlinModule
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -598,6 +599,36 @@ World"""
             assertThrows<RuntimeException> {
                 converter.convert("{ this is completely malformed JSON")
             }
+        }
+
+        @Test
+        fun `convertOrNull returns the object for valid JSON`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            assertEquals(SimpleObject("x", 1), converter.convertOrNull("""{"name": "x", "value": 1}"""))
+        }
+
+        @Test
+        fun `convertOrNull applies the same quote repair as convert`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            assertEquals(SimpleObject("x", 1), converter.convertOrNull("""{"name": \"x\", "value": 1}"""))
+        }
+
+        @Test
+        fun `convertOrNull returns null instead of throwing on malformed JSON`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            assertNull(converter.convertOrNull("""{"name": }"""))
+        }
+
+        @Test
+        fun `convertOrNull returns null for JSON of a different shape`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            assertNull(converter.convertOrNull("""{"other": 1}"""))
+        }
+
+        @Test
+        fun `convertOrNull returns null for a JSON null`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            assertNull(converter.convertOrNull("null"))
         }
     }
 

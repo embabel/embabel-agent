@@ -649,7 +649,8 @@ class StreamingJacksonOutputConverterTest {
         fun `splits after the last of several closing tags`() {
             val events = events("""<think>a</think><analysis>b</analysis>{"name": "x"}""")
             assertEquals(2, events.size)
-            assertTrue(events[0] is StreamingEvent.Thinking)
+            // extractThinkingContent keeps only the first block's content, so "b" is not included.
+            assertThinking(events[0], "a", ThinkingState.BOTH)
             assertObject(events[1], "x")
         }
 
