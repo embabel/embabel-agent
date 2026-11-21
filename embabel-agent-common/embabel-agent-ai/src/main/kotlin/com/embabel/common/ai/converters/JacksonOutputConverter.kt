@@ -180,7 +180,7 @@ open class JacksonOutputConverter<T : Any> protected constructor(
      */
     private fun parse(unwrapped: String): T? {
         try {
-            return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T?
+            return lenientMapper.readValue<T?>(unwrapped, lenientMapper.constructType(this.type))
         } catch (e: JacksonException) {
             // Some LLMs escape the very quotes that delimit a string value (e.g. `"key": \"value\"`),
             // which Jackson cannot parse. Retry once with those delimiter quotes repaired. The repair
@@ -189,7 +189,7 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             val repaired = fixMalformedEscapedQuotes(unwrapped)
             if (repaired != unwrapped) {
                 try {
-                    return lenientMapper.readValue<Any?>(repaired, lenientMapper.constructType(this.type)) as T?
+                    return lenientMapper.readValue<T?>(repaired, lenientMapper.constructType(this.type))
                 } catch (_: JacksonException) {
                     // fall through and report the original failure
                 }
