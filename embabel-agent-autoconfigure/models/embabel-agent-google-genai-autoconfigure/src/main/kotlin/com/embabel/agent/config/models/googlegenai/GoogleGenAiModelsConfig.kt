@@ -377,8 +377,7 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
 
     /**
      * [ReasoningEffort] goes out as `thinkingLevel`, and takes precedence over a [Thinking.tokenBudget]: Gemini
-     * rejects a request that carries both. Turning thinking off takes precedence over the effort, as on Anthropic:
-     * no level is sent, so a level never turns thinking back on. [ReasoningEffort.NONE] still fails.
+     * rejects a request that carries both.
      */
     private fun GoogleGenAiChatOptions.Builder.applyThinking(
         thinking: Thinking?,
@@ -387,10 +386,10 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
     ): GoogleGenAiChatOptions.Builder =
         apply {
             thinking?.let { includeThoughts(it.extractThinking) }
-            when {
-                thinking?.disabled == true && effort != ReasoningEffort.NONE -> Unit
-                effort != null -> thinkingLevel(thinkingLevelOf(effort, model))
-                thinking?.enabled == true -> thinking.tokenBudget?.let { thinkingBudget(it) }
+            if (effort != null) {
+                thinkingLevel(thinkingLevelOf(effort, model))
+            } else if (thinking?.enabled == true) {
+                thinking.tokenBudget?.let { thinkingBudget(it) }
             }
         }
 

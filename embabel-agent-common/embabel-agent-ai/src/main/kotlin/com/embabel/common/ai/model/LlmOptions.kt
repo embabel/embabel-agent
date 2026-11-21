@@ -164,9 +164,8 @@ class Thinking private constructor(
  *   [Thinking.withTokenBudget] budget maps to. A model that does not offer a level rejects it.
  *   [NONE] turns thinking off where the model catalog declares it can be, and fails as unsupported elsewhere.
  * - Google GenAI sends low to high as the same `thinkingLevel`, in place of a [Thinking.withTokenBudget] budget.
- *   When [Thinking] turns thinking off, no level is sent, and Gemini keeps its default thinking, since turning
- *   it off is not supported yet. Gemini 2.5 takes a budget only, Spring AI rejects
- *   a level for it before the call, and it is not handled, since
+ *   When [Thinking] turns thinking off, the effort is still sent, as on Anthropic. Gemini 2.5 takes a budget
+ *   only, Spring AI or the API rejects a level for it, and it is not handled, since
  *   Google is retiring it (2.5 Pro and 2.5 Flash shut down on 2026-12-01). [NONE] fails as unsupported,
  *   since Gemini has no level that means off and whether thinking can be turned off depends on the model and
  *   the endpoint; [XHIGH] and [MAX] too, since Spring AI sends levels up to high.
