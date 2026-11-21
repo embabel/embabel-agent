@@ -4,6 +4,10 @@
 # Google GenAI (Gemini) models configuration
 # Updated with latest Gemini models as of November 2026
 # Using native Spring AI Google GenAI support
+#
+# thinking.can_be_disabled: true only where thinkingBudget 0 really turns thinking off
+# (Thinking.NONE needs it); false where it is rejected or the model keeps thinking.
+# Omitted for models that do not think by default. Measured per model in embabel-agent#2259.
 
 models:
   # ========================================
@@ -16,6 +20,8 @@ models:
     display_name: "Gemini 4 Hydrogen"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 1.50
       usd_per1m_output_tokens: 7.50
@@ -26,6 +32,8 @@ models:
     display_name: "Gemini 4 Neon"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 3.00
       usd_per1m_output_tokens: 15.00
@@ -37,6 +45,8 @@ models:
     display_name: "Gemini 4 Carbon"
     max_output_tokens: 32768
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 2.00
       usd_per1m_output_tokens: 10.00
@@ -48,6 +58,8 @@ models:
     display_name: "Gemini 4 Argon"
     max_output_tokens: 32768
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 2.00
       usd_per1m_output_tokens: 10.00
@@ -63,6 +75,8 @@ models:
     display_name: "Gemini 3.8 Flash"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 0.75
       usd_per1m_output_tokens: 3.75
@@ -74,6 +88,8 @@ models:
     display_name: "Gemini 3.6 Flash"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 0.75
       usd_per1m_output_tokens: 3.75
@@ -88,6 +104,8 @@ models:
     display_name: "Gemini 3.5 Flash Lite"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 0.30
       usd_per1m_output_tokens: 2.50
@@ -100,6 +118,8 @@ models:
     knowledge_cutoff_date: "2025-01-01"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 1.50
       usd_per1m_output_tokens: 9.00
@@ -130,6 +150,8 @@ models:
     knowledge_cutoff_date: "2025-01-01"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 2.00
       usd_per1m_output_tokens: 12.00
@@ -141,6 +163,8 @@ models:
     knowledge_cutoff_date: "2025-01-01"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 2.00
       usd_per1m_output_tokens: 12.00
@@ -153,6 +177,8 @@ models:
     knowledge_cutoff_date: "2025-01-01"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 0.50
       usd_per1m_output_tokens: 3.00
@@ -181,6 +207,8 @@ models:
     knowledge_cutoff_date: "2025-01-01"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: false
     pricing_model:
       usd_per1m_input_tokens: 1.25
       usd_per1m_output_tokens: 10.00
@@ -193,6 +221,8 @@ models:
     knowledge_cutoff_date: "2025-01-01"
     max_output_tokens: 65536
     temperature: 0.7
+    thinking:
+      can_be_disabled: true
     pricing_model:
       usd_per1m_input_tokens: 0.30
       usd_per1m_output_tokens: 2.50

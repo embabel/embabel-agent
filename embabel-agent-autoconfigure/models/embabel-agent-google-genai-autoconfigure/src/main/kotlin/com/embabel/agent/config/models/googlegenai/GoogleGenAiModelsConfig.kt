@@ -224,7 +224,9 @@ class GoogleGenAiModelsConfig(
             name = modelDef.modelId,
             chatModel = chatModel,
             provider = GoogleGenAiModels.PROVIDER,
-            optionsConverter = GoogleGenAiOptionsConverter,
+            optionsConverter = modelDef.thinking?.canBeDisabled
+                ?.let { GoogleGenAiOptionsConverter.declaring(it) }
+                ?: GoogleGenAiOptionsConverter,
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = modelDef.pricingModel?.let {
@@ -356,12 +358,30 @@ class GoogleGenAiModelsConfig(
  */
 object GoogleGenAiOptionsConverter : OptionsConverter {
 
+    private val logger = org.slf4j.LoggerFactory.getLogger(GoogleGenAiOptionsConverter::class.java)
+
     /**
      * Default max output tokens for Google GenAI models.
      */
     const val DEFAULT_MAX_OUTPUT_TOKENS = 8192
 
+    /** Keyed by model ID only, so bounded by the number of models. */
+    internal val warnedThinkingNotDisabled = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
+        convert(options, model, null)
+
+    /**
+     * This converter for a model whose catalog entry declares whether thinking can be turned off
+     * (`thinking.can_be_disabled` in `google-genai-models.yml`). Only where it is `true` does
+     * [Thinking.NONE] send `thinkingBudget = 0`.
+     */
+    fun declaring(thinkingCanBeDisabled: Boolean): OptionsConverter = object : OptionsConverter {
+        override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
+            convert(options, model, thinkingCanBeDisabled)
+    }
+
+    private fun convert(options: LlmOptions, model: String, thinkingCanBeDisabled: Boolean?): ChatOptions =
         GoogleGenAiChatOptions.builder()
             .model(model)
             .temperature(options.temperature)
@@ -370,10 +390,14 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .maxOutputTokens(options.maxTokens ?: DEFAULT_MAX_OUTPUT_TOKENS)
-            .applyThinking(options.thinking)
+            .applyThinking(options.thinking, model, thinkingCanBeDisabled)
             .build()
 
-    private fun GoogleGenAiChatOptions.Builder.applyThinking(thinking: Thinking?): GoogleGenAiChatOptions.Builder =
+    private fun GoogleGenAiChatOptions.Builder.applyThinking(
+        thinking: Thinking?,
+        model: String,
+        thinkingCanBeDisabled: Boolean?,
+    ): GoogleGenAiChatOptions.Builder =
         apply {
             if (thinking == null) {
                 return@apply
@@ -383,6 +407,16 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
 
             if (thinking.enabled) {
                 thinking.tokenBudget?.let { thinkingBudget(it) }
+            } else if (thinking.disabled) {
+                if (thinkingCanBeDisabled == true) {
+                    thinkingBudget(0)
+                } else if (warnedThinkingNotDisabled.add(model)) {
+                    logger.warn(
+                        "Model '{}' cannot be declared to disable thinking (thinking.can_be_disabled), " +
+                            "so the thinking opt-out is ignored and the model's default thinking applies",
+                        model,
+                    )
+                }
             }
         }
 }

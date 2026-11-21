@@ -910,6 +910,34 @@ class GoogleGenAiModelLoaderTest {
         assertEquals(1, result.embeddingModels.size)
     }
 
+    @Test
+    fun `should read thinking can_be_disabled per model`() {
+        val tempFile = createTempYamlFile(
+            """
+            models:
+              - name: can-off
+                model_id: gemini-can-off
+                thinking:
+                  can_be_disabled: true
+              - name: cannot-off
+                model_id: gemini-cannot-off
+                thinking:
+                  can_be_disabled: false
+              - name: undeclared
+                model_id: gemini-undeclared
+        """.trimIndent()
+        )
+
+        val result = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        ).loadAutoConfigMetadata()
+
+        assertEquals(true, result.models[0].thinking?.canBeDisabled)
+        assertEquals(false, result.models[1].thinking?.canBeDisabled)
+        assertNull(result.models[2].thinking)
+    }
+
     private fun createTempYamlFile(content: String): File {
         val tempFile = Files.createTempFile("test-googlegenai", ".yml").toFile()
         tempFile.writeText(content)
