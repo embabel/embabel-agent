@@ -165,6 +165,69 @@ internal object ThinkingDetector {
     }
 
     /**
+     * Splits a line where a JSON object directly follows a closing thinking tag, e.g.
+     * `<think>r</think>{"name":"x"}` or `last step</think>{"name":"x"}` (issue #2267).
+     *
+     * A closing tag proves the thinking block has ended, so whatever follows it is outside any block.
+     * Lines without a closing tag are not split: this detector is stateless and cannot tell whether
+     * plain `text {json}` sits inside a block opened on an earlier line (see discussion #1881).
+     *
+     * The JSON part must be classified as JSON by [detectThinkingState], the same classification
+     * the caller applies to each line, so it can only be JSON-shaped text with no thinking tags.
+     *
+     * @param line one complete line of the streamed response
+     * @return the reasoning (up to and including the last closing tag) and the JSON after it,
+     *         or null when the line should stay whole
+     */
+    fun splitAfterClosingTag(line: String): Pair<String, String>? {
+        val trimmed = line.trim()
+        // Fast path: only a line ending with '}' can end with a JSON object.
+        if (!trimmed.endsWith('}')) return null
+        // Already JSON on its own, e.g. {"name":"x"}: nothing to split.
+        if (detectThinkingState(trimmed) == ThinkingState.NONE) return null
+        // Index just past the last closing tag, or -1 if the line has none.
+        //   "<think>r</think>{"name":"x"}"   -> 16, the index of '{'
+        //   "last step</think>{"name":"x"}"  -> 17, the index of '{'
+        //   "Consider {"name":"x"}"          -> -1, no closing tag
+        val afterTag = indexAfterLastClosingTag(trimmed)
+        // No closing tag: the line may be inside an open thinking block, so it stays whole (#1881).
+        if (afterTag < 0) return null
+        // Everything up to and including the closing tag is the reasoning, e.g. "<think>r</think>".
+        val reasoning = trimmed.substring(0, afterTag).trim()
+        // Everything after the closing tag must be the whole JSON object, e.g. {"name":"x"}.
+        val json = trimmed.substring(afterTag).trim()
+        // The JSON part must be JSON to this detector (isValidJson, no tags), otherwise no split:
+        //   {"name":"x"}                -> NONE         -> split
+        //   so <think>b {"name":"x"}    -> CONTINUATION -> no split (text that opens a new block)
+        //   "}                          -> CONTINUATION -> no split (the last closing tag was inside
+        //                                  the JSON, e.g. <think>r</think>{"name":"<think>a</think>"})
+        if (detectThinkingState(json) != ThinkingState.NONE) {
+            logger.debug("Text after the closing thinking tag is not a JSON object, not split: {}", trimmed)
+            return null
+        }
+        return reasoning to json
+    }
+
+    /**
+     * Returns the index just past the last closing thinking tag in [line], or -1 if there is none.
+     * When several closing tags appear, the rightmost one wins, so everything after it lies outside
+     * any thinking block on this line.
+     */
+    private fun indexAfterLastClosingTag(line: String): Int {
+        var result = -1
+        for (tag in endTags) {
+            // Where this tag last occurs, e.g. "</think>" in "<think>r</think>{...}" -> 8; -1 if absent.
+            val tagStart = line.lastIndexOf(tag)
+            if (tagStart < 0) continue
+            // Position right after the tag, e.g. 8 + "</think>".length (8) -> 16.
+            val tagEnd = tagStart + tag.length
+            // Keep the rightmost end seen so far, e.g. "<analysis>a</analysis><think>b</think>{...}" -> after </think>.
+            if (tagEnd > result) result = tagEnd
+        }
+        return result
+    }
+
+    /**
      * Fast heuristic validation for JSON content to avoid expensive parsing.
      *
      * Performance optimization using simple string checks rather than full JSON parsing

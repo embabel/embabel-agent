@@ -34,6 +34,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
@@ -162,7 +163,7 @@ class LLMOllamaThinkingIT {
      */
     static class Tooling {
 
-        @Tool
+        @LlmTool
         Short convertFromCelsiusToFahrenheit(Short inputTemp) {
             return (short) ((inputTemp * 2) + 32);
         }
