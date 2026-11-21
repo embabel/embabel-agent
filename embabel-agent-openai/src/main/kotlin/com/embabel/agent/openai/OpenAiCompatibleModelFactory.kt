@@ -48,6 +48,7 @@ import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import com.openai.core.ClientOptions
 import com.openai.errors.OpenAIServiceException
 import io.micrometer.observation.ObservationRegistry
+import org.jetbrains.annotations.ApiStatus
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient
 import org.slf4j.Logger
@@ -106,7 +107,7 @@ open class OpenAiCompatibleModelFactory(
     webClientBuilder: ObjectProvider<WebClient.Builder> = ObjectProviders.empty(),
     private val httpClientCustomizers: ObjectProvider<OpenAiHttpClientBuilderCustomizer> = ObjectProviders.empty(),
     protected val timeouts: OpenAiClientTimeouts,
-) {
+) : AutoCloseable {
 
     /**
      * The constructor as it was before timeouts were configurable, kept so that code compiled
@@ -214,12 +215,12 @@ open class OpenAiCompatibleModelFactory(
 
         /**
          * Returns a [ByokSpec] for Mistral AI (OpenAI-compatible endpoint).
-         * Validates against [MistralAiModels.MINISTRAL_8B] by default.
+         * Validates against [MistralAiModels.MINISTRAL_3_8B] by default.
          *
          * Note: uses the OpenAI wire protocol, not the native Spring AI Mistral client.
          */
         fun mistral(apiKey: String): ByokSpec =
-            ByokSpec(MISTRAL.baseUrl, apiKey, MistralAiModels.MINISTRAL_8B, MISTRAL.provider)
+            ByokSpec(MISTRAL.baseUrl, apiKey, MistralAiModels.MINISTRAL_3_8B, MISTRAL.provider)
 
         /**
          * Returns a [ByokSpec] for Google Gemini (OpenAI-compatible endpoint).
@@ -356,12 +357,14 @@ open class OpenAiCompatibleModelFactory(
                 observationRegistry = observationRegistry,
                 timeouts = timeouts,
             )
-                .buildValidated(
-                    model = validationModel,
-                    pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-                    provider = validationProvider,
-                    knowledgeCutoffDate = null,
-                )
+                .buildOwnedLlm {
+                    buildValidated(
+                        model = validationModel,
+                        pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                        provider = validationProvider,
+                        knowledgeCutoffDate = null,
+                    )
+                }
     }
 
     /**
@@ -416,11 +419,13 @@ open class OpenAiCompatibleModelFactory(
                 observationRegistry = observationRegistry,
                 timeouts = timeouts,
             )
-                .buildValidatedEmbeddingService(
-                    model = model,
-                    provider = provider,
-                    pricingModel = pricingModel,
-                )
+                .buildOwnedEmbedding {
+                    buildValidatedEmbeddingService(
+                        model = model,
+                        provider = provider,
+                        pricingModel = pricingModel,
+                    )
+                }
     }
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -459,7 +464,45 @@ open class OpenAiCompatibleModelFactory(
      * chat model.
      */
     protected val openAiClient: OpenAIClient = buildSyncClient()
-    protected val openAiClientAsync: OpenAIClientAsync = buildAsyncClient()
+    protected val openAiClientAsync: OpenAIClientAsync = try {
+        buildAsyncClient()
+    } catch (failure: Throwable) {
+        closeClient(logger) { openAiClient.close() }
+        throw failure
+    }
+
+    private val clientOwnership = OpenAiClientOwnership(openAiClient, openAiClientAsync, logger)
+
+    /** Close the clients still owned by this factory, including on Spring context shutdown. */
+    override fun close() = clientOwnership.close()
+
+    @ApiStatus.Internal
+    fun buildOwnedLlm(
+        model: String,
+        pricingModel: PricingModel,
+        provider: String,
+        knowledgeCutoffDate: LocalDate?,
+        apiFormatOverrides: Map<String, OpenAiApiFormat>,
+    ): LlmService<*> = buildOwnedLlm {
+        llm(model, pricingModel, provider, knowledgeCutoffDate, apiFormatOverrides)
+    }
+
+    @ApiStatus.Internal
+    fun buildOwnedValidatedEmbedding(
+        model: String,
+        provider: String,
+        pricingModel: PricingModel?,
+    ): EmbeddingService = buildOwnedEmbedding {
+        buildValidatedEmbeddingService(model, provider, pricingModel)
+    }
+
+    /** Build a single chat service with this temporary factory and transfer ownership to its model. */
+    internal fun buildOwnedLlm(build: OpenAiCompatibleModelFactory.() -> LlmService<*>): LlmService<*> =
+        clientOwnership.buildChatService { build(this) }
+
+    /** Build a single embedding service with this temporary factory and transfer ownership to its model. */
+    internal fun buildOwnedEmbedding(build: OpenAiCompatibleModelFactory.() -> EmbeddingService): EmbeddingService =
+        clientOwnership.buildEmbeddingService { build(this) }
 
     private fun resolvedApiKey(): String =
         // SDK rejects null/blank API keys at build time even for no-auth local servers,
@@ -521,7 +564,7 @@ open class OpenAiCompatibleModelFactory(
         return builder.build()
     }
 
-    private fun createOpenAiClient(): OpenAIClient {
+    protected open fun createOpenAiClient(): OpenAIClient {
         val builder = OpenAIOkHttpClient.builder()
             .timeout(timeouts.toSdkTimeout())
             .apiKey(resolvedApiKey())
@@ -533,7 +576,7 @@ open class OpenAiCompatibleModelFactory(
         return builder.build()
     }
 
-    private fun createOpenAiClientAsync(): OpenAIClientAsync {
+    protected open fun createOpenAiClientAsync(): OpenAIClientAsync {
         val builder = OpenAIOkHttpClientAsync.builder()
             .timeout(timeouts.toSdkTimeout())
             .apiKey(resolvedApiKey())
@@ -642,8 +685,29 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel,
         provider: String,
         knowledgeCutoffDate: LocalDate? = null,
+    ): LlmService<*> = llm(
+        model = model,
+        pricingModel = pricingModel,
+        provider = provider,
+        knowledgeCutoffDate = knowledgeCutoffDate,
+        apiFormatOverrides = emptyMap(),
+    )
+
+    /**
+     * As above, with [apiFormatOverrides] replacing the catalog transport for application
+     * compatibility. Kept separate so the published Kotlin default-argument method remains binary
+     * compatible.
+     */
+    fun llm(
+        model: String,
+        pricingModel: PricingModel,
+        provider: String,
+        knowledgeCutoffDate: LocalDate?,
+        apiFormatOverrides: Map<String, OpenAiApiFormat>,
     ): LlmService<*> {
-        val definition = catalogDefinitionFor(provider, model)?.takeIf { servesOpenAiCatalog }
+        val definition = catalogDefinitionFor(provider, model)
+            ?.let { it.copy(apiFormat = apiFormatOverrides[model] ?: it.apiFormat) }
+            ?.takeIf { servesOpenAiCatalog }
             ?: return openAiCompatibleLlm(
                 model = model,
                 pricingModel = pricingModel,

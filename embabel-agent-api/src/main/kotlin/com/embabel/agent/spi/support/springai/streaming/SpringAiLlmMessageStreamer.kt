@@ -33,6 +33,7 @@ import org.springframework.ai.chat.model.MessageAggregator
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
+import java.lang.ref.Reference
 import reactor.core.publisher.Sinks
 
 /**
@@ -130,6 +131,9 @@ internal class SpringAiLlmMessageStreamer(
                 }
 
             Flux.mergeSequential(content, completion)
+        }.doFinally {
+            // Keep the model reachable until the stream terminates so cleanup cannot close its clients mid-stream.
+            Reference.reachabilityFence(chatModel)
         }
     }
 }

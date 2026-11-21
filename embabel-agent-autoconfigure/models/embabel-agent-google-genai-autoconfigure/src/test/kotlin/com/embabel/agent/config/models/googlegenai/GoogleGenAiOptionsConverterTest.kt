@@ -103,4 +103,16 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
         val options = optionsConverter.convertOptions(LlmOptions().withTopK(50), "test-model")
         assertEquals(50, options.topK)
     }
+
+    @Test
+    fun `should set presencePenalty`() {
+        val options = optionsConverter.convertOptions(LlmOptions().withPresencePenalty(0.3), "test-model") as GoogleGenAiChatOptions
+        assertEquals(0.3, options.presencePenalty)
+    }
+
+    @Test
+    fun `should set frequencyPenalty`() {
+        val options = optionsConverter.convertOptions(LlmOptions().withFrequencyPenalty(0.4), "test-model") as GoogleGenAiChatOptions
+        assertEquals(0.4, options.frequencyPenalty)
+    }
 }

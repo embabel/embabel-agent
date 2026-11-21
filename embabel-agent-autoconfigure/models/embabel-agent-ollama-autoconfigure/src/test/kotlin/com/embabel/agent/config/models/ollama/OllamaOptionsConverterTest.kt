@@ -30,6 +30,20 @@ class OllamaOptionsConverterTest : OptionsConverterTestSupport(
 ) {
 
     @Test
+    fun `should pass maxTokens as numPredict`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withMaxTokens(256), "test-model"
+        ) as OllamaChatOptions
+        assertEquals(256, options.numPredict)
+    }
+
+    @Test
+    fun `should leave numPredict unset when maxTokens is not provided`() {
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as OllamaChatOptions
+        assertNull(options.numPredict)
+    }
+
+    @Test
     fun `should disable thinking when no thinking config provided`() {
         val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as OllamaChatOptions
         assertEquals(ThinkOption.ThinkBoolean.DISABLED, options.thinkOption)

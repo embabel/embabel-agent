@@ -40,8 +40,10 @@ import com.embabel.agent.spi.support.buildPromptContributionsString
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
@@ -63,12 +65,14 @@ import java.time.Instant
  * @param objectMapper ObjectMapper for JSON parsing
  * @param llmService The LLM service for prompt contributions
  * @param toolDecorator Decorator to make tools platform-aware
+ * @param schemaGeneratorCustomizer Configures the JSON schema generator, as for non-streaming calls
  */
 internal class StreamingLlmOperationsImpl(
     private val messageStreamer: LlmMessageStreamer,
     private val objectMapper: ObjectMapper,
     private val llmService: LlmService<*>,
     private val toolDecorator: ToolDecorator,
+    private val schemaGeneratorCustomizer: SchemaGeneratorCustomizer,
 ) : StreamingLlmOperations {
 
     private val logger = LoggerFactory.getLogger(StreamingLlmOperationsImpl::class.java)
@@ -213,12 +217,15 @@ internal class StreamingLlmOperationsImpl(
         @Suppress("UNCHECKED_CAST")
         val outputClassAny = outputClass as Class<Any>
         @Suppress("UNCHECKED_CAST")
-        val streamingConverter = StreamingJacksonOutputConverter<Any>(
+        val streamingConverter = object : StreamingJacksonOutputConverter<Any>(
             clazz = outputClassAny,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
             thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
-        ) as StreamingJacksonOutputConverter<O>
+        ) {
+            override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+                super.schemaGeneratorConfigBuilder().also(schemaGeneratorCustomizer::customize)
+        } as StreamingJacksonOutputConverter<O>
 
         // Build prompt contributions with streaming format instructions
         val promptContributions = buildPromptContributions(interaction)
@@ -352,15 +359,16 @@ internal class StreamingLlmOperationsImpl(
             override fun streamInference(
                 messages: List<Message>,
                 tools: List<Tool>,
-            ): Flux<LlmInferenceStreamEvent> = messageStreamer.streamInference(messages, tools)
-                .doOnNext { event ->
+            ): Flux<LlmInferenceStreamEvent> = Flux.defer {
+                val start = Instant.now()
+                messageStreamer.streamInference(messages, tools).doOnNext { event ->
                     val usage = (event as? LlmInferenceStreamEvent.Complete)?.usage ?: return@doOnNext
                     val invocation = LlmInvocation(
                         llmMetadata = llmService,
                         usage = usage,
                         agentName = agentProcess.agent.name,
-                        timestamp = Instant.now(),
-                        runningTime = Duration.ZERO,
+                        timestamp = start,
+                        runningTime = Duration.between(start, Instant.now()),
                     )
                     agentProcess.recordLlmInvocation(invocation)
                     agentProcess.processContext.onProcessEvent(
@@ -371,6 +379,7 @@ internal class StreamingLlmOperationsImpl(
                         )
                     )
                 }
+            }
         }
 
     /**

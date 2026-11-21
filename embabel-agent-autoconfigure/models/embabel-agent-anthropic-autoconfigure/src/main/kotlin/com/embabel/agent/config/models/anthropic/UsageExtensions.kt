@@ -28,6 +28,11 @@ import com.embabel.agent.core.Usage
  * the anthropic-java SDK's [AnthropicSdkUsage] (with `Optional<Long>` accessors). The
  * extensions below preserve the previous return type (`Int?`) for API stability —
  * callers see the same shape, with absent values surfaced as null.
+ *
+ * These read Anthropic's native usage object, so they return null when the response was streamed
+ * (Spring AI's stream aggregation replaces it) or followed Spring AI's internal tool loop (which drops it).
+ * For accounting, use [Usage.cacheReadInputTokens] and [Usage.cacheWriteInputTokens]: embabel fills
+ * them from Spring AI's common usage fields on every path and counts them in prompt tokens, cost and budgets.
  */
 
 /**

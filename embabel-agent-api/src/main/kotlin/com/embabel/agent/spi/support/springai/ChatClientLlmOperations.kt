@@ -53,7 +53,7 @@ import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.JsonSchemaProvider
 import com.embabel.common.ai.converters.RequiredFieldNormalization
 import com.embabel.common.ai.converters.EnumAsOneOf
-import com.embabel.common.ai.converters.EnumConstantDescriptionProvider
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
@@ -132,6 +132,7 @@ internal class ChatClientLlmOperations(
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
     private val customizers: List<ChatClientBuilderCustomizer> = emptyList(),
+    override val schemaGeneratorCustomizers: List<SchemaGeneratorCustomizer> = emptyList(),
     asyncer: Asyncer,
     toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
     @Value("\${embabel.agent.platform.streaming.use-legacy-streaming:false}")
@@ -984,9 +985,9 @@ internal class ChatClientLlmOperations(
     /**
      * Builds a [FilteringJacksonOutputConverter] for a [Class]-typed output.
      *
-     * [EnumConstantDescriptionProvider] is wired into the schema generator so that
+     * The schema generator is configured by [customizeSchemaGenerator], so that
      * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
-     * with per-constant descriptions. Unannotated enums are unaffected.
+     * with per-constant descriptions and the [SchemaGeneratorCustomizer]s apply.
      *
      * A separate overload exists for [ParameterizedTypeReference]-typed outputs.
      * The [Class] overload and the [ParameterizedTypeReference] overload cannot be merged
@@ -1001,15 +1002,15 @@ internal class ChatClientLlmOperations(
     ): FilteringJacksonOutputConverter<T> =
         object : FilteringJacksonOutputConverter<T>(clazz, objectMapper, fieldFilter, requiredFieldNormalization) {
             override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
-                super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
+                super.schemaGeneratorConfigBuilder().also(::customizeSchemaGenerator)
         }
 
     /**
      * Builds a [FilteringJacksonOutputConverter] for a [ParameterizedTypeReference]-typed output.
      *
-     * [EnumConstantDescriptionProvider] is wired into the schema generator so that
+     * The schema generator is configured by [customizeSchemaGenerator], so that
      * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
-     * with per-constant descriptions. Unannotated enums are unaffected.
+     * with per-constant descriptions and the [SchemaGeneratorCustomizer]s apply.
      *
      * A separate overload exists for [Class]-typed outputs.
      * The [ParameterizedTypeReference] overload and the [Class] overload cannot be merged
@@ -1024,7 +1025,7 @@ internal class ChatClientLlmOperations(
     ): FilteringJacksonOutputConverter<T> =
         object : FilteringJacksonOutputConverter<T>(typeReference, objectMapper, fieldFilter, requiredFieldNormalization) {
             override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
-                super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
+                super.schemaGeneratorConfigBuilder().also(::customizeSchemaGenerator)
         }
 }
 

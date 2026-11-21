@@ -188,6 +188,28 @@ class InstrumentedChatModelTest {
         }
 
         @Test
+        fun `retries once without both penalties after Gemini Penalty is not enabled rejection`() {
+            val options = org.springframework.ai.model.tool.ToolCallingChatOptions.builder()
+                .temperature(0.8)
+                .presencePenalty(0.5)
+                .frequencyPenalty(0.4)
+                .build()
+            val prompt = Prompt(listOf(UserMessage("hello")), options)
+            val expectedResponse: ChatResponse = mockk()
+            val rejection = RuntimeException("call failed", RuntimeException("400 . Penalty is not enabled for this model"))
+            every { delegate.call(any<Prompt>()) } throws rejection andThen expectedResponse
+
+            val result = instrumentedModel.call(prompt)
+
+            assertThat(result).isSameAs(expectedResponse)
+            val prompts = mutableListOf<Prompt>()
+            verify(exactly = 2) { delegate.call(capture(prompts)) }
+            assertThat(prompts[1].options).extracting("presencePenalty").isNull()
+            assertThat(prompts[1].options).extracting("frequencyPenalty").isNull()
+            assertThat(prompts[1].options).extracting("temperature").isEqualTo(0.8)
+        }
+
+        @Test
         fun `does not retry prose-only temperature rejection without error param`() {
             // Fail-closed *contract* test (not leftover unstructured matching):
             // prose-only rejection must not strip/retry. Only structured JSON error.param

@@ -33,6 +33,15 @@ import static org.mockito.Mockito.mock;
 public class SpringAiLlmServiceConstructionTest {
 
     @Test
+    void preservesKotlinDefaultArgumentSignatures() {
+        var serviceClass = SpringAiLlmService.class;
+        assertTrue(java.util.Arrays.stream(serviceClass.getDeclaredConstructors())
+                .anyMatch(constructor -> constructor.isSynthetic() && constructor.getParameterCount() == 15));
+        assertTrue(java.util.Arrays.stream(serviceClass.getDeclaredMethods())
+                .anyMatch(method -> method.getName().equals("copy$default") && method.getParameterCount() == 16));
+    }
+
+    @Test
     void demonstrateJavaConstructionWithRequiredParameters() {
         // Create a mock ChatModel for testing
         ChatModel mockChatModel = mock(ChatModel.class);

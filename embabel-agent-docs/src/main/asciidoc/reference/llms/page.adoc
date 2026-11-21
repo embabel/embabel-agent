@@ -39,6 +39,35 @@ Smaller chat models behave differently from frontier models in ways that the fra
 These settings are off-by-default so existing deployments using strong models behave exactly as before.
 Turn them on per-deployment when the model you've picked benefits from them.
 
+[[reference.llms.openai-responses-continuation]]
+==== Continuing an OpenAI Responses API conversation
+
+Models routed through OpenAI's Responses API return a response ID that can be used to continue the
+server-side conversation without resending its earlier turns. The ID is available as the standard
+Spring AI `ChatResponseMetadata.id` value.
+
+Pass that value on the next call through `OpenAiChatOptions.extraBody` using
+`OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID`:
+
+[source,kotlin]
+----
+val firstResponse = model.call(Prompt("Tell me a short story"))
+
+val continuationOptions = OpenAiChatOptions.builder()
+    .model("gpt-5-pro")
+    .extraBody(mapOf(OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID to firstResponse.metadata.id))
+    .build()
+
+val nextResponse = model.call(Prompt(listOf(UserMessage("Give it a happier ending")), continuationOptions))
+----
+
+Send only the new input when using a previous response ID. Resending the complete local history
+would duplicate context already retained by OpenAI. Applications are responsible for persisting the
+latest response ID and should apply their OpenAI account's data-retention requirements to it.
+
+This option applies only to models whose catalog entry selects the Responses API. It does not add
+server-side tool execution; Embabel continues to own and execute the tool loop.
+
 
 [[reference.llms.custom-integration]]
 ==== Advanced: Custom LLM Integration
@@ -1245,6 +1274,7 @@ To do the same for a runner the framework does not ship, implement `LocalModelSo
 
 While many providers have implicit caching managed internally, Anthropic exposes public APIs for explicit prompt caching control.
 This allows you to optimize costs and latency for applications with long prompts, many tools, or extended conversations.
+The caching configuration below decides what Anthropic caches; <<reference.llms.anthropic-caching.accounting,cache accounting>> counts what it caches in usage, cost and budgets.
 
 ===== Motivation
 
@@ -1446,12 +1476,16 @@ val options = LlmOptions.withDefaultLlm()
 ----
 ====
 
+[[reference.llms.anthropic-caching.accounting]]
 ===== Accessing Cache Metrics
 
+Whatever the <<reference.llms.anthropic-caching,caching configuration>> caches, Embabel counts.
 Cache reads and writes count as input tokens: `Usage.promptTokens` includes them, and `Usage.cacheReadInputTokens` and `Usage.cacheWriteInputTokens` report them separately.
 Token totals, cost and early-termination budgets therefore include cached input.
 Bundled Anthropic models carry Anthropic's published cache-read and 5-minute cache-write rates.
-An Anthropic or Bedrock Claude model whose `pricing_model` sets no cache rates prices cache reads at its input rate, so cost is never under-stated, and cache writes at 125% of it, the 5-minute rate.
+An Anthropic or Bedrock Claude model whose pricing model does not set cache rates prices cache reads at its input rate, so cost is never under-stated, and cache writes at 125% of it.
+That is Anthropic's 5-minute cache-write rate for current models, but Anthropic sets prices per model, so set the cache rates explicitly for a model priced differently.
+This holds for configured models and for models built with `AnthropicModelFactory`, such as bring-your-own-key models.
 Other models price both at the input rate.
 Anthropic and Bedrock models can override either rate in their `pricing_model` with `usd_per1m_cache_read_input_tokens` or `usd_per1m_cache_write_input_tokens`, for example when using the 1-hour cache TTL.
 
@@ -1459,7 +1493,8 @@ Streaming cache counts depend on the provider's Spring AI adapter.
 Spring AI's Anthropic streaming adapter takes cache counts only from the final `message_delta` event, whose usage Anthropic's API schema defines as cumulative.
 A gateway or provider that reports cache counts only in `message_start` records cached input as zero when streaming.
 
-Embabel provides extension methods to access Anthropic-specific cache metrics from the `Usage` object:
+Embabel also provides extension methods that read Anthropic's own cache counts from the native usage on the `Usage` object, for logging and checking cache hits.
+They *do not change* what is counted:
 
 [tabs]
 ====
@@ -1655,7 +1690,7 @@ static class MonthItem {
 
 - **Required fields**: OpenAI native structured output requires `required` to include every property. Optional Java reference fields are not treated as required unless annotated, for example with `@JsonProperty(required = true)` or `@NotNull`.
 - **Optional values**: Provider-native optionality usually needs nullable required properties, for example `type: ["string", "null"]`, rather than omitting the property from `required`.
-- **Arrays of objects**: Some providers, including OpenAI according to Spring AI documentation, do not support arrays of objects natively. Embabel falls back to normal object construction for unsupported shapes.
+- **Nested and nullable arrays**: In the `DEFAULT` mode, arrays of arrays (`List<List<T>>`) and nullable arrays (`Optional<List<T>>`) fail the compatibility check, so Embabel falls back to normal object construction for them.
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
 - **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Models built on the OpenAI Responses API send the same schema as `text.format`; see <<reference.customizing>> for their `nativeSupport` settings. Anthropic native structured output is currently disabled by default until its semantics are verified.
@@ -1729,3 +1764,50 @@ If no constant carries a description, the annotation has no effect and the bare 
 NOTE: `@EnumAsOneOf` trades the native structured-output path for per-constant descriptions.
 The `oneOf` keyword is rejected by OpenAI strict mode, so Embabel falls back to the prompt-based schema path for any call whose output type contains a `@EnumAsOneOf` field.
 The `@JsonPropertyDescription` text on each constant is still sent to the model through the prompt schema on all providers, including Google GenAI, Anthropic, and OpenAI-compatible endpoints.
+
+`SchemaGeneratorCustomizer` beans (see <<reference.llms.schema-generator-customizer>>) are applied after `@EnumAsOneOf` handling, so a custom definition from them cannot replace the `oneOf` schema of an `@EnumAsOneOf` enum.
+They can still define the schema of any other enum.
+
+[[reference.llms.schema-generator-customizer]]
+===== Customizing the JSON Schema Generator
+
+Embabel generates the JSON Schema for structured output with https://central.sonatype.com/artifact/com.github.victools/jsonschema-generator[victools jsonschema-generator].
+The default configuration already describes Java `Optional<T>` of a scalar or an object as a nullable type, and arrays of scalars and of objects as arrays; native structured output accepts both when the properties are required (see Limitations above).
+Other types are not described correctly by the default configuration, for example collections and optional values of other JVM languages, or custom value types.
+To change how such a type is described, declare a `SchemaGeneratorCustomizer` as a Spring bean.
+It receives the victools `SchemaGeneratorConfigBuilder` for structured-output calls, streaming or not, so it can add victools modules, custom definitions or other settings.
+For example, to describe a `Tags` type as an array:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+val tagsAsArray = SchemaGeneratorCustomizer { builder ->
+    builder.forTypesInGeneral().withCustomDefinitionProvider(
+        CustomDefinitionProviderV2 { javaType, context ->
+            if (javaType.erasedType == Tags::class.java) {
+                CustomDefinition(context.generatorConfig.createObjectNode().put("type", "array"))
+            } else {
+                null
+            }
+        }
+    )
+}
+----
+
+Java::
++
+[source,java]
+----
+SchemaGeneratorCustomizer tagsAsArray = builder -> builder.forTypesInGeneral()
+        .withCustomDefinitionProvider((javaType, context) -> javaType.getErasedType() == Tags.class
+                ? new CustomDefinition(context.getGeneratorConfig().createObjectNode().put("type", "array"))
+                : null);
+----
+====
+
+- Customizers are applied in bean order (`@Order`), after Embabel's own configuration. When several custom definition providers (victools `CustomDefinitionProviderV2`, registered with `withCustomDefinitionProvider`) return a definition for the same type, victools uses the one registered first, so the earlier customizer wins.
+- Native structured output uses the customized schema; in the `DEFAULT` mode unsupported shapes still fall back to the prompt-based schema (see Limitations above).
+- Tool input schemas are not affected.

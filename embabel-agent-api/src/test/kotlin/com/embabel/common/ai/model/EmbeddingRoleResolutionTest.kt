@@ -23,6 +23,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -34,6 +35,10 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit.SECONDS
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Embedding roles resolving per call, so a key that arrives after startup embeds the next
@@ -233,6 +238,85 @@ class EmbeddingRoleResolutionTest {
             val afterKey = mp.getEmbeddingService(DefaultModelSelectionCriteria)
             assertFalse(afterKey.awaitingProviderKey)
             assertEquals("stored", afterKey.name)
+        }
+
+        @Test
+        fun `concurrent embedding builds close the unused service`() {
+            val first = mockk<EmbeddingService>(relaxed = true, moreInterfaces = arrayOf(AutoCloseable::class))
+            val second = mockk<EmbeddingService>(relaxed = true, moreInterfaces = arrayOf(AutoCloseable::class))
+            val builds = AtomicInteger()
+            val firstStarted = CountDownLatch(1)
+            val releaseFirst = CountDownLatch(1)
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+                ),
+                listOf(placeholder),
+                credentialEmbeddingServiceFactories = listOf(
+                    CredentialEmbeddingServiceFactory { _, _ ->
+                        if (builds.getAndIncrement() == 0) {
+                            firstStarted.countDown()
+                            check(releaseFirst.await(10, SECONDS))
+                            first
+                        } else {
+                            second
+                        }
+                    },
+                ),
+            )
+            val criteria = ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)
+            val context = ModelSelectionContext(credential = ProviderCredential(OPENAI, "test-key"))
+            mp.use {
+                Executors.newSingleThreadExecutor().use { executor ->
+                    val pending = executor.submit<EmbeddingService> {
+                        ModelSelectionContextHolder.with(context) { mp.getEmbeddingService(criteria) }
+                    }
+                    try {
+                        assertTrue(firstStarted.await(10, SECONDS))
+                        ModelSelectionContextHolder.with(context) {
+                            assertSame(second, mp.getEmbeddingService(criteria))
+                        }
+                    } finally {
+                        releaseFirst.countDown()
+                    }
+                    assertSame(second, pending.get(10, SECONDS))
+                    verify(exactly = 1) { (first as AutoCloseable).close() }
+                    verify(exactly = 0) { (second as AutoCloseable).close() }
+                }
+            }
+        }
+
+        @Test
+        fun `eviction leaves a borrowed embedding service open and shutdown closes the cached one`() {
+            val first = mockk<EmbeddingService>(relaxed = true, moreInterfaces = arrayOf(AutoCloseable::class))
+            val second = mockk<EmbeddingService>(relaxed = true, moreInterfaces = arrayOf(AutoCloseable::class))
+            var builds = 0
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+                    credentialServiceCacheSize = 1,
+                ),
+                listOf(placeholder),
+                credentialEmbeddingServiceFactories = listOf(
+                    CredentialEmbeddingServiceFactory { _, _ ->
+                        if (builds++ == 0) first else second
+                    },
+                ),
+            )
+            val criteria = ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)
+            ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential(OPENAI, "first-key")),
+            ) { assertSame(first, mp.getEmbeddingService(criteria)) }
+            ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential(OPENAI, "second-key")),
+            ) { assertSame(second, mp.getEmbeddingService(criteria)) }
+
+            mp.close()
+
+            verify(exactly = 0) { (first as AutoCloseable).close() }
+            verify(exactly = 1) { (second as AutoCloseable).close() }
         }
 
         @Test

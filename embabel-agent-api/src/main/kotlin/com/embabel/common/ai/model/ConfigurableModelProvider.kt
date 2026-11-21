@@ -212,7 +212,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     embeddingRoleResolvers: List<EmbeddingRoleResolver> = emptyList(),
     private val credentialEmbeddingServiceFactories: List<CredentialEmbeddingServiceFactory> = emptyList(),
     private val localModelCatalogs: List<LocalModelCatalog> = emptyList(),
-) : ModelProvider {
+) : ModelProvider, AutoCloseable {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
 
@@ -235,6 +235,29 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, LlmService<*>>) =
                 size > properties.credentialServiceCacheSize
         }.let { Collections.synchronizedMap(it) }
+
+    private var credentialLlmServicesClosed = false
+
+    override fun close() {
+        val services = synchronized(credentialLlmServices) {
+            credentialLlmServicesClosed = true
+            credentialLlmServices.values.toList().also { credentialLlmServices.clear() }
+        }
+        val embeddingServices = synchronized(credentialEmbeddingServices) {
+            credentialEmbeddingServicesClosed = true
+            credentialEmbeddingServices.values.toList().also { credentialEmbeddingServices.clear() }
+        }
+        services.forEach(::closeCredentialService)
+        embeddingServices.forEach(::closeCredentialService)
+    }
+
+    private fun closeCredentialService(service: ModelMetadata) {
+        if (service is AutoCloseable) {
+            runCatching { service.close() }.onFailure {
+                logger.warn("Could not close credential service '{}'", service.name, it)
+            }
+        }
+    }
 
     private val configurableEmbeddingRoleResolver =
         ConfigurableEmbeddingRoleResolver(properties) { defaultEmbeddingProviderName() }
@@ -275,6 +298,9 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, EmbeddingService>) =
                 size > properties.credentialServiceCacheSize
         }.let { Collections.synchronizedMap(it) }
+
+    // Guarded by credentialEmbeddingServices, including the check when caching a completed build.
+    private var credentialEmbeddingServicesClosed = false
 
     /**
      * The registered service `default-llm` names directly, or null when it names a role - or a
@@ -546,20 +572,28 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     /**
      * The cached service for this (provider, key, model), or one freshly built and cached.
      *
-     * Read then put rather than computeIfAbsent, for the reason spelled out in the LLM
-     * counterpart: building can reach the provider to observe the model's width, and holding the
-     * map's lock across that would block every unrelated lookup for every other user. A race costs
-     * one redundant build and never a wrong service.
+     * Build outside the cache lock because observing the model's width can reach the provider.
+     * If two requests build the same service, close the one that was never cached.
      *
      * Shared by the two ways a credential reaches a model - a role that named it, and a caller
      * that named it - so the cache is one cache and the locking argument is made once.
      */
     private fun credentialEmbeddingService(credential: ProviderCredential, model: String): EmbeddingService? {
         val key = CredentialModelKey.of(credential, model)
-        return credentialEmbeddingServices[key]
+        return synchronized(credentialEmbeddingServices) {
+            check(!credentialEmbeddingServicesClosed) { "Credential embedding services are closed" }
+            credentialEmbeddingServices[key]
+        }
             ?: credentialEmbeddingServiceFactories
                 .firstNotNullOfOrNull { it.createEmbeddingService(credential, model) }
-                ?.also { credentialEmbeddingServices[key] = it }
+                ?.let { built ->
+                    val cachedService = synchronized(credentialEmbeddingServices) {
+                        if (credentialEmbeddingServicesClosed) null
+                        else credentialEmbeddingServices.getOrPut(key) { built }
+                    }
+                    if (cachedService !== built) closeCredentialService(built)
+                    checkNotNull(cachedService) { "Credential embedding services are closed" }
+                }
     }
 
     /**
@@ -1083,22 +1117,23 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             )
             return null
         }
-        // Read then put rather than computeIfAbsent: building a service can validate the key over
-        // the network, and computeIfAbsent would hold the map's lock for the duration. A race here
-        // costs one redundant build, never a wrong service.
-        //
-        // Concretely. Two requests for the same user arrive together, both resolving "cheapest"
-        // under the same key, and neither finds a cached entry. With computeIfAbsent, the first
-        // holds the map's lock across a network round trip to validate the key, and the second
-        // blocks on it - as does every unrelated lookup for every other user, because it is one
-        // map. Reading first, both build a service, both put, and the second put wins. The key
-        // and model are identical, so the two services are interchangeable; the loser is dropped
-        // and the cost is one wasted validation call.
+        // Build outside the lock because a factory can validate the key over the network.
+        // If another request already cached a service, close the unused build.
         val key = CredentialModelKey.of(credential, model)
-        val llmService = credentialLlmServices[key]
+        val llmService = synchronized(credentialLlmServices) {
+            check(!credentialLlmServicesClosed) { "Credential LLM services are closed" }
+            credentialLlmServices[key]
+        }
             ?: credentialLlmServiceFactories
                 .firstNotNullOfOrNull { it.createLlmService(credential, model) }
-                ?.also { credentialLlmServices[key] = it }
+                ?.let { built ->
+                    val chosen = synchronized(credentialLlmServices) {
+                        if (credentialLlmServicesClosed) null
+                        else credentialLlmServices.getOrPut(key) { built }
+                    }
+                    if (chosen !== built) closeCredentialService(built)
+                    checkNotNull(chosen) { "Credential LLM services are closed" }
+                }
         if (llmService == null) {
             logger.warn(
                 """Nothing built a service for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver for it, and check that the module speaking its wire protocol is on the classpath""",

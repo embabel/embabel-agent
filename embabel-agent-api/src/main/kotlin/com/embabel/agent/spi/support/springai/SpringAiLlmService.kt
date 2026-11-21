@@ -19,16 +19,20 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.agent.spi.support.streaming.IdentityWeakMap
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
+import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
+import java.lang.ref.Cleaner
 import java.time.LocalDate
+import kotlin.jvm.internal.DefaultConstructorMarker
 
 /**
  * Spring AI implementation that provides decoupled LLM operations.
@@ -82,7 +86,77 @@ data class SpringAiLlmService @JvmOverloads constructor(
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
     val promptTokensExcludeCache: Boolean = false,
-) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
+) : LlmService<SpringAiLlmService>, AiModel<ChatModel>, AutoCloseable {
+
+    /**
+     * Registers cleanup for a newly built chat model. The action must not retain the model.
+     * Copies, senders and streamers keep using the same model after the service is discarded.
+     */
+    @ApiStatus.Internal
+    fun registerChatModelCleanup(cleanup: Runnable) {
+        modelCleanups[chatModel] = cleaner.register(chatModel, cleanup)
+    }
+
+    /**
+     * Releases resources registered for this model immediately, including for other service
+     * instances that share it. Call after active calls and streams have finished or been cancelled.
+     */
+    override fun close() {
+        modelCleanups[chatModel]?.clean()
+    }
+
+    /**
+     * Binary compatibility: the synthetic constructor that Kotlin callers compiled before
+     * [promptTokensExcludeCache] link to when they leave arguments out. Bit `i` of [mask] set means
+     * argument `i` was omitted, so it takes its default.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    constructor(
+        name: String, provider: String, chatModel: ChatModel, optionsConverter: OptionsConverter?,
+        knowledgeCutoffDate: LocalDate?, promptContributors: List<PromptContributor>?, pricingModel: PricingModel?,
+        thinkingSupported: Boolean, toolResponseContentAdapter: ToolResponseContentAdapter?,
+        nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer?,
+        nativeThinkingExtractor: SpringAiNativeThinkingExtractor?, nativeSupport: NativeSupport?,
+        mask: Int, marker: DefaultConstructorMarker?,
+    ) : this(
+        // Bit n of mask stands for the n-th argument (0-based). A set bit means the old caller omitted
+        // it, so we substitute the default the primary constructor declares. A clear bit means the caller
+        // passed a real value, so `!!` is safe. Arguments whose default is null or false need no check:
+        // an omitted argument arrives as null or false already.
+        name = name,
+        provider = provider,
+        chatModel = chatModel,
+        optionsConverter = if (mask and (1 shl 3) != 0) DefaultOptionsConverter else optionsConverter!!,
+        knowledgeCutoffDate = knowledgeCutoffDate,
+        promptContributors = if (mask and (1 shl 5) != 0) {
+            buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } }
+        } else promptContributors!!,
+        pricingModel = pricingModel,
+        thinkingSupported = thinkingSupported,
+        toolResponseContentAdapter = if (mask and (1 shl 8) != 0) ToolResponseContentAdapter.PASSTHROUGH
+            else toolResponseContentAdapter!!,
+        nativeStructuredOutputConfigurer = if (mask and (1 shl 9) != 0) SpringAiNativeStructuredOutputConfigurer.NOOP
+            else nativeStructuredOutputConfigurer!!,
+        nativeThinkingExtractor = if (mask and (1 shl 10) != 0) SpringAiNativeThinkingExtractor.NOOP
+            else nativeThinkingExtractor!!,
+        nativeSupport = nativeSupport,
+    )
+
+    /** Binary compatibility: the `copy` callers compiled before [promptTokensExcludeCache] link to. Keeps it. */
+    @Suppress("kotlin:S107") // binary-compat shim: the parameter list must match the old JVM signature
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    fun copy(
+        name: String, provider: String, chatModel: ChatModel, optionsConverter: OptionsConverter,
+        knowledgeCutoffDate: LocalDate?, promptContributors: List<PromptContributor>, pricingModel: PricingModel?,
+        thinkingSupported: Boolean, toolResponseContentAdapter: ToolResponseContentAdapter,
+        nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer,
+        nativeThinkingExtractor: SpringAiNativeThinkingExtractor, nativeSupport: NativeSupport?,
+    ): SpringAiLlmService = SpringAiLlmService(
+        name, provider, chatModel, optionsConverter, knowledgeCutoffDate, promptContributors, pricingModel,
+        thinkingSupported, toolResponseContentAdapter, nativeStructuredOutputConfigurer, nativeThinkingExtractor,
+        nativeSupport, promptTokensExcludeCache,
+    )
 
     /**
      * The underlying Spring AI ChatModel.
@@ -134,4 +208,45 @@ data class SpringAiLlmService @JvmOverloads constructor(
      */
     fun withOptionsConverter(converter: OptionsConverter): SpringAiLlmService =
         copy(optionsConverter = converter)
+
+    companion object {
+        private val cleaner = Cleaner.create()
+        private val modelCleanups = IdentityWeakMap<ChatModel, Cleaner.Cleanable>()
+
+        /**
+         * Binary compatibility: the `copy$default` that Kotlin callers compiled before
+         * [promptTokensExcludeCache] link to. Bit `i` of [mask] set means argument `i` was omitted,
+         * so [self]'s value is kept.
+         */
+        @Suppress("UNUSED_PARAMETER", "kotlin:S107") // binary-compat shim: the parameter list must match the old JVM signature
+        @JvmStatic
+        @JvmName("copy\$default")
+        @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+        fun copyDefault(
+            self: SpringAiLlmService, name: String?, provider: String?, chatModel: ChatModel?,
+            optionsConverter: OptionsConverter?, knowledgeCutoffDate: LocalDate?,
+            promptContributors: List<PromptContributor>?, pricingModel: PricingModel?, thinkingSupported: Boolean,
+            toolResponseContentAdapter: ToolResponseContentAdapter?,
+            nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer?,
+            nativeThinkingExtractor: SpringAiNativeThinkingExtractor?, nativeSupport: NativeSupport?,
+            mask: Int, marker: Any?,
+        ): SpringAiLlmService {
+            fun omitted(i: Int) = mask and (1 shl i) != 0
+            return self.copy(
+                name = if (omitted(0)) self.name else name!!,
+                provider = if (omitted(1)) self.provider else provider!!,
+                chatModel = if (omitted(2)) self.chatModel else chatModel!!,
+                optionsConverter = if (omitted(3)) self.optionsConverter else optionsConverter!!,
+                knowledgeCutoffDate = if (omitted(4)) self.knowledgeCutoffDate else knowledgeCutoffDate,
+                promptContributors = if (omitted(5)) self.promptContributors else promptContributors!!,
+                pricingModel = if (omitted(6)) self.pricingModel else pricingModel,
+                thinkingSupported = if (omitted(7)) self.thinkingSupported else thinkingSupported,
+                toolResponseContentAdapter = if (omitted(8)) self.toolResponseContentAdapter else toolResponseContentAdapter!!,
+                nativeStructuredOutputConfigurer = if (omitted(9)) self.nativeStructuredOutputConfigurer
+                    else nativeStructuredOutputConfigurer!!,
+                nativeThinkingExtractor = if (omitted(10)) self.nativeThinkingExtractor else nativeThinkingExtractor!!,
+                nativeSupport = if (omitted(11)) self.nativeSupport else nativeSupport,
+            )
+        }
+    }
 }

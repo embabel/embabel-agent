@@ -685,26 +685,27 @@ class OpenAiModelLoaderTest {
     inner class ApiFormatTests {
 
         /**
-         * Pins the catalog contract the routing depends on: the `*-pro` models and the GPT-5.6
-         * tiers ask for the Responses API, and every other model keeps the Chat Completions path it
-         * has today. A model added to the wrong bucket is a production outage — either a 404 on
-         * every call, or a working model silently rerouted onto an adapter it was never exercised
-         * against.
+         * Pins the catalog contract the routing depends on: the `*-pro` models, GPT-5.4 and
+         * GPT-5.4 Mini, and the GPT-5.6 tiers ask for the Responses API, and every other model keeps
+         * the Chat Completions path it has today. A model added to the wrong bucket either returns a
+         * 404 because its endpoint is unsupported or loses transport-specific capabilities such as
+         * streaming when it is routed through the Responses adapter.
          */
         @Test
-        fun `shipped catalog routes the pro models and the GPT-5_6 tiers to Responses`() {
+        fun `shipped catalog routes required models to Responses`() {
             val models = shippedCatalogue.effectiveModels()
 
             val byFormat = models.groupBy({ it.apiFormat }, { it.modelId })
 
             assertEquals(
                 setOf(
-                    "gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro",
-                    "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+                    OpenAiModels.GPT_5_PRO, OpenAiModels.GPT_52_PRO, OpenAiModels.GPT_54_PRO, OpenAiModels.GPT_55_PRO,
+                    OpenAiModels.GPT_54, OpenAiModels.GPT_54_MINI,
+                    OpenAiModels.GPT_56_SOL, OpenAiModels.GPT_56_TERRA, OpenAiModels.GPT_56_LUNA,
                     OpenAiModels.GPT_6_ASTRA, OpenAiModels.GPT_61_SOL, OpenAiModels.GPT_61_TERRA, OpenAiModels.GPT_6_SOL, OpenAiModels.GPT_6_LUNA,
                 ),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
-                "Only the *-pro models and the GPT-5.6 and GPT-6 tiers are served over /v1/responses",
+                "Only models that require the Responses API are served over /v1/responses",
             )
             assertTrue(
                 byFormat[OpenAiApiFormat.CHAT_COMPLETIONS].orEmpty().none { it.endsWith("-pro") },

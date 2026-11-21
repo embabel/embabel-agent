@@ -200,4 +200,21 @@ class PricingModelTest {
         // Assert
         assertTrue(model is PricingModel)
     }
+
+    @Test
+    fun `Anthropic cache rate defaults price writes at 1_25x input and keep every other price`() {
+        val withDefaults = PerTokenPricingModel(4.0, 20.0, 0.4).withAnthropicCacheRateDefaults()
+        assertEquals(5.0 / 1_000_000, withDefaults.usdPerCacheWriteInputToken(), 1e-15)
+        assertEquals(0.4 / 1_000_000, withDefaults.usdPerCacheReadInputToken(), 1e-15)
+        assertEquals(4.0 / 1_000_000, withDefaults.usdPerInputToken(), 1e-15)
+        assertEquals(20.0 / 1_000_000, withDefaults.usdPerOutputToken(), 1e-15)
+    }
+
+    @Test
+    fun `Anthropic cache rate defaults return the same model when they change no price`() {
+        val configuredWrite = PerTokenPricingModel(4.0, 20.0, 0.4, 8.0)
+        assertSame(configuredWrite, configuredWrite.withAnthropicCacheRateDefaults())
+        val free = PerTokenPricingModel(0.0, 0.0)
+        assertSame(free, free.withAnthropicCacheRateDefaults())
+    }
 }

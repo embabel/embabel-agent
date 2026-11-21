@@ -40,8 +40,10 @@ import com.embabel.common.ai.model.ModelSelectionContextHolder
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.ProviderCredential
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.beans.factory.support.GenericBeanDefinition
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
@@ -170,7 +172,7 @@ class CredentialEndpointConfigTest {
             AnthropicModels.PROVIDER to AnthropicModels.CLAUDE_HAIKU_4_5,
             OpenAiModels.PROVIDER to OpenAiModels.GPT_41_MINI,
             DeepSeekModels.PROVIDER to DeepSeekModels.DEEPSEEK_V4_FLASH,
-            MistralAiModels.PROVIDER to MistralAiModels.MINISTRAL_8B,
+            MistralAiModels.PROVIDER to MistralAiModels.MINISTRAL_3_8B,
             GoogleGenAiModels.PROVIDER to GoogleGenAiModels.GEMINI_3_5_FLASH_LITE,
             AtlasCloudModels.PROVIDER to AtlasCloudModels.QWEN3_5_FLASH,
         )
@@ -206,6 +208,23 @@ class CredentialEndpointConfigTest {
     }
 
     @Test
+    fun `an OpenAI API format override applies to a user key`() {
+        contextRunner
+            .withPropertyValues(
+                "embabel.agent.platform.models.openai.api-format-overrides[${OpenAiModels.GPT_54_MINI}]=CHAT_COMPLETIONS"
+            )
+            .run { context ->
+                val service = build(
+                    factoriesIn(context),
+                    OpenAiModels.PROVIDER,
+                    OpenAiModels.GPT_54_MINI,
+                ) as SpringAiLlmService
+
+                assertInstanceOf(OpenAiChatModel::class.java, service.chatModel)
+            }
+    }
+
+    @Test
     fun `a model name this framework version has never heard of still builds`() {
         /*
          * The model name comes from configuration, and a provider ships new ones between framework
@@ -234,7 +253,7 @@ class CredentialEndpointConfigTest {
             assertThat(build(factories, "OPENAI", OpenAiModels.GPT_41_MINI)).isNotNull()
             assertThat(build(factories, "anthropic", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
             assertThat(build(factories, "ANTHROPIC", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
-            assertThat(build(factories, "mistral ai", MistralAiModels.MINISTRAL_8B)).isNotNull()
+            assertThat(build(factories, "mistral ai", MistralAiModels.MINISTRAL_3_8B)).isNotNull()
             assertThat(build(factories, "deepseek", DeepSeekModels.DEEPSEEK_V4_FLASH)).isNotNull()
         }
     }
@@ -244,7 +263,7 @@ class CredentialEndpointConfigTest {
         // A credential carries whatever the application stored. If that spelling reached the built
         // service, cost and metadata lookups would key on two names for one provider.
         contextRunner.run { context ->
-            val service = build(factoriesIn(context), "MISTRAL AI", MistralAiModels.MINISTRAL_8B)
+            val service = build(factoriesIn(context), "MISTRAL AI", MistralAiModels.MINISTRAL_3_8B)
 
             assertThat(service?.provider).isEqualTo(MistralAiModels.PROVIDER)
         }

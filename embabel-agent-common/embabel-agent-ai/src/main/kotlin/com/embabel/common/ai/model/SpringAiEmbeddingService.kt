@@ -33,7 +33,11 @@ data class SpringAiEmbeddingService(
     override val model: EmbeddingModel,
     val configuredDimensions: Int? = null,
     override val pricingModel: PricingModel? = null,
-) : EmbeddingService, AiModel<EmbeddingModel> {
+) : EmbeddingService, AiModel<EmbeddingModel>, AutoCloseable {
+
+    override fun close() {
+        (model as? AutoCloseable)?.close()
+    }
 
     override val dimensions get() = configuredDimensions ?: model.dimensions()
 

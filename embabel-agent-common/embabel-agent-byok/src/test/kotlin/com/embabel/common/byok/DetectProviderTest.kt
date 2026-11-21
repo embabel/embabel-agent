@@ -16,8 +16,12 @@
 package com.embabel.common.byok
 
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class DetectProviderTest {
 
@@ -65,5 +69,34 @@ class DetectProviderTest {
             ByokFactory<String> { throw InvalidApiKeyException("bad") },
         )
         assertSame(winner, result)
+    }
+
+    @Test
+    fun `a successful candidate that finishes after cancellation is closed`() {
+        val started = CountDownLatch(1)
+        val closed = CountDownLatch(1)
+        val winnerClosed = AtomicBoolean()
+        val winner = AutoCloseable { winnerClosed.set(true) }
+        val loser = AutoCloseable { closed.countDown() }
+
+        val result = detectProvider(
+            ByokFactory {
+                started.countDown()
+                try {
+                    CountDownLatch(1).await(5, TimeUnit.SECONDS)
+                } catch (_: InterruptedException) {
+                    // Simulate a provider returning a service despite cancellation.
+                }
+                loser
+            },
+            ByokFactory {
+                check(started.await(5, TimeUnit.SECONDS))
+                winner
+            },
+        )
+
+        assertSame(winner, result)
+        assertTrue(closed.await(5, TimeUnit.SECONDS))
+        assertTrue(!winnerClosed.get())
     }
 }

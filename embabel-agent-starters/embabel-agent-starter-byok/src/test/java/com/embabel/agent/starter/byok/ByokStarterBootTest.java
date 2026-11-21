@@ -108,7 +108,7 @@ class ByokStarterBootTest {
                     AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5,
                     OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI,
                     DeepSeekModels.PROVIDER, DeepSeekModels.DEEPSEEK_V4_FLASH,
-                    MistralAiModels.PROVIDER, MistralAiModels.MINISTRAL_8B,
+                    MistralAiModels.PROVIDER, MistralAiModels.MINISTRAL_3_8B,
                     GoogleGenAiModels.PROVIDER, GoogleGenAiModels.GEMINI_3_5_FLASH_LITE,
                     AtlasCloudModels.PROVIDER, AtlasCloudModels.QWEN3_5_FLASH);
 

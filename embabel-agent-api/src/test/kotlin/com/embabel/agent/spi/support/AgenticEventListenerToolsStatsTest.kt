@@ -21,9 +21,14 @@ import com.embabel.agent.api.event.ToolCallResponseEvent
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class AgenticEventListenerToolsStatsTest {
 
@@ -70,6 +75,38 @@ class AgenticEventListenerToolsStatsTest {
             statsListener.onProcessEvent(newEvent("toolA", runningTime = Duration.ofMillis(300)))
             val avg = statsListener.toolsStats["toolA"]?.averageResponseTime
             assertEquals(200, avg)
+        }
+    }
+
+    @Nested
+    inner class ConcurrentRecording {
+
+        @Test
+        fun `counts every call recorded from several threads`() {
+            val threads = 8
+            val eventsPerThread = 20_000
+            val statsListener = AgenticEventListenerToolsStats()
+            val events = List(10) { newEvent("toolA", isFailure = it == 0) }
+            val errors = CopyOnWriteArrayList<Throwable>()
+            val start = CountDownLatch(1)
+            val pool = Executors.newFixedThreadPool(threads)
+            repeat(threads) {
+                pool.submit {
+                    try {
+                        start.await()
+                        repeat(eventsPerThread) { i -> statsListener.onProcessEvent(events[i % events.size]) }
+                    } catch (t: Throwable) {
+                        errors.add(t)
+                    }
+                }
+            }
+            start.countDown()
+            pool.shutdown()
+
+            assertTrue(pool.awaitTermination(60, TimeUnit.SECONDS), "workers did not finish")
+            assertEquals(emptyList<Throwable>(), errors)
+            assertEquals(threads * eventsPerThread, statsListener.toolsStats["toolA"]?.calls)
+            assertEquals(threads * eventsPerThread / 10, statsListener.toolsStats["toolA"]?.failures)
         }
     }
 }

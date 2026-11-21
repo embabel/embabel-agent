@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
@@ -74,6 +75,19 @@ class OpenAiModelsConfigRoutingTest {
             OpenAiChatModel::class.java,
             registeredLlms()["chatModel"]?.chatModel,
             "Rerouting a working model onto the adapter changes its behaviour for no reason",
+        )
+    }
+
+    @Test
+    fun `a model transport can be overridden for application compatibility`() {
+        val properties = OpenAiProperties().apply {
+            apiFormatOverrides = mapOf(OpenAiModels.GPT_5_PRO to OpenAiApiFormat.CHAT_COMPLETIONS)
+        }
+
+        assertInstanceOf(
+            OpenAiChatModel::class.java,
+            registeredLlms(properties = properties)["proModel"]?.chatModel,
+            "An application must be able to retain streaming when a model supports both transports",
         )
     }
 
@@ -139,6 +153,7 @@ class OpenAiModelsConfigRoutingTest {
     /** Runs the real bean-registration path and returns the LLM services it registered. */
     private fun registeredLlms(
         modelLoader: OpenAiModelLoader = inMemoryLoader(catalog),
+        properties: OpenAiProperties = OpenAiProperties(),
     ): Map<String, SpringAiLlmService> {
         val registered = mutableMapOf<String, Any>()
         val beanFactory = mockk<ConfigurableBeanFactory>()
@@ -153,7 +168,7 @@ class OpenAiModelsConfigRoutingTest {
             envEmbeddingsPath = null,
             observationRegistry = ObjectProviders.empty(),
             restClientBuilder = ObjectProviders.empty(),
-            properties = OpenAiProperties(),
+            properties = properties,
             llmOptionsProperties = LlmOptionsProperties(),
             configurableBeanFactory = beanFactory,
             modelLoader = modelLoader,

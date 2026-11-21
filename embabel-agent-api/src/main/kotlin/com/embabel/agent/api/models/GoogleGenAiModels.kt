@@ -27,6 +27,7 @@ class GoogleGenAiModels {
 
         // Gemini 4 Family (Latest Generation - Stable)
         const val GEMINI_4_HYDROGEN = "gemini-4-hydrogen"
+        const val GEMINI_4_NEON = "gemini-4-neon"
         const val GEMINI_4_CARBON = "gemini-4-carbon"
         const val GEMINI_4_ARGON = "gemini-4-argon"
 
