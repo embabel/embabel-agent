@@ -17,11 +17,14 @@ package com.embabel.agent.config.models.googlegenai
 
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
+import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel
 
 class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = GoogleGenAiOptionsConverter
@@ -114,5 +117,66 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
     fun `should set frequencyPenalty`() {
         val options = optionsConverter.convertOptions(LlmOptions().withFrequencyPenalty(0.4), "test-model") as GoogleGenAiChatOptions
         assertEquals(0.4, options.frequencyPenalty)
+    }
+
+    @Test
+    fun `should send no thinking level without a reasoning effort`() {
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as GoogleGenAiChatOptions
+        assertNull(options.thinkingLevel)
+    }
+
+    @Test
+    fun `should send low to high reasoning effort as the same thinking level`() {
+        mapOf(
+            ReasoningEffort.LOW to GoogleGenAiThinkingLevel.LOW,
+            ReasoningEffort.MEDIUM to GoogleGenAiThinkingLevel.MEDIUM,
+            ReasoningEffort.HIGH to GoogleGenAiThinkingLevel.HIGH,
+        ).forEach { (effort, level) ->
+            val options = optionsConverter.convertOptions(
+                LlmOptions().withReasoningEffort(effort), "test-model"
+            ) as GoogleGenAiChatOptions
+            assertEquals(level, options.thinkingLevel)
+        }
+    }
+
+    @Test
+    fun `should reject reasoning effort none and above high`() {
+        listOf(ReasoningEffort.NONE, ReasoningEffort.XHIGH, ReasoningEffort.MAX).forEach { effort ->
+            assertThrows<UnsupportedOperationException> {
+                optionsConverter.convertOptions(LlmOptions().withReasoningEffort(effort), "test-model")
+            }
+        }
+    }
+
+    @Test
+    fun `should say why reasoning effort none is rejected`() {
+        val error = assertThrows<UnsupportedOperationException> {
+            optionsConverter.convertOptions(LlmOptions().withReasoningEffort(ReasoningEffort.NONE), "test-model")
+        }
+        assertEquals(
+            "Reasoning effort NONE is unsupported on model 'test-model': Gemini has no thinking level that turns thinking off",
+            error.message,
+        )
+    }
+
+    @Test
+    fun `should send the reasoning effort when thinking is turned off`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW), "test-model"
+        ) as GoogleGenAiChatOptions
+        assertEquals(GoogleGenAiThinkingLevel.LOW, options.thinkingLevel)
+        assertNull(options.thinkingBudget)
+    }
+
+    @Test
+    fun `should send reasoning effort instead of thinking budget when both are set`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withThinking(Thinking.withTokenBudget(2000).applyExtraction())
+                .withReasoningEffort(ReasoningEffort.MEDIUM),
+            "test-model",
+        ) as GoogleGenAiChatOptions
+        assertEquals(GoogleGenAiThinkingLevel.MEDIUM, options.thinkingLevel)
+        assertNull(options.thinkingBudget)
+        assertEquals(true, options.includeThoughts)
     }
 }

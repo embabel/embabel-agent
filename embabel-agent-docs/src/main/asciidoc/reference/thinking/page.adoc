@@ -263,6 +263,15 @@ To turn thinking off and still extract, add `opt-out: true`.
 | Anthropic
 | `LOW` to `MAX` as `output_config.effort`, with thinking left at the model's default unless the caller set thinking. The effort takes precedence over the effort a `Thinking.withTokenBudget` budget maps to. Embabel omits effort for models that do not support the parameter; Anthropic rejects a level the model does not offer. See https://platform.claude.com/docs/en/build-with-claude/effort[Anthropic's effort levels]. `NONE` disables thinking on models whose catalog entry declares `thinking.can_be_disabled: true` in `anthropic-models.yml`, and fails with `UnsupportedOperationException` on any other model.
 
+| Google GenAI
+a| `LOW`, `MEDIUM` and `HIGH` are sent as the Gemini `thinkingLevel` of the same name.
+
+* If a `Thinking.withTokenBudget` budget is also set, only the level is sent. Gemini refuses a request that has both.
+* If thinking is turned off with `withoutThinking()`, the level is still sent, as Anthropic still sends the effort. `withoutThinking()` alone does not turn Gemini thinking off yet, see https://github.com/embabel/embabel-agent/issues/2259[#2259].
+* `NONE` throws `UnsupportedOperationException`. Gemini has no level that means "off", and whether its thinking can be turned off depends on the model and on the endpoint (Gemini API or Vertex AI). See https://github.com/embabel/embabel-agent/issues/2259[#2259].
+* `XHIGH` and `MAX` also throw `UnsupportedOperationException`, because Spring AI only sends levels up to `HIGH`.
+* Gemini 2.5 models are not supported. They only take a budget, and Spring AI or the Gemini API refuses a level for them. Google is retiring them: 2.5 Pro and 2.5 Flash shut down on 2026-12-01.
+
 | Others
 | Ignored.
 |===
