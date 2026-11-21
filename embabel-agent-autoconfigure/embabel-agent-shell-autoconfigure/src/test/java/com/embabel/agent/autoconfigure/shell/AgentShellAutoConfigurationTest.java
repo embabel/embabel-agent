@@ -34,6 +34,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.shell.jline.PromptProvider;
 import org.springframework.shell.core.autoconfigure.ApplicationRunnerAutoConfiguration;
 
@@ -124,6 +125,25 @@ class AgentShellAutoConfigurationTest {
                  assertThat(context).hasSingleBean(ShellExitListener.class);
                  assertThat(context.getBean(ShellExitListener.class)).isSameAs(customListener);
               });
+   }
+
+   @Test
+   void registersOwnShellExitListenerWhenParentHasListener() {
+      try (GenericApplicationContext parent = new GenericApplicationContext()) {
+         ShellExitListener parentListener = new ShellExitListener(code -> { });
+         parent.registerBean("parentShellExitListener", ShellExitListener.class, () -> parentListener);
+         parent.refresh();
+
+         contextRunner
+                 .withParent(parent)
+                 .withPropertyValues("spring.shell.context.close=true")
+                 .run(context -> {
+                    assertThat(context.getSourceApplicationContext().getBeanFactory()
+                            .getBeanNamesForType(ShellExitListener.class)).containsExactly("shellExitListener");
+                    assertThat(context.getBean("shellExitListener", ShellExitListener.class))
+                            .isNotSameAs(parentListener);
+                 });
+      }
    }
 
    @Test
