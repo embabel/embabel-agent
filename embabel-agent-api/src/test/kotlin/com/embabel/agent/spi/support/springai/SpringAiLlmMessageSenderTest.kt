@@ -25,6 +25,7 @@ import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.autoconfig.NativeStructuredOutputCapability
 import com.embabel.common.ai.autoconfig.NativeSupport
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.NativeStructuredOutputMode
 import io.mockk.every
 import io.mockk.mockk
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
 import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
@@ -774,6 +776,46 @@ class SpringAiLlmMessageSenderTest {
             )
 
             assertThat(response.thinkingBlocks).isEmpty()
+        }
+    }
+
+    @Nested
+    inner class ThinkingTokenReaderTests {
+
+        private fun responseWith(usage: DefaultUsage) = ChatResponse(
+            listOf(Generation(SpringAiAssistantMessage("answer"))),
+            ChatResponseMetadata.builder().usage(usage).build(),
+        )
+
+        @Test
+        fun `the thinking the reader finds is counted in the completion`() {
+            val chatModel = mockk<ChatModel> { every { call(any<Prompt>()) } returns responseWith(DefaultUsage(60, 1, 60 + 1 + 95)) }
+            val sender = SpringAiLlmMessageSender(
+                chatModel = chatModel,
+                chatOptions = testChatOptions(),
+                thinkingTokenReader = { 95 },
+            )
+
+            val usage = sender.call(LlmMessageRequest(messages = listOf(UserMessage("hi")), tools = emptyList())).usage
+
+            assertThat(usage?.completionTokens).isEqualTo(1 + 95)
+            assertThat(usage?.thinkingTokens).isEqualTo(95)
+        }
+
+        @Test
+        fun `a service hands its reader to the senders it creates`() {
+            val service = SpringAiLlmService(
+                name = "gemini",
+                provider = "provider",
+                chatModel = mockk { every { call(any<Prompt>()) } returns responseWith(DefaultUsage(60, 1, 60 + 1 + 7)) },
+                thinkingTokenReader = { 7 },
+            )
+
+            val usage = service.createMessageSender(LlmOptions())
+                .call(listOf(UserMessage("hi")), emptyList()).usage
+
+            assertThat(usage?.completionTokens).isEqualTo(1 + 7)
+            assertThat(usage?.thinkingTokens).isEqualTo(7)
         }
     }
 

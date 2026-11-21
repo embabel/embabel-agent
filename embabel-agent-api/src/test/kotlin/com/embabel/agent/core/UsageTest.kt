@@ -223,4 +223,20 @@ class UsageTest {
             assertEquals(50, copied.completionTokens)
         }
     }
+
+    @Nested
+    inner class ThinkingTokensTest {
+
+        @Test
+        fun `thinking is a part of the completion, not added to the total`() {
+            assertEquals(150, Usage(100, 50, null, thinkingTokens = 30).totalTokens)
+        }
+
+        @Test
+        fun `plus sums thinking, and keeps none when neither had any`() {
+            assertEquals(30, (Usage(1, 2, null, thinkingTokens = 10) + Usage(1, 2, null, thinkingTokens = 20)).thinkingTokens)
+            assertEquals(10, (Usage(1, 2, null, thinkingTokens = 10) + Usage(1, 2, null)).thinkingTokens)
+            assertNull((Usage(1, 2, null) + Usage(1, 2, null)).thinkingTokens)
+        }
+    }
 }

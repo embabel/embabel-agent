@@ -31,6 +31,7 @@ import com.embabel.agent.core.support.LlmCall
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.SpringAiThinkingTokenReader
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
@@ -51,7 +52,17 @@ import io.mockk.slot
 import jakarta.validation.Validation
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.model.tool.ToolCallingChatOptions
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeoutException
 import kotlin.test.assertEquals
@@ -79,8 +90,9 @@ class ChatClientLlmOperationsThinkingTest {
     )
 
     private fun createChatClientLlmOperations(
-        fakeChatModel: FakeChatModel,
+        fakeChatModel: ChatModel,
         dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
+        thinkingTokenReader: SpringAiThinkingTokenReader = SpringAiThinkingTokenReader.NONE,
     ): Setup {
         val ese = EventSavingAgenticEventListener()
         val mutableLlmInvocationHistory = MutableLlmInvocationHistory()
@@ -109,7 +121,10 @@ class ChatClientLlmOperationsThinkingTest {
 
         val mockModelProvider = mockk<ModelProvider>()
         val crit = slot<ModelSelectionCriteria>()
-        val fakeLlm = SpringAiLlmService("fake", "provider", fakeChatModel, DefaultOptionsConverter)
+        val fakeLlm = SpringAiLlmService(
+            "fake", "provider", fakeChatModel, DefaultOptionsConverter,
+            thinkingTokenReader = thinkingTokenReader,
+        )
         every { mockModelProvider.getLlm(capture(crit)) } returns fakeLlm
         val cco = ChatClientLlmOperations(
             modelProvider = mockModelProvider,
@@ -1237,6 +1252,34 @@ class ChatClientLlmOperationsThinkingTest {
         assertNotNull(thinkingResponse.result)
         assertTrue(thinkingResponse.thinkingBlocks.isNotEmpty())
         assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("Embabel tool loop"))
+    }
+
+    @Test
+    fun `recorded usage counts the thinking the provider reports apart from the completion`() {
+        val chatModel = object : ChatModel {
+            override fun getOptions(): ChatOptions = ToolCallingChatOptions.builder().build()
+            override fun call(prompt: Prompt) = ChatResponse(
+                listOf(Generation(AssistantMessage("""{"status": "success", "value": 1}"""))),
+                ChatResponseMetadata.builder().usage(DefaultUsage(100, 20, 150)).build(),
+            )
+        }
+        val setup = createChatClientLlmOperations(chatModel, thinkingTokenReader = SpringAiThinkingTokenReader { 30 })
+        val llmRequestEvent = mockk<LlmRequestEvent<SimpleResult>>(relaxed = true)
+        every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
+        every { llmRequestEvent.timestamp } returns Instant.now()
+
+        setup.llmOperations.doTransformWithThinkingSpringAi(
+            messages = listOf(UserMessage("go")),
+            interaction = LlmInteraction(InteractionId("thinking-tokens")),
+            outputClass = SimpleResult::class.java,
+            llmRequestEvent = llmRequestEvent,
+            agentProcess = setup.mockAgentProcess,
+            action = null,
+        )
+
+        val usage = setup.mutableLlmInvocationHistory.invocations.single().usage
+        assertEquals(50, usage.completionTokens)
+        assertEquals(30, usage.thinkingTokens)
     }
 
     @Test

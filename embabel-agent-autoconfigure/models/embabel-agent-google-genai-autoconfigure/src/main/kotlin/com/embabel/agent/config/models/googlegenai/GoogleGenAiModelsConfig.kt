@@ -234,6 +234,7 @@ class GoogleGenAiModelsConfig(
                 )
             },
             toolResponseContentAdapter = TOOL_RESPONSE_CONTENT_ADAPTER,
+            thinkingTokenReader = GoogleGenAiThinkingTokenReader,
         )
     }
 

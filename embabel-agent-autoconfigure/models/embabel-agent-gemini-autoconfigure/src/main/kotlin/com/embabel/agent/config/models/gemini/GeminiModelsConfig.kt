@@ -176,7 +176,8 @@ class GeminiModelsConfig(
             provider = GeminiModels.PROVIDER,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             optionsConverter = OpenAiChatOptionsConverter,
-            retryTemplate = properties.retryTemplate(modelDef.modelId)
+            retryTemplate = properties.retryTemplate(modelDef.modelId),
+            thinkingTokenReader = GeminiThinkingTokenReader,
         )
     }
 }

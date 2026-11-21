@@ -36,9 +36,9 @@ public class SpringAiLlmServiceConstructionTest {
     void preservesKotlinDefaultArgumentSignatures() {
         var serviceClass = SpringAiLlmService.class;
         assertTrue(java.util.Arrays.stream(serviceClass.getDeclaredConstructors())
-                .anyMatch(constructor -> constructor.isSynthetic() && constructor.getParameterCount() == 15));
+                .anyMatch(constructor -> constructor.isSynthetic() && constructor.getParameterCount() == 16));
         assertTrue(java.util.Arrays.stream(serviceClass.getDeclaredMethods())
-                .anyMatch(method -> method.getName().equals("copy$default") && method.getParameterCount() == 16));
+                .anyMatch(method -> method.getName().equals("copy$default") && method.getParameterCount() == 17));
     }
 
     @Test

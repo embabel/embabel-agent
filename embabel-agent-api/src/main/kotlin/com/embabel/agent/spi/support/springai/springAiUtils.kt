@@ -39,9 +39,15 @@ internal fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallba
  * Spring AI does not define whether promptTokens includes cache tokens:
  * OpenAI counts cached reads inside it, Anthropic reports reads and writes on top of it.
  * @param promptTokensExcludeCache true when cache tokens are reported on top of promptTokens
+ * @param thinkingTokens thinking the provider reports apart from completionTokens (Gemini);
+ *        added to the completion, as OpenAI and Anthropic count it
  */
 @JvmOverloads
-fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(promptTokensExcludeCache: Boolean = false): Usage {
+fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(
+    promptTokensExcludeCache: Boolean = false,
+    thinkingTokens: Int? = null,
+): Usage {
+    val thinking = thinkingTokens?.takeIf { it > 0 }
     val cacheRead = cacheReadInputTokens?.let { Math.toIntExact(it) }
     val cacheWrite = cacheWriteInputTokens?.let { Math.toIntExact(it) }
     return Usage(
@@ -50,9 +56,10 @@ fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(promptTokensExclud
         } else {
             promptTokens
         },
-        completionTokens = completionTokens,
+        completionTokens = if (thinking == null) completionTokens else (completionTokens ?: 0) + thinking,
         nativeUsage = nativeUsage,
         cacheReadInputTokens = cacheRead,
         cacheWriteInputTokens = cacheWrite,
+        thinkingTokens = thinking,
     )
 }

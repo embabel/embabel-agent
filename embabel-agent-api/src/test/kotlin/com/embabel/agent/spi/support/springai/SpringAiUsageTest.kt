@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.springai
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.metadata.DefaultUsage
 
@@ -38,5 +39,22 @@ class SpringAiUsageTest {
         val embabelUsage = springUsage.toEmbabelUsage()
 
         assertEquals(300, embabelUsage.totalTokens)
+    }
+
+    @Test
+    fun `thinking reported apart is added to the completion and kept as a detail`() {
+        val usage = DefaultUsage(60, 1, 156).toEmbabelUsage(thinkingTokens = 95)
+
+        assertEquals(1 + 95, usage.completionTokens)
+        assertEquals(95, usage.thinkingTokens)
+        assertEquals(60 + 1 + 95, usage.totalTokens)
+    }
+
+    @Test
+    fun `no thinking reported leaves the completion as it is`() {
+        val usage = DefaultUsage(100, 50, 400).toEmbabelUsage()
+
+        assertEquals(50, usage.completionTokens)
+        assertNull(usage.thinkingTokens)
     }
 }
