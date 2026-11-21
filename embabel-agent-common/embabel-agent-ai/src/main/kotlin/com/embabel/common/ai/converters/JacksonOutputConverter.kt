@@ -149,7 +149,38 @@ open class JacksonOutputConverter<T : Any> protected constructor(
     override fun convert(text: String): T {
         val unwrapped = unwrapJson(text)
         try {
-            return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T
+            // A JSON "null" fails this cast with a NullPointerException, as before parse was extracted.
+            return parse(unwrapped) as T
+        } catch (e: JacksonException) {
+            logger.error(
+                // Spring AI 2.0 removed org.springframework.ai.util.LoggingMarkers; reproduce the
+                // same SLF4J marker ("SENSITIVE") so existing sensitive-data log filtering still applies.
+                MarkerFactory.getMarker("SENSITIVE"),
+                "Could not parse the given text to the desired target type: \"{}\" into {}", unwrapped, this.type
+            )
+            throw RuntimeException(e)
+        }
+    }
+
+    /**
+     * Same conversion as [convert], but returns null instead of logging an error and throwing.
+     * For callers that only probe whether [text] converts, where a failure is expected and not an error.
+     * Any [RuntimeException] (including [JacksonException]) means "does not convert", so a probe never throws.
+     */
+    internal fun convertOrNull(text: String): T? =
+        try {
+            parse(unwrapJson(text))
+        } catch (_: RuntimeException) {
+            null
+        }
+
+    /**
+     * Parses [unwrapped] to [T], or null for a JSON `null`,
+     * throwing the original [JacksonException] if it cannot be parsed.
+     */
+    private fun parse(unwrapped: String): T? {
+        try {
+            return lenientMapper.readValue<T?>(unwrapped, lenientMapper.constructType(this.type))
         } catch (e: JacksonException) {
             // Some LLMs escape the very quotes that delimit a string value (e.g. `"key": \"value\"`),
             // which Jackson cannot parse. Retry once with those delimiter quotes repaired. The repair
@@ -158,18 +189,12 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             val repaired = fixMalformedEscapedQuotes(unwrapped)
             if (repaired != unwrapped) {
                 try {
-                    return lenientMapper.readValue<Any?>(repaired, lenientMapper.constructType(this.type)) as T
+                    return lenientMapper.readValue<T?>(repaired, lenientMapper.constructType(this.type))
                 } catch (_: JacksonException) {
-                    // fall through and report the original failure below
+                    // fall through and report the original failure
                 }
             }
-            logger.error(
-                // Spring AI 2.0 removed org.springframework.ai.util.LoggingMarkers; reproduce the
-                // same SLF4J marker ("SENSITIVE") so existing sensitive-data log filtering still applies.
-                MarkerFactory.getMarker("SENSITIVE"),
-                "Could not parse the given text to the desired target type: \"{}\" into {}", unwrapped, this.type
-            )
-            throw RuntimeException(e)
+            throw e
         }
     }
 

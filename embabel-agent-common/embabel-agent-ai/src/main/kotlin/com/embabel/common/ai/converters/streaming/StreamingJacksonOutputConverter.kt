@@ -80,9 +80,14 @@ open class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConv
      * Convert streaming text with thinking blocks into StreamingEvent objects.
      * Supports both object lines and thinking blocks.
      * Uses resilient error handling - logs warnings for individual line failures but continues processing.
+     *
+     * Before classification, a line holding a JSON object directly after a closing thinking tag
+     * is split into two lines (see [splitAfterClosingThinkingTag]), so the object is emitted
+     * instead of being lost inside the reasoning. The reactive pipeline below is unchanged:
+     * each line still produces at most one event.
      */
     fun convertStreamWithThinking(text: String): Flux<StreamingEvent<T>> {
-        return Flux.fromIterable(text.lines())
+        return Flux.fromIterable(text.lines().flatMap { splitAfterClosingThinkingTag(it) })
             .filter { it.isNotBlank() }
             .handle { line, sink ->
                 try {
@@ -113,6 +118,44 @@ open class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConv
     }
 
     /**
+     * Splits a line that holds a JSON object directly after a closing thinking tag into two lines:
+     * the reasoning up to and including the tag, then the JSON object. See issue #2267.
+     *
+     * Where to split is decided by [ThinkingDetector.splitAfterClosingTag], which also explains why
+     * only a closing tag makes the split safe. This converter adds the one check the detector cannot
+     * make: the JSON part must convert to [T].
+     *
+     * The split only inserts the line break the model left out. Both parts are classified afterwards
+     * by [ThinkingDetector], exactly as if the model had written them on separate lines.
+     *
+     * @param line one complete line of the streamed response
+     * @return the line unchanged, or the reasoning line followed by the JSON line
+     */
+    private fun splitAfterClosingThinkingTag(line: String): List<String> {
+        // Reasoning and JSON parts, e.g. "<think>r</think>" and {"name":"x"}; null keeps the line whole.
+        val (reasoning, json) = ThinkingDetector.splitAfterClosingTag(line) ?: return listOf(line)
+        // The JSON part must convert to T. handle converts it again, and a failure there would end
+        // the stream with an error, so splitting only on success adds no new error path.
+        //   {"name":"x"}   -> pass
+        //   {"other":1}    -> fail (valid JSON, wrong shape for T)
+        if (!convertsToTarget(json)) {
+            logger.debug("Text after the closing thinking tag is not a JSON object of the target type, not split: {}", line)
+            return listOf(line)
+        }
+        logger.debug("Split reasoning and JSON object on the same line: reasoning='{}', json='{}'", reasoning, json)
+        return listOf(reasoning, json)
+    }
+
+    /**
+     * Whether [candidate] converts to a non-null [T] with this converter's own conversion.
+     *
+     * Ensures a split only happens when the JSON part will later be emitted as an object,
+     * so valid JSON of a different shape leaves the line unchanged, as before.
+     * Uses [convertOrNull], so a failed probe does not log an error.
+     */
+    private fun convertsToTarget(candidate: String): Boolean = convertOrNull(candidate) != null
+
+    /**
      * Override format to request JSONL instead of single JSON.
      * Inherits schema injection from parent but modifies instructions for streaming.
      */
@@ -125,6 +168,7 @@ open class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConv
                |another line of thinking</think>
                |
                |Thinking blocks are separate from JSON objects and can appear before, between, or after JSON lines as needed for your analysis.
+               |DO NOT put thinking blocks and JSON objects on the same line.
                |""".trimMargin()
         } else ""
 

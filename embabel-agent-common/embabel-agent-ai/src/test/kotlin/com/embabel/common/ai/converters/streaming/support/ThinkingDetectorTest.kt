@@ -18,7 +18,10 @@ package com.embabel.common.ai.converters.streaming.support
 import com.embabel.common.core.streaming.ThinkingState
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Method
 
@@ -213,5 +216,98 @@ class ThinkingDetectorTest {
         Assertions.assertEquals(ThinkingState.CONTINUATION, ThinkingDetector.detectThinkingState("{"))
         Assertions.assertEquals(ThinkingState.CONTINUATION, ThinkingDetector.detectThinkingState("}"))
         Assertions.assertEquals(ThinkingState.CONTINUATION, ThinkingDetector.detectThinkingState("{\"incomplete"))
+    }
+
+    /**
+     * A JSON object directly after a closing thinking tag is split off (issue #2267).
+     * Without a closing tag the line stays whole: the detector is stateless (see #1881).
+     */
+    @Nested
+    inner class SplitAfterClosingTag {
+
+        @Test
+        fun `splits a think block followed by JSON`() {
+            assertEquals(
+                "<think>r</think>" to """{"name":"x"}""",
+                ThinkingDetector.splitAfterClosingTag("""<think>r</think>{"name":"x"}"""),
+            )
+        }
+
+        @Test
+        fun `splits a think block followed by a space and JSON`() {
+            assertEquals(
+                "<think>r</think>" to """{"name":"x"}""",
+                ThinkingDetector.splitAfterClosingTag("""  <think>r</think> {"name":"x"}  """),
+            )
+        }
+
+        @Test
+        fun `splits the end of a multi-line block followed by JSON`() {
+            assertEquals(
+                "last step</think>" to """{"name":"x"}""",
+                ThinkingDetector.splitAfterClosingTag("""last step</think>{"name":"x"}"""),
+            )
+        }
+
+        @Test
+        fun `splits after a closing tag of another tag family`() {
+            assertEquals(
+                "<analysis>r</analysis>" to """{"name":"x"}""",
+                ThinkingDetector.splitAfterClosingTag("""<analysis>r</analysis>{"name":"x"}"""),
+            )
+        }
+
+        @Test
+        fun `splits after the last of several closing tags`() {
+            assertEquals(
+                "<think>a</think><analysis>b</analysis>" to """{"name":"x"}""",
+                ThinkingDetector.splitAfterClosingTag("""<think>a</think><analysis>b</analysis>{"name":"x"}"""),
+            )
+        }
+
+        @Test
+        fun `does not split plain text followed by JSON`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""Consider {"name":"example"}"""))
+        }
+
+        @Test
+        fun `does not split a plain JSON line`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""{"name":"x"}"""))
+        }
+
+        @Test
+        fun `does not split a line that does not end with a brace`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""<think>r</think>{"name":"x"} trailing"""))
+        }
+
+        @Test
+        fun `does not split JSON inside a block opened on the same line`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""<think>example {"name":"x"}"""))
+        }
+
+        @Test
+        fun `does not split JSON inside a block opened mid-line`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""so <think>example {"name":"x"}"""))
+        }
+
+        @Test
+        fun `does not split JSON inside a block opened after a closing tag`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""<think>a</think> so <think>b {"name":"x"}"""))
+        }
+
+        @Test
+        fun `does not split when the last closing tag is inside the JSON`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""<think>r</think>{"name":"<think>a</think>"}"""))
+        }
+
+        @Test
+        fun `does not split text after the closing tag that is not JSON-shaped`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""<think>r</think>{a, b}"""))
+        }
+
+        @Test
+        fun `does not split a legacy THINKING prefix line`() {
+            assertNull(ThinkingDetector.splitAfterClosingTag("""//THINKING: text {"name":"x"}"""))
+        }
     }
 }

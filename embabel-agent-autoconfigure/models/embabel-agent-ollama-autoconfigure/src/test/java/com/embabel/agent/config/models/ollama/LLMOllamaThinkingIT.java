@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -34,6 +33,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
@@ -162,7 +162,7 @@ class LLMOllamaThinkingIT {
      */
     static class Tooling {
 
-        @Tool
+        @LlmTool
         Short convertFromCelsiusToFahrenheit(Short inputTemp) {
             return (short) ((inputTemp * 2) + 32);
         }
