@@ -138,7 +138,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
     private fun ensureChunksLoaded() {
         if (!chunksLoaded && indexPath != null) {
             logger.info("Triggering lazy loading of existing chunks...")
-            loadExistingChunks()
+            if (DirectoryReader.indexExists(directory)) {
+                loadExistingChunks()
+            }
             chunksLoaded = true
         }
     }
@@ -166,6 +168,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     }
 
     override fun findAllChunksById(chunkIds: List<String>): List<Chunk> {
+        ensureChunksLoaded()
         logger.debug("Finding chunks by IDs: {}", chunkIds)
 
         val foundChunks = chunkIds.mapNotNull { chunkId ->
@@ -181,10 +184,12 @@ class LuceneSearchOperations @JvmOverloads constructor(
     }
 
     override fun findById(id: String): ContentElement? {
+        ensureChunksLoaded()
         return contentElementStorage[id]
     }
 
     override fun save(element: ContentElement): ContentElement {
+        ensureChunksLoaded()
         contentElementStorage[element.id] = element
         // Persist structural elements to Lucene (Chunks are handled separately in persistChunksWithEmbeddings)
         if (element !is Chunk) {
@@ -229,6 +234,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
      * @param updates Map of chunkId to new keywords
      */
     fun updateKeywords(updates: Map<String, List<String>>) {
+        ensureChunksLoaded()
         logger.debug("Updating keywords for {} chunks", updates.size)
 
         var updatedCount = 0
@@ -772,6 +778,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     ): ContentElement? = LuceneDocumentMapper.createContentElementFromLuceneDocument(luceneDocument, elementType)
 
     private fun persistChunksWithEmbeddings(chunks: List<Chunk>, embeddings: Map<String, FloatArray>) {
+        ensureChunksLoaded()
         // Store all chunks in content storage
         chunks.forEach { chunk ->
             contentElementStorage[chunk.id] = chunk
@@ -931,6 +938,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     }
 
     override fun deleteRootAndDescendants(uri: String): DocumentDeletionResult? {
+        ensureChunksLoaded()
         logger.info("Deleting document with URI: {}", uri)
         synchronized(this) {
             // Find the root document with this URI
@@ -1006,6 +1014,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     }
 
     override fun findContentRootByUri(uri: String): ContentRoot? {
+        ensureChunksLoaded()
         logger.debug("Finding root document with URI: {}", uri)
         return synchronized(this) {
             contentElementStorage.values.find {
@@ -1021,6 +1030,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
      * @return Number of chunks cleared
      */
     fun clear(): Int {
+        ensureChunksLoaded()
         val count = contentElementStorage.size
         logger.info("Clearing all indexed content from Lucene RAG service")
         synchronized(this) {
