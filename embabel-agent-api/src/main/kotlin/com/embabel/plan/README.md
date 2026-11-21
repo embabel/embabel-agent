@@ -69,18 +69,18 @@ Reference: _function simulatePlan(startState, actions)_
 
 ### Pruning Planning Systems
 
-The planner can prune entire planning systems to remove irrelevant actions:
+The GOAP planner prunes planning systems by tracing dependencies backward from every goal.
+It retains every action whose effects match a required condition and value, then adds that action's
+preconditions to the requirements. This repeats until no more actions are retained.
 
-      function prune(planningSystem):
-      // Get all plans to all goals
-      allPlans = plansToGoals(planningSystem)
+Unlike selecting one cheapest plan per goal, this preserves alternative routes for re-planning,
+including actions that become available after an unexpected outcome or a request for clarification.
+Requirements are followed even when they are already satisfied in the current world state.
+Matching uses the exact condition value (`TRUE`, `FALSE`, or `UNKNOWN`), and each retained action
+contributes its preconditions once so cyclic dependencies terminate.
 
-      // Keep only actions that appear in at least one plan
-      return planningSystem.copy(
-          actions = planningSystem.actions.filter { action ->
-              allPlans.any { plan -> plan.actions.contains(action) }
-          }.toSet()
-      )
+This analysis is conservative: retained actions are potentially relevant, but are not guaranteed to
+form an executable plan. The planner determines reachability and selects a plan when execution proceeds.
 
 #### Heuristic Function
 
@@ -99,15 +99,13 @@ The heuristic function estimates the cost to reach the goal from a given state:
 
 When pruning an agent for specific goals:
 
-1. Identify all known conditions in the planning system
-2. Set initial state based on input conditions
-3. Find all possible plans to each goal
-4. Keep only actions that appear in at least one plan
-5. Create a new agent with the pruned action set
+1. Collect the required condition/value pairs from all selected goals.
+2. Retain actions producing any required condition/value pair.
+3. Add retained actions' preconditions and repeat until no further actions are retained.
+4. Create a new agent with the retained action set and selected goals.
 
-This comprehensive approach ensures agents contain only the actions necessary to achieve their designated goals,
-improving efficiency and preventing action leakage between different
-agents.
+Actions with no dependency connection to the selected goals are removed, while alternative routes
+remain available for re-planning.
 
 ### Progress Determination Logic in A* GOAP Planning
 
