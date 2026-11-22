@@ -145,6 +145,7 @@ class OpenAiResponsesChatModel(
         val builder = ResponseCreateParams.builder()
             .model(modelOf(options))
             .inputOfResponse(
+                // System messages lead input as developer messages: Responses appends top-level instructions after input.
                 listOfNotNull(instructionsOf(prompt)?.let { toEasyInputMessage(EasyInputMessage.Role.DEVELOPER, it) }) +
                     prompt.instructions
                         .filterNot { it.messageType == MessageType.SYSTEM }
