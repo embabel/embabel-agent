@@ -145,16 +145,17 @@ class OpenAiResponsesChatModel(
         val builder = ResponseCreateParams.builder()
             .model(modelOf(options))
             .inputOfResponse(
-                prompt.instructions
-                    .filterNot { it.messageType == MessageType.SYSTEM }
-                    .flatMap(::toInputItems)
+                // System messages lead input as developer messages: Responses appends top-level instructions after input.
+                listOfNotNull(instructionsOf(prompt)?.let { toEasyInputMessage(EasyInputMessage.Role.DEVELOPER, it) }) +
+                    prompt.instructions
+                        .filterNot { it.messageType == MessageType.SYSTEM }
+                        .flatMap(::toInputItems)
             )
         // Client headers are configured by OpenAiCompatibleModelFactory. Add this prompt's headers
         // to the request; the SDK replaces matching client headers and keeps all other headers.
         (options as? OpenAiChatOptions)?.customHeaders.orEmpty().forEach { (name, value) ->
             builder.replaceAdditionalHeaders(name, value)
         }
-        instructionsOf(prompt)?.let(builder::instructions)
         previousResponseIdOf(options)?.let(builder::previousResponseId)
         maxOutputTokensOf(options)?.let { builder.maxOutputTokens(it.toLong()) }
         ((options as? OpenAiChatOptions)?.reasoningEffort ?: defaultOptions.reasoningEffort)?.let {
@@ -204,7 +205,11 @@ class OpenAiResponsesChatModel(
             ?: defaultOptions.maxTokens
     }
 
-    /** The Responses API has no system role; system prompts are carried as `instructions`. */
+    /**
+     * System prompts become one `developer` message at the head of `input`, not top-level
+     * `instructions`: from GPT-6.2 the API appends `instructions` after `input` and never caches
+     * them, so the system prompt would follow the conversation and be billed uncached on every call.
+     */
     private fun instructionsOf(prompt: Prompt): String? =
         prompt.instructions
             .filter { it.messageType == MessageType.SYSTEM }
