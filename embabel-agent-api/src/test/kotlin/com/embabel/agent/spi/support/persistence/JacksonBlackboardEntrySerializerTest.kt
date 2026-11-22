@@ -15,10 +15,14 @@
  */
 package com.embabel.agent.spi.support.persistence
 
+import com.embabel.agent.core.hitl.FormBindingRequest
 import com.embabel.agent.core.persistence.AgentProcessPersistenceException
 import com.embabel.agent.core.persistence.SerializedBlackboardValue
 import com.embabel.common.util.EmbabelObjectMapperHolder
+import com.embabel.ux.form.Form
+import com.embabel.ux.form.TextField
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
@@ -39,6 +43,26 @@ class JacksonBlackboardEntrySerializerTest {
         assertEquals(MediaType.APPLICATION_JSON_VALUE, serialized.contentType)
         assertEquals(SampleValue::class.java.name, serialized.typeName)
         assertEquals(value, restored)
+    }
+
+    @Test
+    fun `round trips a pending form request with its original identity`() {
+        val request = FormBindingRequest(
+            form = Form("Approval", listOf(TextField(label = "Decision"))),
+            outputClass = SampleValue::class.java,
+            bindingName = "answer",
+        )
+
+        val restored = assertInstanceOf(
+            FormBindingRequest::class.java,
+            serializer.deserialize(serializer.serialize(request)),
+        )
+
+        assertEquals(request.payload, restored.payload)
+        assertEquals(request.outputClass, restored.outputClass)
+        assertEquals(request.bindingName, restored.bindingName)
+        assertEquals(request.id, restored.id)
+        assertEquals(request.timestamp, restored.timestamp)
     }
 
     @Test
