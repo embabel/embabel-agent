@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.anthropic
 
 import com.anthropic.models.messages.Usage as AnthropicSdkUsage
 import com.embabel.agent.core.Usage
+import com.embabel.common.ai.model.NativeUsage
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -168,5 +169,12 @@ class UsageExtensionsTest {
         val anthropicUsage = anthropicUsage(100, 50, 1500, 2000)
         val usage = Usage(promptTokens = 100, completionTokens = 50, nativeUsage = anthropicUsage)
         assertEquals("cache[creation=1500, read=2000]", usage.anthropicCacheSummary())
+    }
+
+    @Test
+    fun `cache extensions ignore another provider's usage`() {
+        val openAiUsage = Usage(100, 50, NativeUsage(inputTokens = 90, cacheWriteInputTokens = 10))
+        assertNull(openAiUsage.anthropicCacheCreationTokens())
+        assertNull(openAiUsage.anthropicCacheReadTokens())
     }
 }

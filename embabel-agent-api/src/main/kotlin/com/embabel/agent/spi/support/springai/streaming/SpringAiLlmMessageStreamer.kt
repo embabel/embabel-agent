@@ -22,6 +22,8 @@ import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
 import com.embabel.agent.spi.support.springai.SpringAiLlmMessageSender
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toEmbabelMessage
+import com.embabel.agent.spi.support.springai.SpringAiNativeUsageReader
+import com.embabel.common.ai.model.NativeUsage
 import com.embabel.agent.spi.support.springai.toEmbabelUsage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.agent.spi.support.springai.ToolResponseContentAdapter
@@ -54,6 +56,7 @@ internal class SpringAiLlmMessageStreamer(
     private val chatOptions: ChatOptions,
     private val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
     private val promptTokensExcludeCache: Boolean = false,
+    private val nativeUsageReader: SpringAiNativeUsageReader = SpringAiNativeUsageReader.NONE,
 ) : LlmMessageStreamer {
 
     override fun stream(
@@ -90,6 +93,7 @@ internal class SpringAiLlmMessageStreamer(
         // schema), so a stream that sends them only in message_start loses them before this point.
         var cacheRead: Long? = null
         var cacheWrite: Long? = null
+        var nativeUsage: NativeUsage? = null
 
         // Spring providers may split a tool-call ID, name, and JSON arguments across
         // multiple ChatResponse chunks. MessageAggregator leaves those chunks in the
@@ -107,6 +111,9 @@ internal class SpringAiLlmMessageStreamer(
                         response.metadata?.usage?.let { usage ->
                             usage.cacheReadInputTokens?.takeIf { it > 0 }?.let { cacheRead = it }
                             usage.cacheWriteInputTokens?.takeIf { it > 0 }?.let { cacheWrite = it }
+                            // The aggregate drops provider usage, so read it from the chunk that carries it.
+                            // An all-zero record (e.g. Gemini's trailing chunk) is no measurement; keep the last one.
+                            nativeUsageReader.read(usage)?.takeUnless { it == NativeUsage() }?.let { nativeUsage = it }
                         }
                     },
                     aggregate::tryEmitValue,
@@ -125,7 +132,7 @@ internal class SpringAiLlmMessageStreamer(
                                 usage.nativeUsage,
                                 cacheRead,
                                 cacheWrite,
-                            ).toEmbabelUsage(promptTokensExcludeCache)
+                            ).toEmbabelUsage(promptTokensExcludeCache, SpringAiNativeUsageReader { nativeUsage ?: nativeUsageReader.read(it) })
                         },
                     )
                 }

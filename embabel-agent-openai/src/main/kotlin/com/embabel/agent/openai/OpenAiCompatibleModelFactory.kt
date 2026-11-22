@@ -620,6 +620,7 @@ open class OpenAiCompatibleModelFactory(
             ),
             pricingModel = pricingModel,
             knowledgeCutoffDate = knowledgeCutoffDate,
+            nativeUsageReader = OpenAiNativeUsageReader,
         )
     }
 
@@ -661,6 +662,7 @@ open class OpenAiCompatibleModelFactory(
         thinkingSupported = true,
         nativeStructuredOutputConfigurer = OpenAiNativeStructuredOutputConfigurer,
         nativeSupport = nativeSupport,
+        nativeUsageReader = OpenAiNativeUsageReader,
     )
 
     /**
@@ -762,6 +764,7 @@ open class OpenAiCompatibleModelFactory(
             thinkingSupported = true,
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeSupport = definition.nativeSupport,
+            nativeUsageReader = OpenAiNativeUsageReader,
         )
     }
 

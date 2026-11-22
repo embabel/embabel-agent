@@ -56,3 +56,26 @@ fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(promptTokensExclud
         cacheWriteInputTokens = cacheWrite,
     )
 }
+
+/**
+ * [toEmbabelUsage] with the provider's own counts. A separate overload without defaults, so the
+ * released `toEmbabelUsage` and its `toEmbabelUsage$default` bridge keep their JVM descriptors.
+ * @param nativeUsageReader reads the provider's own counts; when it does, they set every count
+ */
+fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(
+    promptTokensExcludeCache: Boolean,
+    nativeUsageReader: SpringAiNativeUsageReader,
+): Usage {
+    val native = nativeUsageReader.read(this) ?: return toEmbabelUsage(promptTokensExcludeCache)
+    val cacheRead = cacheReadInputTokens?.let { Math.toIntExact(it) }
+    val cacheWrite = cacheWriteInputTokens?.let { Math.toIntExact(it) }
+    return Usage(
+        promptTokens = native.promptTokens,
+        completionTokens = native.outputTokens,
+        nativeUsage = nativeUsage,
+        cacheReadInputTokens = native.cacheReadInputTokens.takeIf { it > 0 } ?: cacheRead,
+        cacheWriteInputTokens = (native.cacheWriteInputTokens + native.cacheWriteLongInputTokens).takeIf { it > 0 }
+            ?: cacheWrite,
+        billableUsage = native,
+    )
+}

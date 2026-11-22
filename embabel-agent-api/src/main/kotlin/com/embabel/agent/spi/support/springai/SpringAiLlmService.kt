@@ -66,6 +66,8 @@ import kotlin.jvm.internal.DefaultConstructorMarker
  *        Defaults to no-op; Anthropic wires [com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor].
  * @param promptTokensExcludeCache Whether the chat model reports prompt-cache reads and writes
  *        on top of Spring AI's promptTokens (Anthropic) rather than within it (OpenAI).
+ * @param nativeUsageReader Reads each call's provider usage into [com.embabel.common.ai.model.NativeUsage]
+ *        before Spring AI merges it. Defaults to none, which prices Spring AI's generic counts.
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(
@@ -86,6 +88,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
     val promptTokensExcludeCache: Boolean = false,
+    val nativeUsageReader: SpringAiNativeUsageReader = SpringAiNativeUsageReader.NONE,
 ) : LlmService<SpringAiLlmService>, AiModel<ChatModel>, AutoCloseable {
 
     /**
@@ -143,6 +146,56 @@ data class SpringAiLlmService @JvmOverloads constructor(
         nativeSupport = nativeSupport,
     )
 
+    /**
+     * Binary compatibility: the synthetic constructor that Kotlin callers compiled before
+     * [nativeUsageReader] link to when they leave arguments out. Same mask rules as the one above.
+     */
+    @Suppress("UNUSED_PARAMETER", "kotlin:S107")
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    constructor(
+        name: String, provider: String, chatModel: ChatModel, optionsConverter: OptionsConverter?,
+        knowledgeCutoffDate: LocalDate?, promptContributors: List<PromptContributor>?, pricingModel: PricingModel?,
+        thinkingSupported: Boolean, toolResponseContentAdapter: ToolResponseContentAdapter?,
+        nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer?,
+        nativeThinkingExtractor: SpringAiNativeThinkingExtractor?, nativeSupport: NativeSupport?,
+        promptTokensExcludeCache: Boolean, mask: Int, marker: DefaultConstructorMarker?,
+    ) : this(
+        name = name,
+        provider = provider,
+        chatModel = chatModel,
+        optionsConverter = if (mask and (1 shl 3) != 0) DefaultOptionsConverter else optionsConverter!!,
+        knowledgeCutoffDate = knowledgeCutoffDate,
+        promptContributors = if (mask and (1 shl 5) != 0) {
+            buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } }
+        } else promptContributors!!,
+        pricingModel = pricingModel,
+        thinkingSupported = thinkingSupported,
+        toolResponseContentAdapter = if (mask and (1 shl 8) != 0) ToolResponseContentAdapter.PASSTHROUGH
+            else toolResponseContentAdapter!!,
+        nativeStructuredOutputConfigurer = if (mask and (1 shl 9) != 0) SpringAiNativeStructuredOutputConfigurer.NOOP
+            else nativeStructuredOutputConfigurer!!,
+        nativeThinkingExtractor = if (mask and (1 shl 10) != 0) SpringAiNativeThinkingExtractor.NOOP
+            else nativeThinkingExtractor!!,
+        nativeSupport = nativeSupport,
+        promptTokensExcludeCache = promptTokensExcludeCache,
+    )
+
+    /** Binary compatibility: the `copy` callers compiled before [nativeUsageReader] link to. Keeps it. */
+    @Suppress("kotlin:S107")
+    @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+    fun copy(
+        name: String, provider: String, chatModel: ChatModel, optionsConverter: OptionsConverter,
+        knowledgeCutoffDate: LocalDate?, promptContributors: List<PromptContributor>, pricingModel: PricingModel?,
+        thinkingSupported: Boolean, toolResponseContentAdapter: ToolResponseContentAdapter,
+        nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer,
+        nativeThinkingExtractor: SpringAiNativeThinkingExtractor, nativeSupport: NativeSupport?,
+        promptTokensExcludeCache: Boolean,
+    ): SpringAiLlmService = SpringAiLlmService(
+        name, provider, chatModel, optionsConverter, knowledgeCutoffDate, promptContributors, pricingModel,
+        thinkingSupported, toolResponseContentAdapter, nativeStructuredOutputConfigurer, nativeThinkingExtractor,
+        nativeSupport, promptTokensExcludeCache, nativeUsageReader,
+    )
+
     /** Binary compatibility: the `copy` callers compiled before [promptTokensExcludeCache] link to. Keeps it. */
     @Suppress("kotlin:S107") // binary-compat shim: the parameter list must match the old JVM signature
     @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
@@ -155,7 +208,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     ): SpringAiLlmService = SpringAiLlmService(
         name, provider, chatModel, optionsConverter, knowledgeCutoffDate, promptContributors, pricingModel,
         thinkingSupported, toolResponseContentAdapter, nativeStructuredOutputConfigurer, nativeThinkingExtractor,
-        nativeSupport, promptTokensExcludeCache,
+        nativeSupport, promptTokensExcludeCache, nativeUsageReader,
     )
 
     /**
@@ -177,6 +230,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             nativeSupport = nativeSupport,
             llmMetadata = this,
             promptTokensExcludeCache = promptTokensExcludeCache,
+            nativeUsageReader = nativeUsageReader,
         )
     }
 
@@ -186,6 +240,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
             chatOptions = convertOptions(options),
             toolResponseContentAdapter = toolResponseContentAdapter,
             promptTokensExcludeCache = promptTokensExcludeCache,
+            nativeUsageReader = nativeUsageReader,
         )
     }
 
@@ -246,6 +301,42 @@ data class SpringAiLlmService @JvmOverloads constructor(
                     else nativeStructuredOutputConfigurer!!,
                 nativeThinkingExtractor = if (omitted(10)) self.nativeThinkingExtractor else nativeThinkingExtractor!!,
                 nativeSupport = if (omitted(11)) self.nativeSupport else nativeSupport,
+            )
+        }
+
+        /**
+         * Binary compatibility: the `copy$default` that Kotlin callers compiled before [nativeUsageReader]
+         * link to. Bit `i` of [mask] set means argument `i` was omitted, so [self]'s value is kept.
+         */
+        @Suppress("UNUSED_PARAMETER", "kotlin:S107")
+        @JvmStatic
+        @JvmName("copy\$default")
+        @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+        fun copyDefault(
+            self: SpringAiLlmService, name: String?, provider: String?, chatModel: ChatModel?,
+            optionsConverter: OptionsConverter?, knowledgeCutoffDate: LocalDate?,
+            promptContributors: List<PromptContributor>?, pricingModel: PricingModel?, thinkingSupported: Boolean,
+            toolResponseContentAdapter: ToolResponseContentAdapter?,
+            nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer?,
+            nativeThinkingExtractor: SpringAiNativeThinkingExtractor?, nativeSupport: NativeSupport?,
+            promptTokensExcludeCache: Boolean, mask: Int, marker: Any?,
+        ): SpringAiLlmService {
+            fun omitted(i: Int) = mask and (1 shl i) != 0
+            return self.copy(
+                name = if (omitted(0)) self.name else name!!,
+                provider = if (omitted(1)) self.provider else provider!!,
+                chatModel = if (omitted(2)) self.chatModel else chatModel!!,
+                optionsConverter = if (omitted(3)) self.optionsConverter else optionsConverter!!,
+                knowledgeCutoffDate = if (omitted(4)) self.knowledgeCutoffDate else knowledgeCutoffDate,
+                promptContributors = if (omitted(5)) self.promptContributors else promptContributors!!,
+                pricingModel = if (omitted(6)) self.pricingModel else pricingModel,
+                thinkingSupported = if (omitted(7)) self.thinkingSupported else thinkingSupported,
+                toolResponseContentAdapter = if (omitted(8)) self.toolResponseContentAdapter else toolResponseContentAdapter!!,
+                nativeStructuredOutputConfigurer = if (omitted(9)) self.nativeStructuredOutputConfigurer
+                    else nativeStructuredOutputConfigurer!!,
+                nativeThinkingExtractor = if (omitted(10)) self.nativeThinkingExtractor else nativeThinkingExtractor!!,
+                nativeSupport = if (omitted(11)) self.nativeSupport else nativeSupport,
+                promptTokensExcludeCache = if (omitted(12)) self.promptTokensExcludeCache else promptTokensExcludeCache,
             )
         }
     }

@@ -261,6 +261,7 @@ class DeepSeekModelsConfig @Autowired constructor(
             provider = DeepSeekModels.PROVIDER,
             optionsConverter = DeepSeekOptionsConverter,
             knowledgeCutoffDate = knowledgeCutoffDate,
+            nativeUsageReader = DeepSeekNativeUsageReader,
         )
     }
 

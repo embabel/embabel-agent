@@ -86,14 +86,15 @@ data class LlmInvocation(
 ) : Timestamped, Timed {
 
     /**
-     * Dollar cost of this interaction.
+     * Dollar cost of this interaction. [Usage.billableUsage] travels as the Spring AI native usage,
+     * so a [com.embabel.common.ai.model.PricingModel] that overrides `costOf(Usage)` still prices every call.
      */
     fun cost(): Double = llmMetadata.pricingModel?.costOf(
         DefaultUsage(
             usage.promptTokens ?: 0,
             usage.completionTokens ?: 0,
             (usage.promptTokens ?: 0) + (usage.completionTokens ?: 0),
-            null,
+            usage.billableUsage,
             usage.cacheReadInputTokens?.toLong(),
             usage.cacheWriteInputTokens?.toLong(),
         )

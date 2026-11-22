@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.metadata.Usage as SpringAiUsage
 
 /**
  * Unit tests for parent/child AgentProcess cost and token aggregation.
@@ -346,7 +347,7 @@ class AgentProcessCostAggregationTest {
 
     private fun mockLlmMetadata(modelName: String): LlmMetadata {
         val pricing = mockk<PricingModel>()
-        every { pricing.costOf(any()) } returns 0.0
+        every { pricing.costOf(any<SpringAiUsage>()) } returns 0.0
         val llm = mockk<LlmService<*>>()
         every { llm.name } returns modelName
         every { llm.pricingModel } returns pricing
