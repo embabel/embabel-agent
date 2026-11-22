@@ -15,12 +15,14 @@
  */
 package com.embabel.common.ai.converters.streaming
 
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.streaming.ThinkingState
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.core.ParameterizedTypeReference
 
 class StreamingJacksonOutputConverterTest {
 
@@ -34,6 +36,10 @@ class StreamingJacksonOutputConverterTest {
         val email: String,
         val address: String
     )
+
+    private val describeFieldsAsCustomized = SchemaGeneratorCustomizer { builder ->
+        builder.forFields().withDescriptionResolver { "customized" }
+    }
 
     @Test
     fun `getFormat should request JSONL format instead of single JSON`() {
@@ -271,6 +277,43 @@ class StreamingJacksonOutputConverterTest {
         assertTrue(schema.contains("age"))
         assertFalse(schema.contains("email"))
         assertFalse(schema.contains("address"))
+    }
+
+    @Test
+    fun `streaming converter for a class applies the schema generator customizer and the field filter`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(
+            clazz = Person::class.java,
+            objectMapper = objectMapper,
+            fieldFilter = { it.name == "name" },
+            thinkingEnabled = false,
+            schemaGeneratorCustomizer = describeFieldsAsCustomized,
+        )
+
+        // When
+        val schema = objectMapper.readTree(converter.getJsonSchema())
+
+        // Then
+        assertEquals("customized", schema.at("/properties/name/description").asText())
+        assertTrue(schema.at("/properties/age").isMissingNode)
+    }
+
+    @Test
+    fun `streaming converter for a type reference applies the schema generator customizer`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(
+            typeReference = object : ParameterizedTypeReference<Person>() {},
+            objectMapper = objectMapper,
+            fieldFilter = { true },
+            thinkingEnabled = false,
+            schemaGeneratorCustomizer = describeFieldsAsCustomized,
+        )
+
+        // When
+        val schema = objectMapper.readTree(converter.getJsonSchema())
+
+        // Then
+        assertEquals("customized", schema.at("/properties/name/description").asText())
     }
 
     @Test

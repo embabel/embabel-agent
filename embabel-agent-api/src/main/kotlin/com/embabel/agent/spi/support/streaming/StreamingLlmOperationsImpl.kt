@@ -43,7 +43,6 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
@@ -217,15 +216,13 @@ internal class StreamingLlmOperationsImpl(
         @Suppress("UNCHECKED_CAST")
         val outputClassAny = outputClass as Class<Any>
         @Suppress("UNCHECKED_CAST")
-        val streamingConverter = object : StreamingJacksonOutputConverter<Any>(
+        val streamingConverter = StreamingJacksonOutputConverter<Any>(
             clazz = outputClassAny,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
             thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
-        ) {
-            override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
-                super.schemaGeneratorConfigBuilder().also(schemaGeneratorCustomizer::customize)
-        } as StreamingJacksonOutputConverter<O>
+            schemaGeneratorCustomizer = schemaGeneratorCustomizer,
+        ) as StreamingJacksonOutputConverter<O>
 
         // Build prompt contributions with streaming format instructions
         val promptContributions = buildPromptContributions(interaction)
