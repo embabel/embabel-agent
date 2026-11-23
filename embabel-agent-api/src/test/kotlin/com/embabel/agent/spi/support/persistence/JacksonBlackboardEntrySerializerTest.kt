@@ -29,9 +29,8 @@ import org.springframework.http.MediaType
 
 class JacksonBlackboardEntrySerializerTest {
 
-    private val serializer = JacksonBlackboardEntrySerializer(
-        EmbabelObjectMapperHolder.createDefault().get()
-    )
+    private val objectMapper = EmbabelObjectMapperHolder.createDefault().get()
+    private val serializer = JacksonBlackboardEntrySerializer(objectMapper)
 
     @Test
     fun `serializes and deserializes data class`() {
@@ -46,20 +45,22 @@ class JacksonBlackboardEntrySerializerTest {
     }
 
     @Test
-    fun `round trips a pending form request with its original identity`() {
+    fun `restores an older JSON form request with its original identity`() {
         val request = FormBindingRequest(
             form = Form("Approval", listOf(TextField(label = "Decision"))),
             outputClass = SampleValue::class.java,
+            population = SampleValue("pending", 1),
             bindingName = "answer",
         )
 
         val restored = assertInstanceOf(
             FormBindingRequest::class.java,
-            serializer.deserialize(serializer.serialize(request)),
+            FormBindingRequestSerializer(objectMapper).deserialize(serializer.serialize(request)),
         )
 
         assertEquals(request.payload, restored.payload)
         assertEquals(request.outputClass, restored.outputClass)
+        assertEquals(request.population, restored.population)
         assertEquals(request.bindingName, restored.bindingName)
         assertEquals(request.id, restored.id)
         assertEquals(request.timestamp, restored.timestamp)

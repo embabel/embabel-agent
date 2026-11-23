@@ -22,6 +22,7 @@ import com.embabel.agent.core.persistence.BlackboardEntrySerializer
 import com.embabel.agent.spi.support.persistence.AgentProcessSnapshotFactory
 import com.embabel.agent.spi.support.persistence.AgentProcessSnapshotRestorer
 import com.embabel.agent.spi.support.persistence.BlackboardEntrySerializerResolver
+import com.embabel.agent.spi.support.persistence.FormBindingRequestSerializer
 import com.embabel.agent.spi.support.persistence.InMemoryBlackboardSnapshotter
 import com.embabel.agent.spi.support.persistence.JacksonAgentProcessStateSerializer
 import com.embabel.agent.spi.support.persistence.JacksonBlackboardEntrySerializer
@@ -89,7 +90,7 @@ object AgentProcessPersistence {
     ): AgentProcessRepository {
         val blackboardSnapshotter = InMemoryBlackboardSnapshotter(
             BlackboardEntrySerializerResolver(
-                serializers = blackboardEntrySerializers,
+                serializers = blackboardEntrySerializers + FormBindingRequestSerializer(objectMapper),
                 fallback = JacksonBlackboardEntrySerializer(objectMapper),
             )
         )

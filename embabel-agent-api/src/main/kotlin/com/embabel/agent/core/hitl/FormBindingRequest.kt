@@ -21,8 +21,6 @@ import com.embabel.ux.form.DefaultFormProcessor
 import com.embabel.ux.form.Form
 import com.embabel.ux.form.FormSubmission
 import com.embabel.ux.form.bindTo
-import com.fasterxml.jackson.annotation.JsonCreator
-import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 import java.util.*
 
@@ -40,8 +38,8 @@ interface ValidationError
  * @param id the original request ID when restoring a saved request
  * @param timestamp the original request timestamp when restoring a saved request
  */
-class FormBindingRequest<O : Any> @JsonCreator constructor(
-    @param:JsonProperty("payload") form: Form,
+class FormBindingRequest<O : Any>(
+    form: Form,
     val outputClass: Class<O>,
     val population: O? = null,
     val validationErrors: List<ValidationError> = emptyList(),

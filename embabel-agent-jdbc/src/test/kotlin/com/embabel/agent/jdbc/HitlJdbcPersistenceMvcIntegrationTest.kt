@@ -26,7 +26,11 @@ import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.hitl.AbstractAwaitable
 import com.embabel.agent.core.hitl.AwaitableResponse
+import com.embabel.agent.core.hitl.AwaitableResponseException
+import com.embabel.agent.core.hitl.FormBindingRequest
+import com.embabel.agent.core.hitl.FormResponse
 import com.embabel.agent.core.hitl.ResponseImpact
+import com.embabel.agent.core.hitl.ValidationError
 import com.embabel.agent.core.hitl.waitFor
 import com.embabel.agent.core.persistence.BlackboardEntryDeserializationContext
 import com.embabel.agent.core.persistence.BlackboardEntrySerializationContext
@@ -41,6 +45,9 @@ import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.common.util.EmbabelObjectMapperHolder
+import com.embabel.ux.form.Form
+import com.embabel.ux.form.FormSubmission
+import com.embabel.ux.form.TextField
 import tools.jackson.databind.ObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -85,6 +92,29 @@ private data class ChoiceRequest(val prompt: String, val options: List<String>)
 private data class UserChoice(val value: String, val request: ChoiceRequest? = null)
 
 private data class AdventureResult(val outcome: String)
+
+internal data class Approval(val decision: String)
+
+private data class ApprovalValidationError(val message: String) : ValidationError
+
+@com.embabel.agent.api.annotation.Agent(description = "JDBC form approval agent")
+private class ApprovalAgent {
+    @Action
+    fun requestApproval(input: UserInput): Approval = throw AwaitableResponseException(
+        FormBindingRequest(
+            form = Form("Approval", listOf(TextField(id = "decision", label = "Decision"))),
+            outputClass = Approval::class.java,
+            population = Approval(input.content),
+            validationErrors = listOf(ApprovalValidationError("Previous decision was incomplete")),
+            persistent = true,
+            bindingName = "approval",
+        ),
+    )
+
+    @Action
+    @AchievesGoal(description = "Finish the form approval")
+    fun finish(approval: Approval): AdventureResult = AdventureResult(approval.decision)
+}
 
 private class ChoiceAwaitable(
     val choiceRequest: ChoiceRequest,
@@ -360,6 +390,59 @@ class HitlJdbcPersistenceMvcIntegrationTest {
     fun setUp() {
         runtimeRepository.clear()
         jdbcTemplate.clearSnapshots()
+    }
+
+    @Test
+    fun `restores a waiting form from jdbc and resumes with its original request id`() {
+        val agent = AgentMetadataReader().createAgentMetadata(ApprovalAgent()) as Agent
+        fun repository(): AgentProcessRepository = AgentProcessPersistence.persistentRepository(
+            runtimeRepository = InMemoryAgentProcessRepository(),
+            snapshotStore = snapshotStore,
+            objectMapper = objectMapper,
+            agents = { listOf(agent) },
+            platformServices = { IntegrationTestUtils.dummyPlatformServices() },
+        )
+        val blackboard = InMemoryBlackboard()
+        blackboard.addObject(UserInput("pending"))
+        val process = SimpleAgentProcess(
+            id = UUID.randomUUID().toString(),
+            parentId = null,
+            agent = agent,
+            processOptions = ProcessOptions.DEFAULT,
+            blackboard = blackboard,
+            platformServices = IntegrationTestUtils.dummyPlatformServices(),
+            plannerFactory = DefaultPlannerFactory,
+            timestamp = Instant.now(),
+        )
+        val waiting = process.run()
+        assertThat(waiting.status).isEqualTo(AgentProcessStatusCode.WAITING)
+        val original = requireNotNull(waiting.blackboard.last(FormBindingRequest::class.java))
+        repository().save(waiting)
+        assertThat(snapshotStore.findLatestByProcessId(waiting.id)?.version).isEqualTo(1L)
+
+        val reader = repository()
+        val restored = requireNotNull(reader.findById(waiting.id))
+        val request = requireNotNull(restored.blackboard.last(FormBindingRequest::class.java))
+        assertThat(restored.status).isEqualTo(AgentProcessStatusCode.WAITING)
+        assertThat(request.id).isEqualTo(original.id)
+        assertThat(request.timestamp).isEqualTo(original.timestamp)
+        assertThat(request.payload).isEqualTo(original.payload)
+        assertThat(request.population).isEqualTo(Approval("pending"))
+        assertThat(request.validationErrors).containsExactly(ApprovalValidationError("Previous decision was incomplete"))
+        assertThat(request.persistent()).isTrue()
+        assertThat(request.bindingName).isEqualTo("approval")
+        request.onResponse(
+            FormResponse(
+                awaitableId = original.id,
+                formSubmission = FormSubmission(formId = original.payload.id, values = mapOf("decision" to "approved")),
+            ),
+            restored,
+        )
+        val completed = restored.run()
+        reader.save(completed)
+        assertThat(completed.status).isEqualTo(AgentProcessStatusCode.COMPLETED)
+        assertThat(completed.blackboard.last(AdventureResult::class.java)).isEqualTo(AdventureResult("approved"))
+        assertThat(snapshotStore.findLatestByProcessId(waiting.id)?.version).isEqualTo(2L)
     }
 
     @Test
