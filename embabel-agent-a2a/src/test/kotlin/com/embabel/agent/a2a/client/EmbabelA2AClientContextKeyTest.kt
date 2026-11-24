@@ -15,15 +15,21 @@
  */
 package com.embabel.agent.a2a.client
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger as LogbackLogger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.a2a.A2A_CONTEXT_ID_KEY
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.opentelemetry.context.Context
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
+import org.slf4j.LoggerFactory
 
 @ExtendWith(MockitoExtension::class)
 class EmbabelA2AClientContextKeyTest {
@@ -36,15 +42,58 @@ class EmbabelA2AClientContextKeyTest {
     }
 
     @Test
-    fun `resolveContextId prefers OTel context key over message contextId`() {
+    fun `resolveContextId prefers the agent's own message contextId over the inherited one`() {
         val scope = Context.current().with(A2A_CONTEXT_ID_KEY, "upstream-ctx").makeCurrent()
         scope.use {
             assertEquals(
-                "upstream-ctx",
-                client.resolveContextId("msg-ctx-should-be-ignored"),
-                "OTel context key must take priority over message contextId",
+                "agent-ctx",
+                client.resolveContextId("agent-ctx"),
+                "A contextId the agent sets itself must not be replaced by the inherited one",
             )
         }
+    }
+
+    @Test
+    fun `resolveContextId uses the inherited contextId when the message has none`() {
+        val scope = Context.current().with(A2A_CONTEXT_ID_KEY, "upstream-ctx").makeCurrent()
+        scope.use {
+            assertEquals("upstream-ctx", client.resolveContextId(null))
+        }
+    }
+
+    @Test
+    fun `resolveContextId logs when the agent's contextId replaces the inherited one`() {
+        val logs = captureClientLogs {
+            Context.current().with(A2A_CONTEXT_ID_KEY, "upstream-ctx").makeCurrent().use {
+                client.resolveContextId("agent-ctx")
+            }
+        }
+        assertEquals(1, logs.size)
+        assertEquals(Level.INFO, logs.single().level)
+        assertTrue(logs.single().formattedMessage.contains("agent-ctx"))
+        assertTrue(logs.single().formattedMessage.contains("upstream-ctx"))
+    }
+
+    @Test
+    fun `resolveContextId does not log when the agent's contextId equals the inherited one`() {
+        val logs = captureClientLogs {
+            Context.current().with(A2A_CONTEXT_ID_KEY, "same-ctx").makeCurrent().use {
+                client.resolveContextId("same-ctx")
+            }
+        }
+        assertTrue(logs.isEmpty())
+    }
+
+    private fun captureClientLogs(block: () -> Unit): List<ILoggingEvent> {
+        val logger = LoggerFactory.getLogger(EmbabelA2AClient::class.java) as LogbackLogger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            block()
+        } finally {
+            logger.detachAppender(appender)
+        }
+        return appender.list.filter { it.formattedMessage.contains("replaces inbound contextId") }
     }
 
     @Test

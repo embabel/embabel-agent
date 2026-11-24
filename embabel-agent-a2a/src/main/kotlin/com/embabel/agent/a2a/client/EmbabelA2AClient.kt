@@ -73,7 +73,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
             val error = AtomicReference<Throwable>()
 
             // Propagate the session contextId across the hop: if resolveContextId returned a value
-            // from the OTel context key (inherited from an upstream A2A request), inject it into
+            // inherited from an upstream A2A request, inject it into
             // the outbound message body so the next agent in the chain receives the same session ID.
             val outboundMessage = if (contextId != null && contextId != message.contextId) {
                 Message.Builder(message).contextId(contextId).build()
@@ -145,16 +145,24 @@ class EmbabelA2AClient @JvmOverloads constructor(
      * or `parallelMap`: [A2AContextIdThreadLocalAccessor] carries the contextId to that thread,
      * and [A2AContextIdThreadLocalAccessor.currentContextId] reads it there.
      *
-     * Falls back to the message's own contextId when no key is set (e.g. the call
-     * originates outside an A2A server request).
+     * If the agent sets its own contextId on the message, that value is used instead of the inbound
+     * one, and the replacement is logged at INFO.
      *
      * [A2A_CONTEXT_ID_KEY] is a JVM-local OTel [io.opentelemetry.context.ContextKey]: it is
      * never serialised into HTTP headers, so it cannot reach LLM providers or other
      * external services. Contrast with OTel baggage, which is injected as a `baggage:`
      * HTTP header on every instrumented outbound call.
      */
-    internal fun resolveContextId(messageContextId: String?): String? =
-        A2AContextIdThreadLocalAccessor.currentContextId() ?: messageContextId
+    internal fun resolveContextId(messageContextId: String?): String? {
+        val inbound = A2AContextIdThreadLocalAccessor.currentContextId()
+        if (messageContextId != null && inbound != null && messageContextId != inbound) {
+            logger.info(
+                "Outbound A2A contextId {} set by the agent replaces inbound contextId {}",
+                messageContextId, inbound,
+            )
+        }
+        return messageContextId ?: inbound
+    }
 
     override fun agentCard(baseUrl: String): AgentCard =
         cachedClient(baseUrl).getAgentCard(null)

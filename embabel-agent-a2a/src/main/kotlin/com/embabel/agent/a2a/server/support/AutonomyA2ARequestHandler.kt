@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.a2a.server.support
 
+import com.embabel.agent.a2a.A2AContextIdThreadLocalAccessor
 import com.embabel.agent.a2a.A2A_CONTEXT_ID_SPAN_KEY
-import com.embabel.agent.a2a.A2A_CONTEXT_ID_KEY
 import com.embabel.agent.a2a.A2A_MESSAGE_SEND
 import com.embabel.agent.a2a.A2A_MESSAGE_STREAM
 import com.embabel.agent.a2a.A2A_METHOD_KEY
@@ -34,7 +34,6 @@ import io.a2a.spec.*
 import io.a2a.spec.InternalError
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
-import io.opentelemetry.context.Context
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -149,11 +148,9 @@ class AutonomyA2ARequestHandler(
             .highCardinalityKeyValue(A2A_CONTEXT_ID_SPAN_KEY, contextId)
             .start()
         val observationScope = observation.openScope()
-        // Store contextId in a JVM-local OTel context slot so EmbabelA2AClient can read it
-        // when the agent makes outbound A2A calls — enabling transparent chain propagation
-        // without requiring agent business code to thread contextId explicitly.
-        // ContextKey is never serialised into HTTP headers, so it cannot leak to LLM providers.
-        val contextScope = Context.current().with(A2A_CONTEXT_ID_KEY, contextId).makeCurrent()
+        // Lets EmbabelA2AClient forward contextId on the agent's outbound calls. Not kept in the OTel
+        // Context: the tracing bridge rebuilds that on every child observation scope and drops custom keys.
+        A2AContextIdThreadLocalAccessor.push(contextId)
         try {
             val result = autonomy.chooseAndRunAgent(
                 intent = intent,
@@ -189,7 +186,7 @@ class AutonomyA2ARequestHandler(
             )
             return JSONRPCErrorResponse(request.id, InternalError("Internal error: ${e.message}"))
         } finally {
-            contextScope.close()
+            A2AContextIdThreadLocalAccessor.pop()
             observationScope.close()
             observation.stop()
         }
@@ -209,19 +206,12 @@ class AutonomyA2ARequestHandler(
             .highCardinalityKeyValue(A2A_CONTEXT_ID_SPAN_KEY, contextId)
             .start()
 
-        // Manually capture and restore OTel Context so A2A_CONTEXT_ID_KEY is visible to
-        // EmbabelA2AClient when the agent makes outbound A2A calls during streaming.
-        // Virtual threads do not inherit the parent's OTel Context automatically.
-        val capturedContext = Context.current().with(A2A_CONTEXT_ID_KEY, contextId)
-
         Thread.startVirtualThread {
-            // Restore the captured OTel Context on this virtual thread so A2A_CONTEXT_ID_KEY
-            // is visible for the duration of the agent execution. Scope.close() in finally
-            // pops it back, leaving the thread's context clean for reuse.
-            val contextScope = capturedContext.makeCurrent()
             // openScope() makes a2a.message.stream the current observation on this thread so
             // agent execution spans register as its children in the trace hierarchy.
             val observationScope = observation.openScope()
+            // Same as handleMessageSend: lets EmbabelA2AClient forward contextId on outbound calls.
+            A2AContextIdThreadLocalAccessor.push(contextId)
             try {
                 // Send initial status event
                 streamingHandler.sendStreamEvent(
@@ -287,8 +277,8 @@ class AutonomyA2ARequestHandler(
                     logger.error("Error sending error event", sendError)
                 }
             } finally {
+                A2AContextIdThreadLocalAccessor.pop()
                 observationScope.close()
-                contextScope.close()
                 observation.stop()
                 streamingHandler.closeStream(streamId)
             }
