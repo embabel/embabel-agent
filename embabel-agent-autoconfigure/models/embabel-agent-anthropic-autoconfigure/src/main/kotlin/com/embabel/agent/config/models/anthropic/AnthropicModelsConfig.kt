@@ -196,7 +196,8 @@ class AnthropicModelsConfig(
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             nativeSupport = modelDef.nativeSupport,
-            promptTokensExcludeCache = true,
+            // Since Spring AI 2.0.3, AnthropicChatModel's promptTokens already includes cache reads and writes.
+            promptTokensExcludeCache = false,
         )
     }
 

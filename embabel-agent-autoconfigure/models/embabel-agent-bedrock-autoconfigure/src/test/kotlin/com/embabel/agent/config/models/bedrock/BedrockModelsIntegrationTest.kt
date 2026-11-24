@@ -137,12 +137,13 @@ class BedrockModelsIntegrationTest {
     }
 
     @Test
-    fun `Bedrock usage counts cache tokens reported on top of input tokens`() {
-        // Bedrock Converse reports inputTokens excluding cacheReadInputTokens and cacheWriteInputTokens
+    fun `Bedrock usage takes cache tokens as included in prompt tokens`() {
+        // Converse's inputTokens excludes cache, but since Spring AI 2.0.3 BedrockProxyChatModel reports
+        // 30,000 uncached + 18,000 read + 2,000 written as 50,000 prompt tokens.
         val chatModel = mockk<ChatModel>()
         every { chatModel.call(any<Prompt>()) } returns ChatResponse(
             listOf(Generation(AssistantMessage("done"))),
-            ChatResponseMetadata.builder().usage(DefaultUsage(30_000, 50, 30_050, null, 18_000L, 2_000L)).build(),
+            ChatResponseMetadata.builder().usage(DefaultUsage(50_000, 50, 50_050, null, 18_000L, 2_000L)).build(),
         )
         val llm = applicationContext.getBeansOfType(SpringAiLlmService::class.java).values
             .first { it.name == EU_ANTHROPIC_CLAUDE_SONNET_4 }

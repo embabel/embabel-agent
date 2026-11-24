@@ -190,8 +190,9 @@ class BedrockModelsConfig(
             pricingModel = modelDef.pricingModel?.let { pricing ->
                 if (modelDef.modelId.contains("anthropic.claude-")) pricing.withAnthropicCacheRateDefaults() else pricing
             },
-            // Converse reports inputTokens excluding cacheReadInputTokens and cacheWriteInputTokens
-            promptTokensExcludeCache = true,
+            // Converse's inputTokens excludes cacheReadInputTokens and cacheWriteInputTokens, but since
+            // Spring AI 2.0.3 BedrockProxyChatModel adds both into promptTokens, on calls and streams alike.
+            promptTokensExcludeCache = false,
         )
     }
 

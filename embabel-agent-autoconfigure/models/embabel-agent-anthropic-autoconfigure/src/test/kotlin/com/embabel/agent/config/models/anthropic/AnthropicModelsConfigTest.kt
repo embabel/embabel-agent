@@ -36,6 +36,7 @@ import com.embabel.common.ai.model.ONE_MILLION
 import com.embabel.common.ai.model.PerTokenPricingModel
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -125,9 +126,9 @@ class AnthropicModelsConfigTest {
     }
 
     @Test
-    fun `cache tokens are counted on top of prompt tokens`() {
+    fun `prompt tokens are taken as already including cache tokens`() {
         val llm = build(AnthropicModelDefinition(name = "sonnet55", modelId = "claude-sonnet-5-5")).llm
-        assertTrue(llm.promptTokensExcludeCache)
+        assertFalse(llm.promptTokensExcludeCache)
     }
 
     @Test
@@ -218,7 +219,8 @@ class AnthropicModelsConfigTest {
             process.recordLlmInvocation(
                 LlmInvocation(
                     llmMetadata = sonnet,
-                    usage = DefaultUsage(100, 50, 150, null, 18_000L, 2_000L)
+                    // Spring AI 2.0.3 reports 100 uncached + 18,000 read + 2,000 written as 20,100 prompt tokens.
+                    usage = DefaultUsage(20_100, 50, 20_150, null, 18_000L, 2_000L)
                         .toEmbabelUsage(promptTokensExcludeCache = sonnet.promptTokensExcludeCache),
                     timestamp = Instant.now(),
                     runningTime = Duration.ZERO,

@@ -36,8 +36,9 @@ internal fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallba
     safelyGetToolsFrom(toolObject).map { it.toSpringToolCallback() }
 
 /**
- * Spring AI does not define whether promptTokens includes cache tokens:
- * OpenAI counts cached reads inside it, Anthropic reports reads and writes on top of it.
+ * Spring AI does not define whether promptTokens includes cache tokens. OpenAI counts cached reads
+ * inside it, and since Spring AI 2.0.3 so do Anthropic and Bedrock Converse, for reads and writes.
+ * Set the flag for a chat model that reports cache tokens on top of promptTokens.
  * @param promptTokensExcludeCache true when cache tokens are reported on top of promptTokens
  */
 @JvmOverloads

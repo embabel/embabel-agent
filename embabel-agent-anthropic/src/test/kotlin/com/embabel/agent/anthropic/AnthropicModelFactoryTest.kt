@@ -36,6 +36,7 @@ import io.mockk.spyk
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -134,14 +135,14 @@ class AnthropicModelFactoryTest {
     }
 
     @Test
-    fun `build counts prompt-cache tokens reported on top of prompt tokens`() {
+    fun `build takes prompt tokens as already including prompt-cache tokens`() {
         val factory = AnthropicModelFactory(
             apiKey = "test-key",
             observationRegistry = ObservationRegistry.NOOP,
             restClientBuilder = restClientBuilder,
         )
         val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
-        assertTrue(service.promptTokensExcludeCache)
+        assertFalse(service.promptTokensExcludeCache)
     }
 
     @Test
