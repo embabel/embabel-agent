@@ -48,7 +48,8 @@
 
           openai-java-client-okhttp has no such source: spring-ai-openai depends on
           openai-java-core and raw okhttp, never the OpenAI okhttp client. Its version
-          comes from the root pom and has to be bumped in step with spring-ai-openai.
+          comes from embabel-build-dependencies (openai-java.version) and has to be
+          bumped there in step with spring-ai.version.
           The enforcer rule below is what catches it when that is forgotten.
 
           The openai-java aggregate is not declared either — it carries no classes of its
@@ -92,8 +93,9 @@
             <!--
               The OpenAI SDK splits across three artifacts that must share a version:
               spring-ai-openai drags openai-java-core forward on every upgrade, while
-              openai-java-client-okhttp only moves when the root pom's openai-java.version
-              is bumped by hand. When those diverge the mismatch surfaces far from here —
+              openai-java-client-okhttp only moves when openai-java.version in
+              embabel-build-dependencies is bumped by hand. When those diverge the mismatch
+              surfaces far from here —
               spring-ai-openai 2.0.1 moved core 4.39.1 -> 4.49.0, which added a required
               field to ResponseUsage.InputTokensDetails and broke a test four modules
               downstream with no mention of a version anywhere in the stack trace.
