@@ -348,7 +348,7 @@ class OpenAiResponsesChatModelTest {
             assertEquals("""{"q":"x"}""", call.arguments())
 
             val output = input.mapNotNull { it.functionCallOutput().orElse(null) }.single()
-            assertEquals("call_42", output.callId(), "call_id must survive the round trip")
+            assertEquals("call_42", output.callId().orElse(null), "call_id must survive the round trip")
             assertTrue(output.output().toString().contains("found"), "Tool result reaches the model")
         }
 
