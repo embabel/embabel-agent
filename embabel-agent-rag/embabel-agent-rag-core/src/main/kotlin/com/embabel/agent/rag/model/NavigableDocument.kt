@@ -30,6 +30,26 @@ interface NavigableContainerSection : ContainerSection, NavigableSection {
     }.asIterable()
 
     /**
+     * Every descendant section in the order the document reads: a section before the sections inside
+     * it, and those before its next sibling (pre-order). [descendants] is level order instead, which
+     * yields a container's children before any grandchild, so it cannot number sections as they read.
+     *
+     * Each comes with its [SectionPlace.ordinal] (0-based, across the whole tree) and
+     * [SectionPlace.depth] (1 for a direct child of this container).
+     */
+    fun sectionsInReadingOrder(): List<SectionPlace> {
+        val places = mutableListOf<SectionPlace>()
+        fun visit(sections: List<NavigableSection>, depth: Int) {
+            for (section in sections) {
+                places += SectionPlace(section, ordinal = places.size, depth = depth)
+                if (section is NavigableContainerSection) visit(section.children.toList(), depth + 1)
+            }
+        }
+        visit(children.toList(), depth = 1)
+        return places
+    }
+
+    /**
      * All descendant leaf sections of this container
      */
     fun leaves(): Iterable<LeafSection> = sequence {
@@ -39,6 +59,16 @@ interface NavigableContainerSection : ContainerSection, NavigableSection {
         }
     }.asIterable()
 }
+
+/**
+ * Where a [section] falls in the document it belongs to: its [ordinal] in reading order (0-based)
+ * and its [depth] below the document (1 for a top-level section).
+ */
+data class SectionPlace(
+    val section: NavigableSection,
+    val ordinal: Int,
+    val depth: Int,
+)
 
 data class DefaultMaterializedContainerSection(
     override val id: String,
