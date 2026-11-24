@@ -21,6 +21,7 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.openai.core.Timeout
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.openai.AbstractOpenAiOptions
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import java.time.Duration
@@ -33,10 +34,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  * response, rather than the gap between two reads. A model that sends nothing until it has
  * finished - an embedding batch, a non-streamed completion - is therefore bounded by it.
  *
- * A null [read] changes nothing. Chat completion and embedding calls then keep Spring AI's own
- * per-call timeout of 60 seconds, which it sends with every such call. Responses API models, and
- * any call made without Spring AI's options, keep the client's 10 minutes. A configured [read]
- * replaces both.
+ * A null [read] keeps the defaults. Chat completion and embedding calls get Spring AI's own
+ * per-call timeout of 60 seconds. Responses API models, and any call made without Spring AI's
+ * options, keep the client's 10 minutes. A configured [read] replaces both.
+ *
+ * Up to Spring AI 2.0.1 the 60 seconds came on every options object Spring AI built. Since 2.0.3
+ * the options carry no timeout unless one is set, and Spring AI applies its default only to
+ * clients it builds itself. Embabel builds its own clients, so the options built here put the
+ * 60 seconds back.
  *
  * The openai-java SDK retries a call that times out, twice by default, so a caller sees the
  * failure only after three attempts: up to three times the timeout, plus a short backoff.
@@ -57,11 +62,11 @@ data class OpenAiClientTimeouts @JvmOverloads constructor(
             .build()
 
     /**
-     * [delegate], with the chat options it produces carrying [read], so that Spring AI's
-     * per-call default does not override it. [delegate] itself when [read] is unset.
+     * [delegate], with the chat options it produces carrying [read], or Spring AI's per-call
+     * default when [read] is unset.
      */
     fun optionsConverter(delegate: OptionsConverter): OptionsConverter =
-        read?.let { OpenAiReadTimeoutOptionsConverter(delegate, it) } ?: delegate
+        OpenAiReadTimeoutOptionsConverter(delegate, read ?: DEFAULT_CALL_TIMEOUT)
 
     /**
      * Chat options for [model], carrying [read] when it is set so that Spring AI's per-call
@@ -73,13 +78,13 @@ data class OpenAiClientTimeouts @JvmOverloads constructor(
             .apply { read?.let { timeout(it) } }
 
     /**
-     * Embedding options for [model], carrying [read] when it is set, for the same reason as
-     * [chatOptions].
+     * Embedding options for [model], carrying [read], or Spring AI's per-call default when [read]
+     * is unset.
      */
     fun embeddingOptions(model: String): OpenAiEmbeddingOptions.Builder =
         OpenAiEmbeddingOptions.builder()
             .model(model)
-            .apply { read?.let { timeout(it) } }
+            .timeout(read ?: DEFAULT_CALL_TIMEOUT)
 
     companion object {
 
@@ -93,6 +98,11 @@ data class OpenAiClientTimeouts @JvmOverloads constructor(
          * The openai-java SDK's default, which Responses API models and calls without Spring AI's options see.
          */
         private val CLIENT_DEFAULT_READ: Duration = Duration.ofMinutes(10)
+
+        /**
+         * Spring AI's per-call default for chat completion and embedding calls, 60 seconds.
+         */
+        internal val DEFAULT_CALL_TIMEOUT: Duration = AbstractOpenAiOptions.DEFAULT_TIMEOUT
 
         @JvmField
         val DEFAULT = OpenAiClientTimeouts()
@@ -125,14 +135,16 @@ abstract class OpenAiCompatibleClientProperties : ClientTimeoutProperties() {
 }
 
 /**
- * Wraps a provider's converter so the chat options it produces carry the configured read timeout.
- * Reached only through [OpenAiClientTimeouts.optionsConverter].
+ * Wraps a provider's converter so the chat options it produces carry the read timeout: the
+ * configured one, or Spring AI's per-call default. Reached only through
+ * [OpenAiClientTimeouts.optionsConverter]. A data class so that two wrappers of equal converters
+ * compare equal, as [OpenAiReasoningEffortOptionsConverter] does.
  *
  * Options that are not [OpenAiChatOptions] have nowhere to carry the timeout, so they pass through
  * unchanged and the client-level timeout alone applies. That is logged once per converter, since
  * the configured value then bounds each attempt only through the client.
  */
-internal class OpenAiReadTimeoutOptionsConverter(
+internal data class OpenAiReadTimeoutOptionsConverter(
     private val delegate: OptionsConverter,
     private val readTimeout: Duration,
 ) : OptionsConverter {

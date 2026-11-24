@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
+import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.openai.withOpenAiReasoningEffort
@@ -100,8 +101,16 @@ class OpenAiModelsConfigRoutingTest {
     fun `special handling still selects the options converter independently of transport`() {
         val llms = registeredLlms()
 
-        assertEquals(OpenAiReasoningEffortOptionsConverter(Gpt5ChatOptionsConverter), llms["proModel"]?.optionsConverter)
-        assertEquals(OpenAiReasoningEffortOptionsConverter(StandardOpenAiOptionsConverter), llms["chatModel"]?.optionsConverter)
+        // Every model's converter is wrapped to carry the per-call timeout, here the unconfigured default.
+        val timeouts = OpenAiClientTimeouts.DEFAULT
+        assertEquals(
+            timeouts.optionsConverter(OpenAiReasoningEffortOptionsConverter(Gpt5ChatOptionsConverter)),
+            llms["proModel"]?.optionsConverter,
+        )
+        assertEquals(
+            timeouts.optionsConverter(OpenAiReasoningEffortOptionsConverter(StandardOpenAiOptionsConverter)),
+            llms["chatModel"]?.optionsConverter,
+        )
     }
 
     @Test

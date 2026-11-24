@@ -63,16 +63,21 @@ class OpenAiCompatibleModelFactoryTimeoutTest {
             assertEquals(before.request(), now.request())
         }
 
+        /**
+         * Spring AI 2.0.3 stopped putting its 60 seconds on the options and applies it only to clients
+         * it builds itself. Embabel builds its own clients, so the converter puts it back.
+         */
         @Test
-        fun `default leaves the options converter untouched`() {
-            assertSame(OpenAiChatOptionsConverter, OpenAiClientTimeouts.DEFAULT.optionsConverter(OpenAiChatOptionsConverter))
+        fun `chat calls keep spring ai's 60 second per-call timeout unless told otherwise`() {
+            val options = OpenAiClientTimeouts.DEFAULT.optionsConverter(OpenAiChatOptionsConverter)
+                .convertOptions(LlmOptions(), "any") as OpenAiChatOptions
+
+            assertEquals(Duration.ofSeconds(60), options.timeout)
         }
 
         @Test
-        fun `spring ai sends a 60 second timeout with every call unless told otherwise`() {
-            val options = OpenAiChatOptionsConverter.convertOptions(LlmOptions(), "any") as OpenAiChatOptions
-
-            assertEquals(Duration.ofSeconds(60), options.timeout)
+        fun `embedding calls keep spring ai's 60 second per-call timeout unless told otherwise`() {
+            assertEquals(Duration.ofSeconds(60), OpenAiClientTimeouts.DEFAULT.embeddingOptions("any").build().timeout)
         }
     }
 
