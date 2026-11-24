@@ -33,7 +33,7 @@ import java.util.Optional
  * `Usage.Builder.build()` calls `Check.checkRequired("cacheCreation", ...)` and throws
  * if the nested `CacheCreation` field was never explicitly set — even setting it to
  * `Optional.empty()` is acceptable. The fields below (`cacheCreation`, `inferenceGeo`,
- * `serverToolUse`, `serviceTier`) all need that touch-of-empty-Optional treatment.
+ * `serverToolUse`, `serviceTier`, `speed`) all need that touch-of-empty-Optional treatment.
  */
 private fun anthropicUsage(
     inputTokens: Long,
@@ -52,6 +52,8 @@ private fun anthropicUsage(
         .inferenceGeo(Optional.empty())
         .serverToolUse(Optional.empty())
         .serviceTier(Optional.empty())
+        // anthropic-java 2.75.0 added speed (standard or fast) as another required builder field.
+        .speed(Optional.empty())
         .build()
 
 class UsageExtensionsTest {
