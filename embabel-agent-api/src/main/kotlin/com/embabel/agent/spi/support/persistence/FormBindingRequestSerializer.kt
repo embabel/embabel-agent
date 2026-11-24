@@ -29,7 +29,11 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 
-internal class FormBindingRequestSerializer(
+/**
+ * Preserves the identity and binding data of a pending [FormBindingRequest].
+ * Register this serializer as a Spring bean to enable it for durable processes.
+ */
+class FormBindingRequestSerializer(
     private val objectMapper: ObjectMapper,
 ) : BlackboardEntrySerializer {
 
