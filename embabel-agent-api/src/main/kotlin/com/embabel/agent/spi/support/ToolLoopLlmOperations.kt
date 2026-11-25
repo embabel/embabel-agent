@@ -162,7 +162,7 @@ open class ToolLoopLlmOperations(
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
-        val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
+        val messageSender = modelCallEventSender(llm, interaction.llm, llmRequestEvent)
 
         val converter = if (outputClass != String::class.java) {
             createOutputConverter(outputClass, interaction)
@@ -258,7 +258,7 @@ open class ToolLoopLlmOperations(
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
-        val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
+        val messageSender = modelCallEventSender(llm, interaction.llm, llmRequestEvent)
 
         val converter = createMaybeReturnOutputConverter(outputClass, interaction)!!
 
@@ -371,7 +371,7 @@ open class ToolLoopLlmOperations(
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
-        val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
+        val messageSender = modelCallEventSender(llm, interaction.llm, llmRequestEvent)
 
         val converter = if (outputClass != String::class.java) {
             createOutputConverter(outputClass, interaction)
@@ -517,7 +517,7 @@ open class ToolLoopLlmOperations(
             val llm = chooseLlm(interaction.llm)
             val promptContributions = buildPromptContributions(interaction, llm)
 
-            val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
+            val messageSender = modelCallEventSender(llm, interaction.llm, llmRequestEvent)
 
             val converter = createMaybeReturnOutputConverter(outputClass, interaction)!!
 
@@ -697,6 +697,19 @@ open class ToolLoopLlmOperations(
         llmRequestEvent: LlmRequestEvent<*>? = null,
     ): LlmMessageSender {
         return llm.createMessageSender(options)
+    }
+
+    /**
+     * The [createMessageSender] sender, wrapped to emit a [com.embabel.agent.api.event.ModelCallEvent]
+     * per call to the model when there is a request event to attach it to.
+     */
+    private fun modelCallEventSender(
+        llm: LlmService<*>,
+        options: LlmOptions,
+        llmRequestEvent: LlmRequestEvent<*>?,
+    ): LlmMessageSender {
+        val sender = createMessageSender(llm, options, llmRequestEvent)
+        return llmRequestEvent?.let { ModelCallEventLlmMessageSender(sender, it) } ?: sender
     }
 
     private fun structuredOutputMessageSender(

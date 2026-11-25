@@ -48,6 +48,7 @@ import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.EarlyTermination
 import com.embabel.agent.spi.logging.personality.severance.LumonColorPalette
 import com.embabel.agent.spi.support.springai.ChatModelCallEvent
+import com.embabel.agent.api.event.ModelCallEvent
 import com.embabel.common.util.AnsiColor
 import com.embabel.common.util.color
 import com.embabel.common.util.indentLines
@@ -268,6 +269,15 @@ open class LoggingAgenticEventListener(
     protected open fun getLlmRequestEventMessage(e: LlmRequestEvent<*>): String =
         "[${e.processId}] (${e.interaction.id.value}) using LLM ${e.llmMetadata.name}, creating ${e.outputClass.simpleName}: ${e.interaction.llm}"
 
+    protected open fun getModelCallEventMessage(e: ModelCallEvent): String {
+        val messages = e.messages.joinToString("\n----\n") { "${it.role}: ${it.content}" }
+        val tools = e.tools.joinToString("\n----\n") { it.definition.name + ": " + it.definition.description }
+        return "[${e.processId}] model call using ${e.request.llmMetadata.name.color(colorPalette.highlight)}\n" +
+            "${messages.color(AnsiColor.GREEN)}\nprompt id: '${e.request.interaction.id}'\n" +
+            "tools: [\n${tools.color(colorPalette.highlight)}]"
+    }
+
+    @Deprecated("No longer logged: ModelCallEvent is logged for every model, Spring AI or not")
     protected open fun getChatModelCallEventMessage(e: ChatModelCallEvent<*>): String {
         val promptInfo = "using ${e.llmMetadata.name.color(colorPalette.highlight)}\n${
             e.springAiPrompt.toInfoString().color(AnsiColor.GREEN)
@@ -403,9 +413,9 @@ open class LoggingAgenticEventListener(
             }
 
             // Only show this at all if verbose
-            is ChatModelCallEvent<*> -> {
+            is ModelCallEvent -> {
                 if (event.agentProcess.processContext.processOptions.verbosity.showPrompts) {
-                    logger.info(getChatModelCallEventMessage(event))
+                    logger.info(getModelCallEventMessage(event))
                 }
             }
 

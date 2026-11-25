@@ -23,6 +23,7 @@ import com.embabel.agent.core.AgentProcessStatusReport
 import com.embabel.agent.core.InProcess
 import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
@@ -364,6 +365,30 @@ class LlmResponseEvent<O> internal constructor(
 
     override fun toString(): String {
         return "LlmResponseEvent(outputClass=$outputClass, request=$request, response=$response, runningTime=$runningTime)"
+    }
+}
+
+/**
+ * One call to the model, sent while serving [request]. A tool loop makes one per round, so a
+ * request that calls tools has several.
+ *
+ * Emitted for every [com.embabel.agent.spi.LlmService], whatever backs it: it carries the messages
+ * and tools actually sent, in Embabel types. For Spring AI models,
+ * [com.embabel.agent.spi.support.springai.ChatModelCallEvent] also carries the Spring AI prompt
+ * with its resolved options.
+ *
+ * @param request the LLM request this call serves
+ * @param messages the messages sent to the model on this call, system prompt included
+ * @param tools the tools offered to the model on this call
+ */
+class ModelCallEvent internal constructor(
+    val request: LlmRequestEvent<*>,
+    val messages: List<Message>,
+    val tools: List<Tool>,
+) : AbstractAgentProcessEvent(request.agentProcess) {
+
+    override fun toString(): String {
+        return "ModelCallEvent(request=$request, messages=$messages, tools=${tools.map { it.definition.name }})"
     }
 }
 
