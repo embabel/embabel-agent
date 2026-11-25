@@ -186,13 +186,17 @@ internal class ChatClientLlmOperations(
     // OVERRIDES FROM ToolLoopLlmOperations
     // ====================================
 
+    /**
+     * Instruments the chat model when [llm] is backed by Spring AI and there is an [llmRequestEvent].
+     * Any other [LlmService] supplies its own sender, so its calls emit no [ChatModelCallEvent].
+     */
     override fun createMessageSender(
         llm: LlmService<*>,
         options: LlmOptions,
         llmRequestEvent: LlmRequestEvent<*>?,
     ): LlmMessageSender {
-        if (llmRequestEvent != null) {
-            val springAiLlm = requireSpringAiLlm(llm)
+        val springAiLlm = llm as? SpringAiLlmService
+        if (llmRequestEvent != null && springAiLlm != null) {
             val chatOptions = springAiLlm.convertOptions(options)
             val instrumentedModel = InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
             return SpringAiLlmMessageSender(
