@@ -48,7 +48,7 @@ class FormBindingRequestSerializer(
         context: BlackboardEntrySerializationContext,
     ): SerializedBlackboardValue {
         val request = value as FormBindingRequest<*>
-        val snapshot = Snapshot(
+        val snapshot = FormSnapshot(
             id = request.id,
             timestamp = request.timestamp,
             payload = request.payload,
@@ -74,13 +74,13 @@ class FormBindingRequestSerializer(
         require(MediaType.parseMediaType(value.contentType).isCompatibleWith(MediaType.APPLICATION_JSON)) {
             "Unsupported form binding request content type [${value.contentType}]"
         }
-        val snapshot = objectMapper.readValue(value.payload, Snapshot::class.java)
+        val snapshot = objectMapper.readValue(value.payload, FormSnapshot::class.java)
         restore(snapshot, loadClass(snapshot.outputClass))
     } catch (e: Exception) {
         throw AgentProcessPersistenceException("Cannot deserialize form binding request", e)
     }
 
-    private fun <O : Any> restore(snapshot: Snapshot, outputClass: Class<O>): FormBindingRequest<O> =
+    private fun <O : Any> restore(snapshot: FormSnapshot, outputClass: Class<O>): FormBindingRequest<O> =
         FormBindingRequest(
             form = snapshot.payload,
             outputClass = outputClass,
@@ -100,7 +100,7 @@ class FormBindingRequestSerializer(
         ClassUtils.forName(name, ClassUtils.getDefaultClassLoader())
 
     // Captures the pending request at checkpoint time so its identity and binding data can be restored.
-    private data class Snapshot(
+    private data class FormSnapshot(
         val id: String,
         val timestamp: Instant,
         val payload: Form,

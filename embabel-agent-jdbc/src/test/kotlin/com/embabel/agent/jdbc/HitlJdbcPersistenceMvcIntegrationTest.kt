@@ -26,7 +26,6 @@ import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.hitl.AbstractAwaitable
 import com.embabel.agent.core.hitl.AwaitableResponse
-import com.embabel.agent.core.hitl.AwaitableResponseException
 import com.embabel.agent.core.hitl.ResponseImpact
 import com.embabel.agent.core.hitl.waitFor
 import com.embabel.agent.core.persistence.BlackboardEntryDeserializationContext
@@ -355,8 +354,7 @@ class HitlJdbcPersistenceMvcIntegrationTest {
     @Qualifier("hitlJdbcSnapshotStore")
     private lateinit var snapshotStore: AgentProcessSnapshotStore
 
-    private val objectMapperHolder = EmbabelObjectMapperHolder.createDefault()
-    private val objectMapper: ObjectMapper = objectMapperHolder.get()
+    private val objectMapper: ObjectMapper = EmbabelObjectMapperHolder.createDefault().get()
 
     @BeforeEach
     fun setUp() {

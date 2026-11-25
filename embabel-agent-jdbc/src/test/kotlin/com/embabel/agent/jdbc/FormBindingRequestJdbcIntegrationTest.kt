@@ -60,6 +60,12 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator
 import java.sql.DriverManager
 import java.util.UUID
 
+/**
+ * Verifies that Spring Boot applications can opt in to persisting pending form requests in JDBC.
+ * Two application contexts share an H2 database to verify that a waiting request survives a restart
+ * and that submitting the form with its original request ID completes the process.
+ * The default configuration keeps using the Jackson fallback.
+ */
 class FormBindingRequestJdbcIntegrationTest {
 
     @Test
