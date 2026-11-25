@@ -72,6 +72,20 @@ import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.validation.Validator
+import com.embabel.agent.spi.support.springai.ExceptionWrappingConverter
+import com.embabel.agent.spi.support.springai.SuppressThinkingConverter
+import com.embabel.agent.spi.support.springai.WithExampleConverter
+import com.embabel.agent.spi.support.springai.stringWithoutThinkBlocks
+import com.embabel.common.ai.converters.EnumAsOneOf
+import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.ai.converters.JsonSchemaProvider
+import com.embabel.common.ai.converters.RequiredFieldNormalization
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
+import org.springframework.core.ParameterizedTypeReference
+import java.lang.reflect.Field
+import java.lang.reflect.ParameterizedType
+import java.util.function.Predicate
 import java.time.Duration
 import java.time.Instant
 import javax.annotation.concurrent.ThreadSafe
@@ -105,8 +119,8 @@ interface OutputConverter<T> {
  * LlmOperations implementation that uses Embabel's framework-agnostic tool loop.
  *
  * This class provides the core tool loop orchestration logic without depending on
- * any specific LLM framework (Spring AI, LangChain4j, etc.). Subclasses provide
- * the framework-specific implementations for message sending and output conversion.
+ * any specific LLM framework (Spring AI, LangChain4j, etc.). Messages go through each
+ * [LlmService]'s own [LlmMessageSender], and typed output is parsed here, so any service works.
  *
  * @param modelProvider ModelProvider to get the LLM model
  * @param toolDecorator ToolDecorator to decorate tools
@@ -118,6 +132,7 @@ interface OutputConverter<T> {
  * @param objectMapper ObjectMapper for JSON serialization
  * @param instrumentation Port for direct instrumentation of the LLM and tool-loop spans (no-op by default)
  * @param templateRenderer TemplateRenderer for rendering prompt templates (default: NoOpTemplateRenderer)
+ * @param schemaGeneratorCustomizers Customizers applied, in order, to the JSON schema of typed output
  */
 @ThreadSafe
 open class ToolLoopLlmOperations(
@@ -133,6 +148,7 @@ open class ToolLoopLlmOperations(
     asyncer: Asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
     protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
     protected val templateRenderer: TemplateRenderer = NoOpTemplateRenderer,
+    override val schemaGeneratorCustomizers: List<SchemaGeneratorCustomizer> = emptyList(),
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -728,47 +744,155 @@ open class ToolLoopLlmOperations(
         }
 
     /**
-     * Create an output converter for the given output class.
-     * Subclasses implement this to provide framework-specific converters.
+     * Create an output converter for the given output class: JSON parsed with [objectMapper], with the
+     * format instructions and JSON schema of [outputClass], think blocks removed, and an example when
+     * [shouldGenerateExamples]. It does not depend on the [LlmService], so any service gets typed output.
      *
      * @param outputClass The target output class
      * @param interaction The LLM interaction context
-     * @return An output converter, or null for String output
+     * @return An output converter; null makes the call fail, as there is no fallback
      */
     protected open fun <O> createOutputConverter(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<O>? {
-        // Default implementation returns null - subclasses should override
-        return null
+        // Spring AI 2.0's StructuredOutputConverter<T> requires T : Any in its converter chain.
+        // Our enclosing <O> is unbounded; erase via Class<Any> for the construction, then cast back.
+        @Suppress("UNCHECKED_CAST")
+        val outputClassAny = outputClass as Class<Any>
+        // Keep a reference to the JSON converter so it can supply the schema for native
+        // structured output (#1715); FilteringJacksonOutputConverter is a JsonSchemaProvider.
+        val jsonConverter = buildFilteringConverter<Any>(
+            clazz = outputClassAny,
+            objectMapper = objectMapper,
+            fieldFilter = interaction.fieldFilter,
+        )
+        val springAiConverter = ExceptionWrappingConverter<Any>(
+            expectedType = outputClassAny,
+            delegate = WithExampleConverter<Any>(
+                delegate = SuppressThinkingConverter<Any>(
+                    jsonConverter
+                ),
+                outputClass = outputClassAny,
+                ifPossible = false,
+                generateExamples = shouldGenerateExamples(interaction),
+            )
+        )
+        @Suppress("UNCHECKED_CAST")
+        return SpringAiOutputConverterAdapter(springAiConverter, jsonConverter) as OutputConverter<O>
     }
 
     /**
-     * Create an output converter for MaybeReturn wrapper type.
+     * Create an output converter for MaybeReturn wrapper type, as [createOutputConverter] does.
      * Used by doTransformIfPossible for "if possible" semantics.
-     * Subclasses implement this to provide framework-specific converters.
      *
      * @param outputClass The target output class (inner type of MaybeReturn)
      * @param interaction The LLM interaction context
-     * @return An output converter for MaybeReturn<O>; null (the default) makes the call fail, as there is no fallback
+     * @return An output converter for MaybeReturn<O>; null makes the call fail, as there is no fallback
      */
+    @Suppress("UNCHECKED_CAST")
     internal open fun <O> createMaybeReturnOutputConverter(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<MaybeReturn<O>>? {
-        // Default implementation returns null - subclasses should override
-        return null
+        val typeReference = createParameterizedTypeReference<MaybeReturn<*>>(
+            MaybeReturn::class.java,
+            outputClass,
+        )
+        val jsonConverter = buildFilteringConverter(
+            typeReference = typeReference,
+            objectMapper = objectMapper,
+            fieldFilter = interaction.fieldFilter,
+            requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
+        )
+        val springAiConverter = ExceptionWrappingConverter(
+            expectedType = MaybeReturn::class.java,
+            delegate = WithExampleConverter(
+                delegate = SuppressThinkingConverter(
+                    jsonConverter
+                ),
+                outputClass = outputClass as Class<MaybeReturn<*>>,
+                ifPossible = true,
+                generateExamples = shouldGenerateExamples(interaction),
+            )
+        )
+        return SpringAiOutputConverterAdapter(springAiConverter, jsonConverter) as OutputConverter<MaybeReturn<O>>
     }
 
     /**
-     * Sanitize string output (e.g., remove thinking blocks).
+     * Sanitize string output: removes thinking blocks.
      * Subclasses can override for custom sanitization.
      */
-    protected open fun sanitizeStringOutput(text: String): String = text
+    protected open fun sanitizeStringOutput(text: String): String {
+        return stringWithoutThinkBlocks(text)
+    }
+
+    /**
+     * Builds a [FilteringJacksonOutputConverter] for a [Class]-typed output.
+     *
+     * The schema generator is configured by [customizeSchemaGenerator], so that
+     * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
+     * with per-constant descriptions and the [SchemaGeneratorCustomizer]s apply.
+     *
+     * A separate overload exists for [ParameterizedTypeReference]-typed outputs.
+     * The [Class] overload and the [ParameterizedTypeReference] overload cannot be merged
+     * into one generic function because they call different
+     * [FilteringJacksonOutputConverter] constructors via `super`.
+     */
+    internal fun <T : Any> buildFilteringConverter(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ): FilteringJacksonOutputConverter<T> =
+        object : FilteringJacksonOutputConverter<T>(clazz, objectMapper, fieldFilter, requiredFieldNormalization) {
+            override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+                super.schemaGeneratorConfigBuilder().also(::customizeSchemaGenerator)
+        }
+
+    /**
+     * Builds a [FilteringJacksonOutputConverter] for a [ParameterizedTypeReference]-typed output.
+     *
+     * The schema generator is configured by [customizeSchemaGenerator], so that
+     * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
+     * with per-constant descriptions and the [SchemaGeneratorCustomizer]s apply.
+     *
+     * A separate overload exists for [Class]-typed outputs.
+     * The [ParameterizedTypeReference] overload and the [Class] overload cannot be merged
+     * into one generic function because they call different
+     * [FilteringJacksonOutputConverter] constructors via `super`.
+     */
+    internal fun <T : Any> buildFilteringConverter(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ): FilteringJacksonOutputConverter<T> =
+        object : FilteringJacksonOutputConverter<T>(typeReference, objectMapper, fieldFilter, requiredFieldNormalization) {
+            override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+                super.schemaGeneratorConfigBuilder().also(::customizeSchemaGenerator)
+        }
+
+    @Suppress("UNCHECKED_CAST")
+    internal fun <T> createParameterizedTypeReference(
+        rawType: Class<*>,
+        typeArgument: Class<*>,
+    ): ParameterizedTypeReference<T> {
+        // Create a type with proper generic information
+        val type = object : ParameterizedType {
+            override fun getRawType() = rawType
+            override fun getActualTypeArguments() = arrayOf(typeArgument)
+            override fun getOwnerType() = null
+        }
+
+        // Create a ParameterizedTypeReference that uses our custom type
+        return object : ParameterizedTypeReference<T>() {
+            override fun getType() = type
+        }
+    }
 
     private fun noOutputConverter(outputClass: Class<*>) = NoOutputConverterException(
-        "${javaClass.simpleName} has no output converter for ${outputClass.name}: " +
-            "typed output needs a subclass that provides one, such as ChatClientLlmOperations"
+        "${javaClass.simpleName} returned no output converter for ${outputClass.name}"
     )
 
     /**
@@ -1150,3 +1274,15 @@ open class ToolLoopLlmOperations(
  * A configuration error rather than a bad LLM response, so data-binding retry does not retry it.
  */
 internal class NoOutputConverterException(message: String) : IllegalStateException(message)
+
+/**
+ * Adapter to wrap Spring AI's StructuredOutputConverter as our OutputConverter.
+ */
+private class SpringAiOutputConverterAdapter<T>(
+    private val delegate: org.springframework.ai.converter.StructuredOutputConverter<T>,
+    private val jsonSchemaProvider: JsonSchemaProvider? = null,
+) : OutputConverter<T> {
+    override fun convert(source: String): T? = delegate.convert(source)
+    override fun getFormat(): String? = delegate.format
+    override fun getJsonSchema(): String? = jsonSchemaProvider?.getJsonSchema()
+}

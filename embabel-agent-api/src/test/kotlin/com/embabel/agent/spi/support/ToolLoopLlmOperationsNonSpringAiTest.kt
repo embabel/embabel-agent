@@ -19,19 +19,23 @@ package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Usage
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.loop.LlmMessageRequest
 import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
+import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
@@ -71,7 +75,11 @@ class ToolLoopLlmOperationsNonSpringAiTest {
         every { process.blackboard } returns mockk(relaxed = true)
     }
 
-    private fun operationsFor(maxAttempts: Int = 1, sender: LlmMessageSender): ToolLoopLlmOperations {
+    private fun operationsFor(
+        maxAttempts: Int = 1,
+        schemaGeneratorCustomizers: List<SchemaGeneratorCustomizer> = emptyList(),
+        sender: LlmMessageSender,
+    ): ToolLoopLlmOperations {
         val llm = mockk<LlmService<*>>(relaxed = true)
         every { llm.createMessageSender(any()) } answers {
             attempts++
@@ -86,6 +94,7 @@ class ToolLoopLlmOperationsNonSpringAiTest {
             dataBindingProperties = LlmDataBindingProperties(maxAttempts = maxAttempts),
             asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             templateRenderer = JinjavaTemplateRenderer(),
+            schemaGeneratorCustomizers = schemaGeneratorCustomizers,
         )
     }
 
@@ -122,76 +131,164 @@ class ToolLoopLlmOperationsNonSpringAiTest {
 
     data class Dog(val name: String)
 
+    private val interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions())
+
+    private fun replying(json: String) = operationsFor { _, _ -> LlmMessageResponse(AssistantMessage(json), json) }
+
     @Test
-    fun `typed output fails with a clear message until output converters are vendor-neutral`() {
-        val operations = operationsFor { _, _ ->
-            LlmMessageResponse(AssistantMessage("""{"name":"Duke"}"""), """{"name":"Duke"}""")
-        }
-
-        val thrown = assertThrows<Exception> { createObject(operations, Dog::class.java) }
-
-        val messages = generateSequence<Throwable>(thrown) { it.cause }.mapNotNull { it.message }.toList()
-        assertTrue(messages.any { "output converter" in it }, "Unexpected failure: $messages")
+    fun `typed output is converted without a Spring AI subclass`() {
+        assertEquals(Dog("Duke"), createObject(replying("""{"name":"Duke"}"""), Dog::class.java))
     }
 
     @Test
-    fun `a missing output converter is not retried, as no attempt can succeed`() {
-        val operations = operationsFor(maxAttempts = 3) { _, _ ->
+    fun `typed output asks for the JSON schema of the output class`() {
+        val sent = mutableListOf<List<Message>>()
+        val operations = operationsFor { messages, _ ->
+            sent += messages
             LlmMessageResponse(AssistantMessage("""{"name":"Duke"}"""), """{"name":"Duke"}""")
         }
 
-        assertThrows<Exception> { createObject(operations, Dog::class.java) }
+        createObject(operations, Dog::class.java)
 
+        assertTrue(sent.single().any { "\"name\"" in it.content && "schema" in it.content.lowercase() })
+    }
+
+    /** Captures the native structured-output request a service's sender is given. */
+    private class RequestCapturingSender : RequestAwareLlmMessageSender {
+        val requests = mutableListOf<LlmMessageRequest>()
+
+        override fun call(request: LlmMessageRequest): LlmMessageResponse {
+            requests += request
+            return LlmMessageResponse(AssistantMessage("""{"name":"Duke"}"""), """{"name":"Duke"}""")
+        }
+
+        override fun call(messages: List<Message>, tools: List<Tool>) = call(LlmMessageRequest(messages, tools))
+    }
+
+    @Test
+    fun `typed output offers the service the JSON schema for native structured output`() {
+        val sender = RequestCapturingSender()
+
+        createObject(operationsFor(sender = sender), Dog::class.java)
+
+        val request = sender.requests.single().nativeStructuredOutputRequest!!.structuredOutputRequest
+        assertEquals("Dog", request.name)
+        assertTrue("\"name\"" in request.schema, request.schema)
+    }
+
+    @Test
+    fun `typed output schema has the schema generator customizers applied`() {
+        val sender = RequestCapturingSender()
+        val customizer = SchemaGeneratorCustomizer { builder ->
+            builder.forFields().withDescriptionResolver { "what the dog answers to" }
+        }
+
+        createObject(operationsFor(schemaGeneratorCustomizers = listOf(customizer), sender = sender), Dog::class.java)
+
+        val schema = sender.requests.single().nativeStructuredOutputRequest!!.structuredOutputRequest.schema
+        assertTrue("what the dog answers to" in schema, schema)
+    }
+
+    @Test
+    fun `String output has think blocks removed`() {
+        assertEquals("Duke", createObject(replying("<think>a dog</think>Duke"), String::class.java))
+    }
+
+    @Test
+    fun `if-possible output is converted`() {
+        val result = replying("""{"success":{"name":"Duke"}}""").createObjectIfPossible(
+            messages = listOf(UserMessage("Name a dog")),
+            interaction = interaction,
+            outputClass = Dog::class.java,
+            action = SimpleTestAgent.actions.first(),
+            agentProcess = agentProcess,
+        )
+
+        assertEquals(Dog("Duke"), result.getOrThrow())
+    }
+
+    @Test
+    fun `if-possible output reports the model's failure`() {
+        val result = replying("""{"failure":"no dogs here"}""").createObjectIfPossible(
+            messages = listOf(UserMessage("Name a dog")),
+            interaction = interaction,
+            outputClass = Dog::class.java,
+            action = SimpleTestAgent.actions.first(),
+            agentProcess = agentProcess,
+        )
+
+        assertEquals("no dogs here", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `typed output with thinking is converted`() {
+        val response = replying("""<think>a dog</think>{"name":"Duke"}""").doTransformWithThinking(
+            messages = listOf(UserMessage("Name a dog")),
+            interaction = interaction,
+            outputClass = Dog::class.java,
+            llmRequestEvent = null,
+        )
+
+        assertEquals(Dog("Duke"), response.result)
+        assertTrue(response.thinkingBlocks.isNotEmpty())
+    }
+
+    @Test
+    fun `if-possible output with thinking is converted`() {
+        val response = replying("""<think>a dog</think>{"success":{"name":"Duke"}}""")
+            .doTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Name a dog")),
+                interaction = interaction,
+                outputClass = Dog::class.java,
+                llmRequestEvent = null,
+            ).getOrThrow()
+
+        assertEquals(Dog("Duke"), response.result)
+    }
+
+    /** A subclass that returns no output converters, as a misconfigured one would. */
+    private fun operationsWithoutConverters(): ToolLoopLlmOperations {
+        val llm = mockk<LlmService<*>>(relaxed = true)
+        every { llm.createMessageSender(any()) } answers {
+            attempts++
+            LlmMessageSender { _, _ -> LlmMessageResponse(AssistantMessage("{}"), "{}") }
+        }
+        val modelProvider = mockk<ModelProvider>()
+        every { modelProvider.getLlm(any()) } returns llm
+        return object : ToolLoopLlmOperations(
+            modelProvider = modelProvider,
+            toolDecorator = DefaultToolDecorator(),
+            validator = Validation.buildDefaultValidatorFactory().validator,
+            dataBindingProperties = LlmDataBindingProperties(maxAttempts = 3),
+            asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
+            templateRenderer = JinjavaTemplateRenderer(),
+        ) {
+            override fun <O> createOutputConverter(outputClass: Class<O>, interaction: LlmInteraction) =
+                null as OutputConverter<O>?
+
+            override fun <O> createMaybeReturnOutputConverter(outputClass: Class<O>, interaction: LlmInteraction) =
+                null as OutputConverter<MaybeReturn<O>>?
+        }
+    }
+
+    @Test
+    fun `a subclass that returns no output converter fails once, with a clear message`() {
+        val thrown = assertThrows<Exception> { createObject(operationsWithoutConverters(), Dog::class.java) }
+
+        val messages = generateSequence<Throwable>(thrown) { it.cause }.mapNotNull { it.message }.toList()
+        assertTrue(messages.any { "output converter" in it }, "Unexpected failure: $messages")
         assertEquals(1, attempts)
     }
 
     @Test
-    fun `if-possible output fails with a clear message, even for String`() {
-        val operations = operationsFor { _, _ -> LlmMessageResponse(AssistantMessage("Duke"), "Duke") }
-
+    fun `a subclass that returns no if-possible output converter fails with a clear message`() {
         val failure = runCatching {
-            operations.createObjectIfPossible(
+            operationsWithoutConverters().createObjectIfPossible(
                 messages = listOf(UserMessage("Name a dog")),
-                interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
-                outputClass = String::class.java,
+                interaction = interaction,
+                outputClass = Dog::class.java,
                 action = SimpleTestAgent.actions.first(),
                 agentProcess = agentProcess,
-            ).getOrThrow()
-        }.exceptionOrNull()
-
-        val messages = generateSequence(failure) { it.cause }.mapNotNull { it.message }.toList()
-        assertTrue(messages.any { "output converter" in it }, "Unexpected outcome: $messages")
-    }
-
-    @Test
-    fun `typed output with thinking fails with a clear message`() {
-        val operations = operationsFor { _, _ ->
-            LlmMessageResponse(AssistantMessage("""{"name":"Duke"}"""), """{"name":"Duke"}""")
-        }
-
-        val thrown = assertThrows<Exception> {
-            operations.doTransformWithThinking(
-                messages = listOf(UserMessage("Name a dog")),
-                interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
-                outputClass = Dog::class.java,
-                llmRequestEvent = null,
-            )
-        }
-
-        val messages = generateSequence<Throwable>(thrown) { it.cause }.mapNotNull { it.message }.toList()
-        assertTrue(messages.any { "output converter" in it }, "Unexpected failure: $messages")
-    }
-
-    @Test
-    fun `if-possible output with thinking fails with a clear message, even for String`() {
-        val operations = operationsFor { _, _ -> LlmMessageResponse(AssistantMessage("Duke"), "Duke") }
-
-        val failure = runCatching {
-            operations.doTransformWithThinkingIfPossible(
-                messages = listOf(UserMessage("Name a dog")),
-                interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
-                outputClass = String::class.java,
-                llmRequestEvent = null,
             ).getOrThrow()
         }.exceptionOrNull()
 
