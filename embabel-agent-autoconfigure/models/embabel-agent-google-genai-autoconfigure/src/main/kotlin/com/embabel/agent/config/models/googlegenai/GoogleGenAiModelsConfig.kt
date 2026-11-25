@@ -50,6 +50,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Configuration properties for Google GenAI models.
@@ -358,7 +359,7 @@ class GoogleGenAiModelsConfig(
  */
 object GoogleGenAiOptionsConverter : OptionsConverter {
 
-    private val logger = org.slf4j.LoggerFactory.getLogger(GoogleGenAiOptionsConverter::class.java)
+    private val logger = LoggerFactory.getLogger(GoogleGenAiOptionsConverter::class.java)
 
     /**
      * Default max output tokens for Google GenAI models.
@@ -366,7 +367,7 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
     const val DEFAULT_MAX_OUTPUT_TOKENS = 8192
 
     /** Keyed by model ID only, so bounded by the number of models. */
-    internal val warnedThinkingNotDisabled = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    internal val warnedThinkingNotDisabled = ConcurrentHashMap.newKeySet<String>()
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
         convert(options, model, null)
@@ -412,8 +413,8 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
                     thinkingBudget(0)
                 } else if (warnedThinkingNotDisabled.add(model)) {
                     logger.warn(
-                        "Model '{}' cannot be declared to disable thinking (thinking.can_be_disabled), " +
-                            "so the thinking opt-out is ignored and the model's default thinking applies",
+                        "Thinking opt-out ignored for model '{}': thinking.can_be_disabled is not true " +
+                            "in its catalog entry, so no thinkingBudget is sent",
                         model,
                     )
                 }

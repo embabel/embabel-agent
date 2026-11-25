@@ -324,3 +324,7 @@ be empty despite the model reasoning internally. Support is planned as a follow-
 
 Thinking extraction is partially supported via Spring AI (`includeThoughts`, `thinkingBudget`).
 Behavior may vary by model and Spring AI integration version.
+
+Opting out of thinking (`withoutThinking()`) sends `thinkingBudget = 0` only for models whose
+entry in `google-genai-models.yml` sets `thinking.can_be_disabled: true`. For other models the
+opt-out is ignored and a warning is logged once per model.
