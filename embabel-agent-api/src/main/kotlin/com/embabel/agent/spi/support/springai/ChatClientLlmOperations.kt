@@ -92,6 +92,8 @@ import org.springframework.context.ApplicationContext
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.retry.support.RetrySynchronizationManager
 import org.springframework.stereotype.Service
+import org.springframework.context.annotation.Conditional
+import com.embabel.agent.spi.config.spring.OnSpringAiLlmOperations
 import com.embabel.chat.UserMessage
 
 // Log message constants to avoid duplication
@@ -114,6 +116,7 @@ private const val LLM_INTERRUPTED_MESSAGE = "LLM {}: attempt {} was interrupted"
  */
 @ThreadSafe
 @Service
+@Conditional(OnSpringAiLlmOperations::class)
 internal class ChatClientLlmOperations(
     modelProvider: ModelProvider,
     toolDecorator: ToolDecorator,
@@ -186,17 +189,13 @@ internal class ChatClientLlmOperations(
     // OVERRIDES FROM ToolLoopLlmOperations
     // ====================================
 
-    /**
-     * Instruments the chat model when [llm] is backed by Spring AI and there is an [llmRequestEvent].
-     * Any other [LlmService] supplies its own sender, so its calls emit no [ChatModelCallEvent].
-     */
     override fun createMessageSender(
         llm: LlmService<*>,
         options: LlmOptions,
         llmRequestEvent: LlmRequestEvent<*>?,
     ): LlmMessageSender {
-        val springAiLlm = llm as? SpringAiLlmService
-        if (llmRequestEvent != null && springAiLlm != null) {
+        if (llmRequestEvent != null) {
+            val springAiLlm = requireSpringAiLlm(llm)
             val chatOptions = springAiLlm.convertOptions(options)
             val instrumentedModel = InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
             return SpringAiLlmMessageSender(
@@ -679,7 +678,10 @@ internal class ChatClientLlmOperations(
      */
     private fun requireSpringAiLlm(llm: LlmService<*>): SpringAiLlmService {
         return llm as? SpringAiLlmService
-            ?: throw IllegalStateException("ChatClientLlmOperations requires SpringAiLlm, got ${llm::class.simpleName}")
+            ?: throw IllegalStateException(
+                "ChatClientLlmOperations requires SpringAiLlm, got ${llm::class.simpleName}: for an LlmService " +
+                    "not backed by Spring AI, set embabel.agent.platform.llm-operations.type=tool-loop"
+            )
     }
 
     /**

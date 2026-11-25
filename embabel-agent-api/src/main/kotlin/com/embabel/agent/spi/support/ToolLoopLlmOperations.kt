@@ -165,7 +165,7 @@ open class ToolLoopLlmOperations(
         val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
 
         val converter = if (outputClass != String::class.java) {
-            createOutputConverter(outputClass, interaction)
+            createOutputConverter(outputClass, interaction) ?: throw noOutputConverter(outputClass)
         } else null
 
         val schemaFormat = converter?.getFormat()
@@ -260,7 +260,8 @@ open class ToolLoopLlmOperations(
 
         val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
 
-        val converter = createMaybeReturnOutputConverter(outputClass, interaction)!!
+        val converter = createMaybeReturnOutputConverter(outputClass, interaction)
+            ?: throw noOutputConverter(outputClass)
 
         val schemaFormat = converter.getFormat()
 
@@ -374,7 +375,7 @@ open class ToolLoopLlmOperations(
         val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
 
         val converter = if (outputClass != String::class.java) {
-            createOutputConverter(outputClass, interaction)
+            createOutputConverter(outputClass, interaction) ?: throw noOutputConverter(outputClass)
         } else null
 
         val schemaFormat = converter?.getFormat()
@@ -519,7 +520,8 @@ open class ToolLoopLlmOperations(
 
             val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
 
-            val converter = createMaybeReturnOutputConverter(outputClass, interaction)!!
+            val converter = createMaybeReturnOutputConverter(outputClass, interaction)
+                ?: throw noOutputConverter(outputClass)
 
             val schemaFormat = converter.getFormat()
 
@@ -748,7 +750,7 @@ open class ToolLoopLlmOperations(
      *
      * @param outputClass The target output class (inner type of MaybeReturn)
      * @param interaction The LLM interaction context
-     * @return An output converter for MaybeReturn<O>, or null to fall back to try-catch
+     * @return An output converter for MaybeReturn<O>; null (the default) makes the call fail, as there is no fallback
      */
     internal open fun <O> createMaybeReturnOutputConverter(
         outputClass: Class<O>,
@@ -763,6 +765,11 @@ open class ToolLoopLlmOperations(
      * Subclasses can override for custom sanitization.
      */
     protected open fun sanitizeStringOutput(text: String): String = text
+
+    private fun noOutputConverter(outputClass: Class<*>) = NoOutputConverterException(
+        "${javaClass.simpleName} has no output converter for ${outputClass.name}: " +
+            "typed output needs a subclass that provides one, such as ChatClientLlmOperations"
+    )
 
     /**
      * Emit a call event for observability.
@@ -1137,3 +1144,9 @@ open class ToolLoopLlmOperations(
     }
 
 }
+
+/**
+ * The [ToolLoopLlmOperations] has no output converter for the requested output.
+ * A configuration error rather than a bad LLM response, so data-binding retry does not retry it.
+ */
+internal class NoOutputConverterException(message: String) : IllegalStateException(message)

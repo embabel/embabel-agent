@@ -139,11 +139,25 @@ class AgentPlatformProperties {
      */
     @ConfigurationProperties(prefix = "embabel.agent.platform.llm-operations")
     class LlmOperationsConfig {
+        /**
+         * Which LlmOperations the platform registers: `spring-ai` (default) or `tool-loop`,
+         * for LlmServices that are not backed by Spring AI.
+         */
+        var type: LlmOperationsType = LlmOperationsType.SPRING_AI
+
         @field:NestedConfigurationProperty
         var prompts: PromptsConfig = PromptsConfig()
 
         @field:NestedConfigurationProperty
         var dataBinding: DataBindingConfig = DataBindingConfig()
+
+        enum class LlmOperationsType {
+            /** ChatClientLlmOperations: requires LlmServices backed by Spring AI. */
+            SPRING_AI,
+
+            /** ToolLoopLlmOperations: sends through each LlmService's own LlmMessageSender. */
+            TOOL_LOOP,
+        }
 
         /**
          * Prompt configuration

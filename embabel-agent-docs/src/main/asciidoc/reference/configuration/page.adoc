@@ -331,6 +331,11 @@ From `AgentPlatformProperties.LlmOperationsConfig` - configuration for LLM opera
 |===
 |Property |Type |Default |Description
 
+|`embabel.agent.platform.llm-operations.type`
+|`spring-ai` \| `tool-loop`
+|`spring-ai`
+|Which `LlmOperations` the platform registers. `spring-ai` registers `ChatClientLlmOperations`, which requires every `LlmService` to be backed by Spring AI. `tool-loop` registers `ToolLoopLlmOperations`, which sends through each `LlmService`'s own `LlmMessageSender`. See <<llm-operations-without-spring-ai>>.
+
 |`embabel.agent.platform.llm-operations.prompts.maybe-prompt-template`
 |String
 |`maybe_prompt_contribution`
@@ -352,6 +357,29 @@ From `AgentPlatformProperties.LlmOperationsConfig` - configuration for LLM opera
 |Fixed backoff time in milliseconds between retries
 
 |===
+
+[[llm-operations-without-spring-ai]]
+====== Using an `LlmService` not backed by Spring AI
+
+An `LlmService` that implements `createMessageSender(options)` itself, without Spring AI, can be used from agents by setting:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      llm-operations:
+        type: tool-loop
+----
+
+Under `tool-loop`:
+
+* Calls that return `String` go through the service's own `LlmMessageSender`, including tool calls. Usage reported by the sender is recorded.
+* Typed output (`createObject` with a class other than `String`) is not supported yet, nor is `createObjectIfPossible` for any class, `String` included. The same holds for their thinking variants. All fail with a message saying there is no output converter.
+* No `ChatModelCallEvent` is emitted, and there are no Spring AI `ChatClient` observations.
+* This applies to every model, including Spring AI ones: they go through `SpringAiLlmService.createMessageSender`, without typed output or the Spring AI extras above. Keep the default, `spring-ai`, unless your services are not backed by Spring AI.
+
+To replace both implementations, register your own `LlmOperations` bean marked `@Primary`.
 
 ===== Tool Loop
 

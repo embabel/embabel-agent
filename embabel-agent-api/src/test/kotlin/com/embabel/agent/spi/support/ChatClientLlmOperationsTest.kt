@@ -28,22 +28,18 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.core.Usage
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.LlmService
-import com.embabel.agent.spi.loop.LlmMessageResponse
-import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.agent.test.integration.IntegrationTestUtils
-import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.DefaultOptionsConverter
@@ -62,6 +58,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
@@ -1388,41 +1385,22 @@ class ChatClientLlmOperationsTest {
     inner class LlmServiceNotBackedBySpringAi {
 
         @Test
-        fun `uses the service's own message sender`() {
-            val sent = mutableListOf<List<Message>>()
+        fun `fails naming the tool-loop setting`() {
             val llm = mockk<LlmService<*>>(relaxed = true)
-            every { llm.createMessageSender(any()) } returns LlmMessageSender { messages, _ ->
-                sent += messages
-                LlmMessageResponse(com.embabel.chat.AssistantMessage("Duke"), "Duke")
-            }
             val setup = createChatClientLlmOperations(FakeChatModel("unused"), llm = llm)
-            val result = setup.llmOperations.createObject(
-                messages = listOf(UserMessage("Name a dog")),
-                interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
-                outputClass = String::class.java,
-                action = SimpleTestAgent.actions.first(),
-                agentProcess = setup.mockAgentProcess,
-            )
-            assertEquals("Duke", result)
-            assertTrue(sent.single().any { it.content.contains("Name a dog") })
-        }
 
-        @Test
-        fun `records the usage its sender reports`() {
-            val usage = Usage(promptTokens = 7, completionTokens = 3, nativeUsage = null)
-            val llm = mockk<LlmService<*>>(relaxed = true)
-            every { llm.createMessageSender(any()) } returns LlmMessageSender { _, _ ->
-                LlmMessageResponse(com.embabel.chat.AssistantMessage("Duke"), "Duke", usage)
+            val thrown = assertThrows<IllegalStateException> {
+                setup.llmOperations.createObject(
+                    messages = listOf(UserMessage("Name a dog")),
+                    interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
+                    outputClass = String::class.java,
+                    action = SimpleTestAgent.actions.first(),
+                    agentProcess = setup.mockAgentProcess,
+                )
             }
-            val setup = createChatClientLlmOperations(FakeChatModel("unused"), llm = llm)
-            setup.llmOperations.createObject(
-                messages = listOf(UserMessage("Name a dog")),
-                interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
-                outputClass = String::class.java,
-                action = SimpleTestAgent.actions.first(),
-                agentProcess = setup.mockAgentProcess,
-            )
-            assertEquals(usage, setup.mutableLlmInvocationHistory.invocations.single().usage)
+
+            assertThat(thrown.message).contains("embabel.agent.platform.llm-operations.type=tool-loop")
         }
     }
+
 }
