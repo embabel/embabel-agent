@@ -54,6 +54,10 @@ class FormBindingRequest<O : Any>(
     persistent = persistent,
 ) {
 
+    /**
+     * Creates a fresh request and preserves the existing Java constructor overloads.
+     * The primary constructor requires the saved identity and timestamp when restoring a request.
+     */
     @JvmOverloads
     constructor(
         form: Form,

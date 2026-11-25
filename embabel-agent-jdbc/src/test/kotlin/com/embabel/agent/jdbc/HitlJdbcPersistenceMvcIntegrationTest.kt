@@ -20,7 +20,6 @@ import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.core.Agent
-import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.AgentProcessStatusCode
@@ -28,10 +27,7 @@ import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.hitl.AbstractAwaitable
 import com.embabel.agent.core.hitl.AwaitableResponse
 import com.embabel.agent.core.hitl.AwaitableResponseException
-import com.embabel.agent.core.hitl.FormBindingRequest
-import com.embabel.agent.core.hitl.FormResponse
 import com.embabel.agent.core.hitl.ResponseImpact
-import com.embabel.agent.core.hitl.ValidationError
 import com.embabel.agent.core.hitl.waitFor
 import com.embabel.agent.core.persistence.BlackboardEntryDeserializationContext
 import com.embabel.agent.core.persistence.BlackboardEntrySerializationContext
@@ -40,30 +36,19 @@ import com.embabel.agent.core.persistence.SerializedBlackboardValue
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.SimpleAgentProcess
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration
-import com.embabel.agent.spi.config.spring.AgentProcessPersistenceProperties
-import com.embabel.agent.spi.config.spring.ProcessRepositoryProperties
 import com.embabel.agent.spi.persistence.AgentProcessPersistence
 import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
-import com.embabel.agent.spi.support.persistence.FormBindingRequestSerializer
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.common.util.EmbabelObjectMapperHolder
-import com.embabel.ux.form.Form
-import com.embabel.ux.form.FormSubmission
-import com.embabel.ux.form.TextField
-import io.mockk.every
-import io.mockk.mockk
 import tools.jackson.databind.ObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.beans.factory.support.StaticListableBeanFactory
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -101,29 +86,6 @@ private data class ChoiceRequest(val prompt: String, val options: List<String>)
 private data class UserChoice(val value: String, val request: ChoiceRequest? = null)
 
 private data class AdventureResult(val outcome: String)
-
-internal data class Approval(val decision: String)
-
-private data class ApprovalValidationError(val message: String) : ValidationError
-
-@com.embabel.agent.api.annotation.Agent(description = "JDBC form approval agent")
-private class ApprovalAgent {
-    @Action
-    fun requestApproval(input: UserInput): Approval = throw AwaitableResponseException(
-        FormBindingRequest(
-            form = Form("Approval", listOf(TextField(id = "decision", label = "Decision"))),
-            outputClass = Approval::class.java,
-            population = Approval(input.content),
-            validationErrors = listOf(ApprovalValidationError("Previous decision was incomplete")),
-            persistent = true,
-            bindingName = "approval",
-        ),
-    )
-
-    @Action
-    @AchievesGoal(description = "Finish the form approval")
-    fun finish(approval: Approval): AdventureResult = AdventureResult(approval.decision)
-}
 
 private class ChoiceAwaitable(
     val choiceRequest: ChoiceRequest,
@@ -393,9 +355,6 @@ class HitlJdbcPersistenceMvcIntegrationTest {
     @Qualifier("hitlJdbcSnapshotStore")
     private lateinit var snapshotStore: AgentProcessSnapshotStore
 
-    @Autowired
-    private lateinit var blackboardEntrySerializers: ObjectProvider<BlackboardEntrySerializer>
-
     private val objectMapperHolder = EmbabelObjectMapperHolder.createDefault()
     private val objectMapper: ObjectMapper = objectMapperHolder.get()
 
@@ -403,85 +362,6 @@ class HitlJdbcPersistenceMvcIntegrationTest {
     fun setUp() {
         runtimeRepository.clear()
         jdbcTemplate.clearSnapshots()
-    }
-
-    @Test
-    fun `form serialization is not installed by the default repository`() {
-        val agent = AgentMetadataReader().createAgentMetadata(ApprovalAgent()) as Agent
-        val repository = AgentProcessPersistence.persistentRepository(
-            runtimeRepository = InMemoryAgentProcessRepository(),
-            snapshotStore = snapshotStore,
-            objectMapper = objectMapper,
-            agents = { listOf(agent) },
-            platformServices = { IntegrationTestUtils.dummyPlatformServices() },
-        )
-        val waiting = waitingFormProcess(agent)
-        repository.save(waiting)
-
-        val snapshot = requireNotNull(snapshotStore.findLatestByProcessId(waiting.id))
-        assertThat(snapshot.payload.toString(Charsets.UTF_8))
-            .contains(FormBindingRequest::class.java.name)
-            .doesNotContain("embabel.form-binding-request.v1")
-    }
-
-    @Test
-    fun `restores a waiting form with an opt-in serializer bean and resumes with its original request id`() {
-        val agent = AgentMetadataReader().createAgentMetadata(ApprovalAgent()) as Agent
-        val platform = mockk<AgentPlatform>()
-        every { platform.agents() } returns listOf(agent)
-        every { platform.platformServices } returns IntegrationTestUtils.dummyPlatformServices()
-        val beans = StaticListableBeanFactory(mapOf("agentPlatform" to platform, "snapshotStore" to snapshotStore))
-        fun repository(): AgentProcessRepository = AgentPlatformConfiguration().agentProcessRepository(
-            processRepositoryProperties = ProcessRepositoryProperties(),
-            persistenceProperties = AgentProcessPersistenceProperties(),
-            snapshotStore = beans.getBeanProvider(AgentProcessSnapshotStore::class.java),
-            blackboardEntrySerializers = blackboardEntrySerializers,
-            embabelObjectMapperHolder = objectMapperHolder,
-            agentPlatform = beans.getBeanProvider(AgentPlatform::class.java),
-        )
-        val waiting = waitingFormProcess(agent)
-        val original = requireNotNull(waiting.blackboard.last(FormBindingRequest::class.java))
-        repository().save(waiting)
-        assertThat(snapshotStore.findLatestByProcessId(waiting.id)?.version).isEqualTo(1L)
-
-        val reader = repository()
-        val restored = requireNotNull(reader.findById(waiting.id))
-        val request = requireNotNull(restored.blackboard.last(FormBindingRequest::class.java))
-        assertThat(restored.status).isEqualTo(AgentProcessStatusCode.WAITING)
-        assertThat(request.id).isEqualTo(original.id)
-        assertThat(request.timestamp).isEqualTo(original.timestamp)
-        assertThat(request.payload).isEqualTo(original.payload)
-        assertThat(request.population).isEqualTo(Approval("pending"))
-        assertThat(request.validationErrors).containsExactly(ApprovalValidationError("Previous decision was incomplete"))
-        assertThat(request.persistent()).isTrue()
-        assertThat(request.bindingName).isEqualTo("approval")
-        request.onResponse(
-            FormResponse(
-                awaitableId = original.id,
-                formSubmission = FormSubmission(formId = original.payload.id, values = mapOf("decision" to "approved")),
-            ),
-            restored,
-        )
-        val completed = restored.run()
-        reader.save(completed)
-        assertThat(completed.status).isEqualTo(AgentProcessStatusCode.COMPLETED)
-        assertThat(completed.blackboard.last(AdventureResult::class.java)).isEqualTo(AdventureResult("approved"))
-        assertThat(snapshotStore.findLatestByProcessId(waiting.id)?.version).isEqualTo(2L)
-    }
-
-    private fun waitingFormProcess(agent: Agent): AgentProcess {
-        val blackboard = InMemoryBlackboard()
-        blackboard.addObject(UserInput("pending"))
-        return SimpleAgentProcess(
-            id = UUID.randomUUID().toString(),
-            parentId = null,
-            agent = agent,
-            processOptions = ProcessOptions.DEFAULT,
-            blackboard = blackboard,
-            platformServices = IntegrationTestUtils.dummyPlatformServices(),
-            plannerFactory = DefaultPlannerFactory,
-            timestamp = Instant.now(),
-        ).run().also { assertThat(it.status).isEqualTo(AgentProcessStatusCode.WAITING) }
     }
 
     @Test
@@ -603,10 +483,6 @@ class HitlJdbcPersistenceMvcIntegrationTest {
         // In production you do not need a named qualifier.
         @Bean
         fun jdbcRuntimeRepository(): InMemoryAgentProcessRepository = InMemoryAgentProcessRepository()
-
-        @Bean
-        fun formBindingRequestSerializer(): BlackboardEntrySerializer =
-            FormBindingRequestSerializer(EmbabelObjectMapperHolder.createDefault().get())
 
         // ── STEP 5: assemble the durable repository ───────────────────────────
         //

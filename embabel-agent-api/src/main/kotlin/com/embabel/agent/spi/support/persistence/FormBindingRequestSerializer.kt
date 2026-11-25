@@ -39,6 +39,7 @@ class FormBindingRequestSerializer(
 
     override fun supportsSerialization(value: Any): Boolean = value is FormBindingRequest<*>
 
+    // Older entries used the class name as their discriminator.
     override fun supportsDeserialization(value: SerializedBlackboardValue): Boolean =
         value.typeName == TYPE_NAME || value.typeName == FormBindingRequest::class.java.name
 
@@ -85,7 +86,9 @@ class FormBindingRequestSerializer(
             outputClass = outputClass,
             population = snapshot.population?.let { objectMapper.treeToValue(it, outputClass) },
             validationErrors = snapshot.validationErrors.map { error ->
-                objectMapper.treeToValue(error.payload, loadClass(error.typeName).asSubclass(ValidationError::class.java))
+                // Check that the stored class implements ValidationError before giving it to Jackson.
+                val errorClass = loadClass(error.typeName).asSubclass(ValidationError::class.java)
+                objectMapper.treeToValue(error.payload, errorClass)
             },
             persistent = snapshot.persistent,
             bindingName = snapshot.bindingName,
@@ -96,6 +99,7 @@ class FormBindingRequestSerializer(
     private fun loadClass(name: String): Class<*> =
         ClassUtils.forName(name, ClassUtils.getDefaultClassLoader())
 
+    // Captures the pending request at checkpoint time so its identity and binding data can be restored.
     private data class Snapshot(
         val id: String,
         val timestamp: Instant,
@@ -110,6 +114,7 @@ class FormBindingRequestSerializer(
     private data class ErrorSnapshot(val typeName: String, val payload: JsonNode)
 
     private companion object {
+        // A stable, versioned discriminator lets the storage format evolve independently of the runtime class name.
         const val TYPE_NAME = "embabel.form-binding-request.v1"
     }
 }
