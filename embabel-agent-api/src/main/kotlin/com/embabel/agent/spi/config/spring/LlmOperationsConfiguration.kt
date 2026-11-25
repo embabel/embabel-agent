@@ -28,6 +28,7 @@ import com.embabel.agent.spi.support.ToolLoopLlmOperations
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.EmbabelObjectMapperHolder
@@ -69,6 +70,7 @@ class LlmOperationsConfiguration {
         asyncer: Asyncer,
         toolLoopFactory: ToolLoopFactory,
         templateRenderer: TemplateRenderer,
+        schemaGeneratorCustomizers: ObjectProvider<SchemaGeneratorCustomizer>,
     ): ToolLoopLlmOperations {
         return ToolLoopLlmOperations(
             modelProvider = modelProvider,
@@ -84,6 +86,7 @@ class LlmOperationsConfiguration {
             asyncer = asyncer,
             toolLoopFactory = toolLoopFactory,
             templateRenderer = templateRenderer,
+            schemaGeneratorCustomizers = schemaGeneratorCustomizers.orderedStream().toList(),
         )
     }
 

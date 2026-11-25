@@ -23,6 +23,7 @@ import com.embabel.agent.spi.support.AbstractLlmOperations
 import com.embabel.agent.spi.support.DefaultToolDecorator
 import com.embabel.agent.spi.support.ToolLoopLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.textio.template.TemplateRenderer
@@ -80,6 +81,19 @@ class LlmOperationsSelectionTest {
                 assertThat(field(AbstractLlmOperations::class.java, "asyncer", operations)).isSameAs(asyncer)
                 assertThat(field(ToolLoopLlmOperations::class.java, "toolLoopFactory", operations))
                     .isSameAs(toolLoopFactory)
+            }
+    }
+
+    @Test
+    fun `tool-loop applies the schema generator customizers, as the Spring AI operations do`() {
+        val customizer = SchemaGeneratorCustomizer { }
+        contextRunner
+            .withPropertyValues("embabel.agent.platform.llm-operations.type=tool-loop")
+            .withBean(SchemaGeneratorCustomizer::class.java, { customizer })
+            .run { context ->
+                assertThat(context).hasNotFailed()
+                val operations = context.getBean(ToolLoopLlmOperations::class.java)
+                assertThat(operations.schemaGeneratorCustomizers).containsExactly(customizer)
             }
     }
 

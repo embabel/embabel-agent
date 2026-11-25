@@ -374,10 +374,10 @@ embabel:
 
 Under `tool-loop`:
 
-* Calls that return `String` go through the service's own `LlmMessageSender`, including tool calls. Usage reported by the sender is recorded.
-* Typed output (`createObject` with a class other than `String`) is not supported yet, nor is `createObjectIfPossible` for any class, `String` included. The same holds for their thinking variants. All fail with a message saying there is no output converter.
+* Every call goes through the service's own `LlmMessageSender`, including tool calls. Usage reported by the sender is recorded.
+* Typed output, `createObjectIfPossible` and their thinking variants work as they do under `spring-ai`: the same JSON schema, format instructions and parsing, and the same `SchemaGeneratorCustomizer` beans.
 * No `ChatModelCallEvent` is emitted, and there are no Spring AI `ChatClient` observations.
-* This applies to every model, including Spring AI ones: they go through `SpringAiLlmService.createMessageSender`, without typed output or the Spring AI extras above. Keep the default, `spring-ai`, unless your services are not backed by Spring AI.
+* This applies to every model, including Spring AI ones: they go through `SpringAiLlmService.createMessageSender`, without the Spring AI extras above. Keep the default, `spring-ai`, unless your services are not backed by Spring AI.
 
 To replace both implementations, register your own `LlmOperations` bean marked `@Primary`.
 
