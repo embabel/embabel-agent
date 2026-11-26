@@ -1,0 +1,51 @@
+{
+  "questions": [
+    {
+      "kind": "proposition",
+      "name": "urgent",
+      "instructions": "Does this ticket convey urgency?"
+    },
+    {
+      "kind": "choice",
+      "name": "department",
+      "instructions": "Which team should handle this ticket?",
+      "options": [
+        {
+          "id": "BILLING",
+          "description": "Payments, invoicing, refunds"
+        },
+        {
+          "id": "TECHNICAL",
+          "description": "Bugs, outages, integrations"
+        },
+        {
+          "id": "ACCOUNT",
+          "description": "Accounts, sign-in, permissions"
+        }
+      ]
+    },
+    {
+      "kind": "rating",
+      "name": "severity",
+      "instructions": "How severe is the customer impact?",
+      "levels": [
+        {
+          "id": "LOW",
+          "description": "Cosmetic or no customer impact"
+        },
+        {
+          "id": "MEDIUM",
+          "description": "Work is slowed for one customer"
+        },
+        {
+          "id": "HIGH",
+          "description": "Work is blocked for one customer"
+        },
+        {
+          "id": "CRITICAL",
+          "description": "Work is blocked for many customers"
+        }
+      ]
+    }
+  ]
+}
