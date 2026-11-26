@@ -47,6 +47,7 @@
         <module>embabel-agent-openai</module>
         <module>embabel-agent-anthropic</module>
         <module>embabel-agent-onnx</module>
+        <module>embabel-agent-eval</module>
     </modules>
 
     <scm>
