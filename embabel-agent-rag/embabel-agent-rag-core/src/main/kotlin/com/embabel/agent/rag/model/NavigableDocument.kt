@@ -61,8 +61,9 @@ interface NavigableContainerSection : ContainerSection, NavigableSection {
 }
 
 /**
- * Where a [section] falls in the document it belongs to: its [ordinal] in reading order (0-based)
- * and its [depth] below the document (1 for a top-level section).
+ * Where a [section] falls within the container that listed it with
+ * [NavigableContainerSection.sectionsInReadingOrder]: its [ordinal] in reading order (0-based) and its
+ * [depth] below that container (1 for a direct child). Listed from a document, that is a top-level section.
  */
 data class SectionPlace(
     val section: NavigableSection,

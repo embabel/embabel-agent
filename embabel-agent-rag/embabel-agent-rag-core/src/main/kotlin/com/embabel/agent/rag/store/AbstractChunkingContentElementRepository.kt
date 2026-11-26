@@ -122,6 +122,11 @@ abstract class AbstractChunkingContentElementRepository(
      * Save the document's [chunks], before [onNewRetrievables] is given them. The default saves each
      * with [save]. A store whose [onNewRetrievables] writes every chunk whole (see [embedAndPersist])
      * may save them there instead, rather than writing each chunk twice.
+     *
+     * An override that does not save the chunks here must make sure [onNewRetrievables] stores **every**
+     * chunk it is given: those that could not be embedded (without a vector) and all of them when there
+     * is no [EmbeddingService]. [embedAndPersist] does this. A chunk that neither step stores is lost
+     * without any error.
      */
     protected open fun saveChunks(chunks: List<Chunk>) {
         chunks.forEach { save(it) }
