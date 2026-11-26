@@ -20,6 +20,10 @@ package com.embabel.agent.core
  * @param promptTokens all input tokens, including any cache reads and writes
  * @param cacheReadInputTokens input tokens read from the provider's prompt cache, if reported
  * @param cacheWriteInputTokens input tokens written to the provider's prompt cache, if reported
+ * @param thinkingTokens the part of [completionTokens] the model spent thinking. Set only when the provider
+ *        reports thinking outside its completion count (Gemini); already counted and billed in the completion.
+ *        Null does not mean the model did not think: OpenAI and Anthropic count thinking inside the
+ *        completion, and it is not split out for them.
  */
 data class Usage @JvmOverloads constructor(
     val promptTokens: Int?,
@@ -27,6 +31,7 @@ data class Usage @JvmOverloads constructor(
     val nativeUsage: Any?,
     val cacheReadInputTokens: Int? = null,
     val cacheWriteInputTokens: Int? = null,
+    val thinkingTokens: Int? = null,
 ) {
 
     val totalTokens: Int?
@@ -45,6 +50,7 @@ data class Usage @JvmOverloads constructor(
         nativeUsage = null, // Cannot combine native usage objects
         cacheReadInputTokens = sum(cacheReadInputTokens, other.cacheReadInputTokens),
         cacheWriteInputTokens = sum(cacheWriteInputTokens, other.cacheWriteInputTokens),
+        thinkingTokens = sum(thinkingTokens, other.thinkingTokens),
     )
 
     private fun sum(a: Int?, b: Int?): Int? =

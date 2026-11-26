@@ -1482,6 +1482,8 @@ val options = LlmOptions.withDefaultLlm()
 Whatever the <<reference.llms.anthropic-caching,caching configuration>> caches, Embabel counts.
 Cache reads and writes count as input tokens: `Usage.promptTokens` includes them, and `Usage.cacheReadInputTokens` and `Usage.cacheWriteInputTokens` report them separately.
 Token totals, cost and early-termination budgets therefore include cached input.
+Thinking counts as output: Gemini reports it apart from the completion, so Embabel adds it to `Usage.completionTokens` and reports it separately in `Usage.thinkingTokens`.
+`Usage.thinkingTokens` is set for Gemini only; OpenAI and Anthropic already count thinking inside the completion.
 Bundled Anthropic models carry Anthropic's published cache-read and 5-minute cache-write rates.
 An Anthropic or Bedrock Claude model whose pricing model does not set cache rates prices cache reads at its input rate, so cost is never under-stated, and cache writes at 125% of it.
 That is Anthropic's 5-minute cache-write rate for current models, but Anthropic sets prices per model, so set the cache rates explicitly for a model priced differently.

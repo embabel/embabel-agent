@@ -131,6 +131,33 @@ class SpringAiLlmMessageStreamerTest {
         assertEquals(0.0093, invocation.cost(), 1e-12)
     }
 
+    /**
+     * Gemini puts running totals on every chunk, its whole thinking already on the first one,
+     * and MessageAggregator rebuilds the usage without it.
+     */
+    @Test
+    fun `completion counts the thinking the provider reports on its chunks, once`() {
+        every { chatModel.stream(any<Prompt>()) } returns Flux.just(
+            chunk("hel", DefaultUsage(56, 27, 803, 720)),
+            chunk("lo", DefaultUsage(56, 54, 830, 720)),
+            chunk("!", DefaultUsage(56, 54, 830, 720)),
+        )
+        val streamer = SpringAiLlmMessageStreamer(
+            chatModel,
+            chatOptions,
+            thinkingTokenReader = { it.nativeUsage as? Int },
+        )
+
+        val usage = streamer.streamInference(listOf(UserMessage("Hi")), emptyList())
+            .ofType(LlmInferenceStreamEvent.Complete::class.java)
+            .blockLast()!!
+            .usage!!
+
+        assertEquals(56, usage.promptTokens)
+        assertEquals(54 + 720, usage.completionTokens)
+        assertEquals(720, usage.thinkingTokens)
+    }
+
     private fun chunk(text: String, usage: DefaultUsage) = ChatResponse(
         listOf(Generation(AssistantMessage(text))),
         ChatResponseMetadata.builder().usage(usage).build(),

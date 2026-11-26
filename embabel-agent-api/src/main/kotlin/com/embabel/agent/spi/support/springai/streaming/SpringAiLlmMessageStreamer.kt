@@ -20,6 +20,7 @@ import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
 import com.embabel.agent.spi.support.springai.SpringAiLlmMessageSender
+import com.embabel.agent.spi.support.springai.SpringAiThinkingTokenReader
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toEmbabelMessage
 import com.embabel.agent.spi.support.springai.toEmbabelUsage
@@ -54,6 +55,7 @@ internal class SpringAiLlmMessageStreamer(
     private val chatOptions: ChatOptions,
     private val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
     private val promptTokensExcludeCache: Boolean = false,
+    private val thinkingTokenReader: SpringAiThinkingTokenReader = SpringAiThinkingTokenReader.NONE,
 ) : LlmMessageStreamer {
 
     override fun stream(
@@ -83,13 +85,14 @@ internal class SpringAiLlmMessageStreamer(
         // It emits one assembled response for this inference turn, after its partial
         // content/tool fragments and before Embabel executes any requested tools.
         val aggregate = Sinks.one<ChatResponse>()
-        // MessageAggregator rebuilds usage without cache counts; keep the last positive
-        // values, as it does for prompt and completion tokens.
+        // MessageAggregator rebuilds usage without cache counts or thinking; keep the last positive
+        // values, as it does for prompt and completion tokens. Gemini sends running totals on each chunk.
         // Only counts the provider adapter puts on a ChatResponse arrive here: Spring AI 2.0.1's
         // AnthropicChatModel reads cache counts from message_delta alone (cumulative per Anthropic's
         // schema), so a stream that sends them only in message_start loses them before this point.
         var cacheRead: Long? = null
         var cacheWrite: Long? = null
+        var thinking: Int? = null
 
         // Spring providers may split a tool-call ID, name, and JSON arguments across
         // multiple ChatResponse chunks. MessageAggregator leaves those chunks in the
@@ -107,6 +110,7 @@ internal class SpringAiLlmMessageStreamer(
                         response.metadata?.usage?.let { usage ->
                             usage.cacheReadInputTokens?.takeIf { it > 0 }?.let { cacheRead = it }
                             usage.cacheWriteInputTokens?.takeIf { it > 0 }?.let { cacheWrite = it }
+                            thinkingTokenReader.read(usage)?.takeIf { it > 0 }?.let { thinking = it }
                         }
                     },
                     aggregate::tryEmitValue,
@@ -125,7 +129,7 @@ internal class SpringAiLlmMessageStreamer(
                                 usage.nativeUsage,
                                 cacheRead,
                                 cacheWrite,
-                            ).toEmbabelUsage(promptTokensExcludeCache)
+                            ).toEmbabelUsage(promptTokensExcludeCache, thinking)
                         },
                     )
                 }

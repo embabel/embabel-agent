@@ -18,6 +18,7 @@ package com.embabel.agent.openai
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.SpringAiThinkingTokenReader
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
 import io.mockk.Runs
@@ -26,6 +27,7 @@ import io.mockk.just
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatModel
@@ -126,6 +128,31 @@ class OpenAiCompatibleModelFactoryTest {
         val options = LlmOptions().withOpenAiReasoningEffort("none")
         assertEquals("none", (llm.optionsConverter.convertOptions(options, "foo") as OpenAiChatOptions).reasoningEffort)
         assertNull((llm.optionsConverter.convertOptions(LlmOptions(), "foo") as OpenAiChatOptions).reasoningEffort)
+    }
+
+    @Test
+    fun `a provider's thinking token reader reaches its service, and none by default`() {
+        val mf = OpenAiCompatibleModelFactory(
+            baseUrl = null,
+            apiKey = "test-key",
+            completionsPath = null,
+            embeddingsPath = null,
+            observationRegistry = mockk(),
+            restClientBuilder = restClientBuilder,
+        )
+        val reader = SpringAiThinkingTokenReader { 42 }
+
+        val withReader = mf.openAiCompatibleLlm(
+            model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = "Gemini", knowledgeCutoffDate = null, thinkingTokenReader = reader,
+        ) as SpringAiLlmService
+        val withoutReader = mf.openAiCompatibleLlm(
+            model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = "Test", knowledgeCutoffDate = null,
+        ) as SpringAiLlmService
+
+        assertSame(reader, withReader.thinkingTokenReader)
+        assertSame(SpringAiThinkingTokenReader.NONE, withoutReader.thinkingTokenReader)
     }
 
 }
