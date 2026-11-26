@@ -17,8 +17,8 @@ package com.embabel.agent.a2a.server.support
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger as LogbackLogger
+import com.embabel.agent.a2a.A2AContextIdThreadLocalAccessor
 import com.embabel.agent.a2a.A2A_CONTEXT_ID_SPAN_KEY
-import com.embabel.agent.a2a.A2A_CONTEXT_ID_KEY
 import com.embabel.agent.a2a.A2A_MESSAGE_SEND
 import com.embabel.agent.a2a.A2A_METHOD_KEY
 import com.embabel.agent.a2a.A2A_METHOD_SEND_VALUE
@@ -33,7 +33,6 @@ import io.micrometer.observation.tck.TestObservationRegistryAssert
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
-import io.opentelemetry.context.Context
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
@@ -145,15 +144,14 @@ class AutonomyA2ARequestHandlerObservationTest {
     }
 
     @Test
-    fun `handleMessageStream restores contextId in OTel context on virtual thread`() {
+    fun `handleMessageStream makes contextId visible on virtual thread`() {
         val contextId = "ctx-stream-test"
         var capturedContextId: String? = null
         val latch = java.util.concurrent.CountDownLatch(1)
 
         every { streamingHandler.createStream(any(), any(), any()) } returns SseEmitter()
         every { autonomy.chooseAndRunAgent(any(), any()) } answers {
-            // Capture the key value as seen from inside the virtual thread
-            capturedContextId = Context.current().get(A2A_CONTEXT_ID_KEY)
+            capturedContextId = A2AContextIdThreadLocalAccessor.currentContextId()
             latch.countDown()
             mockk(relaxed = true)
         }
@@ -170,35 +168,33 @@ class AutonomyA2ARequestHandlerObservationTest {
         latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
 
         assertEquals(contextId, capturedContextId,
-            "A2A_CONTEXT_ID_KEY must be visible on the virtual thread during streaming execution")
+            "contextId must be visible on the virtual thread during streaming execution")
     }
 
     @Test
-    fun `handleJsonRpc stores contextId in OTel context key so downstream A2A calls can inherit it`() {
+    fun `handleJsonRpc makes contextId visible during agent execution so downstream A2A calls can inherit it`() {
         val contextId = "ctx-chain-test"
         var capturedContextId: String? = null
 
-        // Capture the value of A2A_CONTEXT_ID_KEY as seen by code running inside the handler
-        // (simulates what EmbabelA2AClient.resolveContextId will do in Step 4).
         every { autonomy.chooseAndRunAgent(any(), any()) } answers {
-            capturedContextId = Context.current().get(A2A_CONTEXT_ID_KEY)
+            capturedContextId = A2AContextIdThreadLocalAccessor.currentContextId()
             mockk(relaxed = true)
         }
 
         handler.handleJsonRpc(buildSendMessageRequest(taskId = null, contextId = contextId))
 
         assertEquals(contextId, capturedContextId,
-            "contextId must be visible in OTel context during agent execution")
+            "contextId must be visible during agent execution")
     }
 
     @Test
-    fun `handleJsonRpc restores context after completion — key is absent outside handler`() {
+    fun `handleJsonRpc clears contextId after completion`() {
         every { autonomy.chooseAndRunAgent(any(), any()) } returns mockk(relaxed = true)
 
         handler.handleJsonRpc(buildSendMessageRequest(taskId = null, contextId = "ctx-restore-test"))
 
-        assertNull(Context.current().get(A2A_CONTEXT_ID_KEY),
-            "A2A_CONTEXT_ID_KEY must be absent after the handler returns — scope must be closed")
+        assertNull(A2AContextIdThreadLocalAccessor.currentContextId(),
+            "contextId must be absent after the handler returns")
     }
 
     private fun buildSendMessageRequest(taskId: String?, contextId: String?): SendMessageRequest {

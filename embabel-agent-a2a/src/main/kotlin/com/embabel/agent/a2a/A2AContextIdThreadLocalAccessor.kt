@@ -81,14 +81,26 @@ class A2AContextIdThreadLocalAccessor : ThreadLocalAccessor<String> {
         private val propagated: ThreadLocal<ArrayDeque<String>> = ThreadLocal.withInitial { ArrayDeque() }
 
         /**
-         * The A2A contextId visible on the current thread: the one set by the A2A request handler in
-         * the OTel [Context] on the request thread, otherwise the one propagated to this worker thread.
+         * The A2A contextId for the current thread.
+         *
+         * Looks in two places, in order:
+         * 1. the OTel [Context] ([A2A_CONTEXT_ID_KEY])
+         * 2. this accessor's per-thread stack, which the A2A request handler fills
          */
         fun currentContextId(): String? =
             Context.current().get(A2A_CONTEXT_ID_KEY)
                 ?: propagated.get().peekFirst()?.takeIf { it != NONE }
 
-        private fun pop() {
+        /**
+         * Called by the A2A request handler before running the agent; always paired with [pop] in `finally`.
+         *
+         * Cannot be stored in the OTel [Context] due to the tracing bridge (micrometer-tracing-bridge-otel):
+         * whenever a span starts, the bridge replaces the OTel Context and keeps only the span and baggage,
+         * so any other value stored there is lost.
+         */
+        internal fun push(contextId: String) = propagated.get().push(contextId)
+
+        internal fun pop() {
             val stack = propagated.get()
             stack.pollFirst()
             if (stack.isEmpty()) propagated.remove()

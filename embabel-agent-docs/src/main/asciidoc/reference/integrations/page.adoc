@@ -878,8 +878,13 @@ the inbound `contextId` is injected into the outbound message body transparently
 This means all agents in the chain share the same session identifier, which is recorded as a span tag
 (`a2a.context_id`) on every `a2a.message.send`, `a2a.message.stream`, and `a2a.client.send` observation.
 
-The propagation mechanism uses a JVM-local OTel `ContextKey` — the `contextId` is never placed in HTTP
-headers and cannot reach LLM providers or other external services.
+The `contextId` is held in a JVM-local, per-thread store (a Micrometer `ThreadLocalAccessor`) for the
+duration of the agent run. It is never placed in HTTP headers or baggage, so it cannot reach LLM providers
+or other external services.
+
+If an agent sets its own `contextId` on an outbound message, that value is used and the inbound one is not
+forwarded. The replacement is logged at INFO:
+`Outbound A2A contextId <agent's id> set by the agent replaces inbound contextId <inbound id>`.
 
 Propagation also covers calls made on other threads, such as parallel actions and `parallelMap`:
 the `contextId` is registered with Micrometer context propagation, so it travels with the rest of the
@@ -932,6 +937,43 @@ spans to *Langfuse* and/or *LangSmith*:
 ----
 
 TIP: You can use multiple exporters simultaneously (e.g., Langfuse for traces + Prometheus for metrics).
+
+===== How the pieces fit
+
+Tracing involves three separate products. Embabel code only uses the first; the starter brings in the other two.
+
+[cols="1,1,3"]
+|===
+|Product |Project |Role
+
+|Micrometer Observation
+|Micrometer
+|Vendor-neutral API for "observe this piece of work" (`Observation.start()`, `observe()`). Embabel and Spring code against it.
+
+|Micrometer Tracing + `micrometer-tracing-bridge-otel`
+|Micrometer
+|The bridge turns each observation into an OpenTelemetry span and makes that span current while the work runs.
+
+|OpenTelemetry (OTel)
+|CNCF
+|The tracing engine: spans, the per-thread OTel `Context`, and the exporters (OTLP, Zipkin, ...).
+|===
+
+[source]
+----
+embabel / Spring code     Observation.createNotStarted("...").observe { ... }   (Micrometer API)
+        │
+        ▼
+micrometer-tracing-bridge-otel   creates the OTel span, makes it current in the OTel Context
+        │
+        ▼
+OpenTelemetry SDK  ──  exporter (e.g. OTLP)  ──►  tracing backend (Tempo, Jaeger, Langfuse, ...)
+----
+
+NOTE: Each time a span becomes current, the bridge replaces the OTel `Context` and keeps only the span and baggage.
+A custom value put into the OTel `Context` (an OTel `ContextKey`) does not survive into nested spans.
+Use baggage or a Micrometer `ThreadLocalAccessor` to carry such values; this is why A2A `contextId` propagation
+does not use the OTel `Context` (see <<reference.integrations__a2a>>).
 
 ===== Configuration
 
