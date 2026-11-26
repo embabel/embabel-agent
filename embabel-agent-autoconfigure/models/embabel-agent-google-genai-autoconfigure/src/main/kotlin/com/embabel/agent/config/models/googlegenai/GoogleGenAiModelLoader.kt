@@ -53,6 +53,7 @@ data class GoogleGenAiModelDefinitions(
  * @property topK top-k sampling parameter
  * @property thinkingBudget optional thinking process token allocation
  * @property includeThoughts whether to include model thought summaries in responses
+ * @property thinking optional thinking capabilities of the model
  */
 data class GoogleGenAiModelDefinition(
     override val name: String,
@@ -66,7 +67,18 @@ data class GoogleGenAiModelDefinition(
     val topK: Int? = null,
     val thinkingBudget: Int? = null,
     val includeThoughts: Boolean? = null,
+    val thinking: ThinkingConfiguration? = null,
 ) : LlmAutoConfigMetadata
+
+/**
+ * Per-model thinking capabilities.
+ *
+ * @property canBeDisabled whether the model accepts `thinkingBudget = 0`, which
+ * [com.embabel.common.ai.model.Thinking.NONE] needs; where it is not `true`, the opt-out is ignored with a warning
+ */
+data class ThinkingConfiguration(
+    val canBeDisabled: Boolean? = null,
+)
 
 /**
  * Google GenAI embedding model definition.

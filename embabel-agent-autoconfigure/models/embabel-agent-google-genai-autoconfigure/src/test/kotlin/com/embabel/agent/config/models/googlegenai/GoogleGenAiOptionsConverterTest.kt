@@ -75,6 +75,54 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
     }
 
     @Test
+    fun `should send zero thinking budget on opt-out when the model can be disabled`() {
+        val options = GoogleGenAiOptionsConverter.declaring(true).convertOptions(
+            LlmOptions().withoutThinking(), "test-model"
+        ) as GoogleGenAiChatOptions
+        assertEquals(0, options.thinkingBudget)
+    }
+
+    @Test
+    fun `should keep zero budget and include thoughts when opt-out is combined with extraction`() {
+        val options = GoogleGenAiOptionsConverter.declaring(true).convertOptions(
+            LlmOptions().withThinking(Thinking.NONE.applyExtraction()), "test-model"
+        ) as GoogleGenAiChatOptions
+        assertEquals(0, options.thinkingBudget)
+        assertEquals(true, options.includeThoughts)
+    }
+
+    @Test
+    fun `should not send a budget on opt-out when the model cannot be disabled`() {
+        val options = GoogleGenAiOptionsConverter.declaring(false).convertOptions(
+            LlmOptions().withoutThinking(), "test-model"
+        ) as GoogleGenAiChatOptions
+        assertNull(options.thinkingBudget)
+    }
+
+    @Test
+    fun `should not send a budget on opt-out when the catalog does not declare it`() {
+        val options = GoogleGenAiOptionsConverter.convertOptions(
+            LlmOptions().withoutThinking(), "test-model"
+        ) as GoogleGenAiChatOptions
+        assertNull(options.thinkingBudget)
+    }
+
+    @Test
+    fun `declaring true leaves an explicit budget and no-thinking requests as before`() {
+        val converter = GoogleGenAiOptionsConverter.declaring(true)
+        val budget = converter.convertOptions(
+            LlmOptions().withThinking(Thinking.withTokenBudget(2000)), "test-model"
+        ) as GoogleGenAiChatOptions
+        assertEquals(2000, budget.thinkingBudget)
+        val none = converter.convertOptions(LlmOptions(), "test-model") as GoogleGenAiChatOptions
+        assertNull(none.thinkingBudget)
+        val extractionOnly = converter.convertOptions(
+            LlmOptions().withThinking(Thinking.withExtraction()), "test-model"
+        ) as GoogleGenAiChatOptions
+        assertNull(extractionOnly.thinkingBudget)
+    }
+
+    @Test
     fun `should set default maxOutputTokens`() {
         val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as GoogleGenAiChatOptions
         assertEquals(GoogleGenAiOptionsConverter.DEFAULT_MAX_OUTPUT_TOKENS, options.maxOutputTokens)
