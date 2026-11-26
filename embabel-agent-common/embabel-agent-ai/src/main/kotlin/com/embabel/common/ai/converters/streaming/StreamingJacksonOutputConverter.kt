@@ -16,9 +16,11 @@
 package com.embabel.common.ai.converters.streaming
 
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.ai.converters.SchemaGeneratorCustomizer
 import com.embabel.common.ai.converters.streaming.support.ThinkingDetector
 import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.streaming.ThinkingState
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import tools.jackson.databind.ObjectMapper
 import org.springframework.core.ParameterizedTypeReference
 import reactor.core.publisher.Flux
@@ -41,18 +43,32 @@ import java.util.function.Predicate
  *
  * The converter requests JSONL format from LLMs and parses each line as a separate
  * JSON object, emitting them as reactive stream events as they become available.
+ *
+ * A [SchemaGeneratorCustomizer] passed to the constructor configures the JSON schema generator after the field filter;
+ * the constructors without one leave the schema as it is.
  */
-open class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter<T> {
+class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter<T> {
 
     private val thinkingEnabled: Boolean
+
+    private val schemaGeneratorCustomizer: SchemaGeneratorCustomizer
 
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field> = Predicate { true },
         thinkingEnabled: Boolean = true,
+    ) : this(clazz, objectMapper, fieldFilter, thinkingEnabled, SchemaGeneratorCustomizer {})
+
+    constructor(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        thinkingEnabled: Boolean,
+        schemaGeneratorCustomizer: SchemaGeneratorCustomizer,
     ) : super(clazz, objectMapper, fieldFilter) {
         this.thinkingEnabled = thinkingEnabled
+        this.schemaGeneratorCustomizer = schemaGeneratorCustomizer
     }
 
     constructor(
@@ -60,9 +76,21 @@ open class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConv
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field> = Predicate { true },
         thinkingEnabled: Boolean = true,
+    ) : this(typeReference, objectMapper, fieldFilter, thinkingEnabled, SchemaGeneratorCustomizer {})
+
+    constructor(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        thinkingEnabled: Boolean,
+        schemaGeneratorCustomizer: SchemaGeneratorCustomizer,
     ) : super(typeReference, objectMapper, fieldFilter) {
         this.thinkingEnabled = thinkingEnabled
+        this.schemaGeneratorCustomizer = schemaGeneratorCustomizer
     }
+
+    override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+        super.schemaGeneratorConfigBuilder().also(schemaGeneratorCustomizer::customize)
 
     /**
      * Convert streaming JSONL text to a Flux of typed objects.
