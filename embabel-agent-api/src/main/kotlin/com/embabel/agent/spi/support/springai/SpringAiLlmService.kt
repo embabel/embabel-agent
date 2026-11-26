@@ -65,7 +65,8 @@ import kotlin.jvm.internal.DefaultConstructorMarker
  * @param nativeThinkingExtractor Extracts native thinking blocks from the raw ChatResponse.
  *        Defaults to no-op; Anthropic wires [com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor].
  * @param promptTokensExcludeCache Whether the chat model reports prompt-cache reads and writes
- *        on top of Spring AI's promptTokens (Anthropic) rather than within it (OpenAI).
+ *        on top of Spring AI's promptTokens rather than within it. False for OpenAI, and for
+ *        Anthropic and Bedrock Converse since Spring AI 2.0.3.
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(

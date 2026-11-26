@@ -250,7 +250,8 @@ open class AnthropicModelFactory(
             pricingModel = (pricingModel as? PerTokenPricingModel)?.withAnthropicCacheRateDefaults() ?: pricingModel,
             thinkingSupported = true,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
-            promptTokensExcludeCache = true,
+            // Since Spring AI 2.0.3, AnthropicChatModel's promptTokens already includes cache reads and writes.
+            promptTokensExcludeCache = false,
         ).also {
             // Automatic cleanup waits until the model is unreachable, even after cache eviction.
             it.registerChatModelCleanup(cleanup)

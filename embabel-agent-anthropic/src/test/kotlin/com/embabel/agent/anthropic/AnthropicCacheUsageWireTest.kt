@@ -72,7 +72,7 @@ class AnthropicCacheUsageWireTest {
     private fun assertCacheCounted(usage: Usage) {
         assertEquals(800, usage.cacheReadInputTokens)
         assertEquals(50, usage.cacheWriteInputTokens)
-        assertEquals(950, usage.promptTokens, "input_tokens excludes cache, so embabel adds read and write")
+        assertEquals(950, usage.promptTokens, "input_tokens excludes cache; Spring AI adds read and write, embabel must not add them again")
         assertEquals(5, usage.completionTokens)
         // 100 uncached, 800 read, 50 written at the unconfigured default of 1.25x input, 5 out.
         val expected = with(PRICING) {

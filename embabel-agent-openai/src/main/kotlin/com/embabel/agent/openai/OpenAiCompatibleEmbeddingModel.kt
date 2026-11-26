@@ -96,7 +96,12 @@ internal class OpenAiCompatibleEmbeddingModel(
         // maps: both sides are combined, and the request's entry wins on a shared key.
         val merged = OpenAiEmbeddingOptions.builder().from(options).merge(request.options).build()
         val params = merged.toOpenAiCreateParams(request.instructions)
-        val requestOptions = RequestOptions.builder().timeout(merged.timeout).build()
+        // Since Spring AI 2.0.3 the options carry no timeout unless one is configured, and
+        // OpenAiEmbeddingModel sets a per-call timeout only when there is one. Do the same: with
+        // none, the client-level timeout applies.
+        val requestOptions = RequestOptions.builder()
+            .apply { merged.timeout?.let { timeout(it) } }
+            .build()
         val context = EmbeddingModelObservationContext.builder()
             .embeddingRequest(EmbeddingRequest(request.instructions, merged))
             .provider(AiProvider.OPENAI.value())
