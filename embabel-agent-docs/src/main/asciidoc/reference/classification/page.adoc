@@ -139,6 +139,14 @@ An `Answered` result contains a boolean answer: both `true` and `false` are succ
 Optional `pTrue` is the provider's probability that the proposition is true, not confidence in whichever boolean answer was returned.
 It obeys the same finite zero-to-one validation and absence rules as classification confidence.
 
+A proposition can be assessed against a JSON object or array too.
+Build the request with `new PropositionRequest(state, proposition)`, where the state is a Jackson `JsonNode`:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/StructuredInputJavaTest.java[tag=assess,indent=0]
+----
+
 This test implementation returns `false` successfully and leaves `pTrue` absent:
 
 [source,java]

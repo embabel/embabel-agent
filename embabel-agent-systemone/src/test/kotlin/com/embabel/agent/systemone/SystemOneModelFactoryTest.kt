@@ -193,6 +193,21 @@ class SystemOneModelFactoryTest {
         }
 
         @Test
+        fun `a structured assessment is posted with its state as a JSON object in field order`() {
+            val mocked = mocked()
+            var body: String? = null
+            mocked.server.expect(requestTo("$base/v1/systemone"))
+                .andExpect { request -> body = (request as MockClientHttpRequest).bodyAsString }
+                .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+            val state = mapper.readTree("""{"ticket":{"subject":"Refund"},"priority":2}""")
+
+            val result = mocked.factory.build().assess(PropositionRequest(state, "Is `ticket.subject` about a refund?"))
+
+            assertTrue(result is PropositionResult.Answered, result.toString())
+            assertTrue(body!!.startsWith("""{"state":{"ticket":{"subject":"Refund"},"priority":2},"model":"model-1","""), body)
+        }
+
+        @Test
         fun `posts the encoded question set under the base path with the key as a bearer token`() {
             val mocked = mocked()
             var body: String? = null

@@ -69,7 +69,9 @@ internal class SystemOneDecisionService(
 
     override fun assess(request: PropositionRequest): PropositionResult {
         val question = Questions.named(PROPOSITION).proposition(request.proposition).build()
-        return run(DecisionRequest.of(request.input, question), Operation.ASSESS).answer(question)
+        val state = request.state
+        val decision = if (state == null) DecisionRequest.of(request.input, question) else DecisionRequest.of(state, question)
+        return run(decision, Operation.ASSESS).answer(question)
     }
 
     override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult =

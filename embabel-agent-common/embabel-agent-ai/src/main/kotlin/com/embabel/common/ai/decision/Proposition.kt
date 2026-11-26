@@ -25,16 +25,57 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
+import tools.jackson.databind.JsonNode
 
 /**
- * Text and a nonblank proposition to assess against it. Input may be empty.
- * The default string representation omits both text fields.
+ * Text or a structured state, and a nonblank proposition to assess against it. The input may be
+ * empty. For a structured request the input is the state as compact JSON text, with fields and
+ * elements in the order they were added. The default string representation omits the input, the
+ * state and the proposition.
+ *
+ * @property input the text the model reasons over
+ * @property proposition the statement to assess
  */
 @ApiStatus.Experimental
-class PropositionRequest(val input: String, val proposition: String) {
+class PropositionRequest private constructor(
+    val input: String,
+    val proposition: String,
+    // The request's own copy of the state. Nothing outside this class can reach it.
+    private val structured: JsonNode?,
+) {
     init {
         require(proposition.isNotBlank()) { "Proposition must not be blank" }
     }
+
+    /**
+     * Creates a request that assesses a proposition against text.
+     *
+     * @param input the text the model reasons over, which may be empty
+     * @param proposition the statement to assess
+     * @throws IllegalArgumentException if the proposition is blank
+     */
+    constructor(input: String, proposition: String) : this(input, proposition, null)
+
+    /**
+     * Creates a request that assesses a proposition against a structured state. The request keeps
+     * its own snapshot of the state as plain JSON, so later changes to the node do not affect it.
+     *
+     * @param state the JSON object or array the model reasons over
+     * @param proposition the statement to assess
+     * @throws IllegalArgumentException if the state is not a JSON object or array or cannot be
+     * written as JSON, or the proposition is blank
+     */
+    constructor(state: JsonNode, proposition: String) : this(structuredSnapshot(state), proposition, Unit)
+
+    // The last parameter only tells this constructor apart from the others.
+    private constructor(snapshot: JsonNode, proposition: String, @Suppress("UNUSED_PARAMETER") own: Unit) :
+        this(snapshot.toString(), proposition, snapshot)
+
+    /**
+     * The structured state the model reasons over, or null for a text request. Each call returns a
+     * fresh copy, so changing it does not change the request.
+     */
+    val state: JsonNode? get() = structured?.deepCopy()
 }
 
 /**
