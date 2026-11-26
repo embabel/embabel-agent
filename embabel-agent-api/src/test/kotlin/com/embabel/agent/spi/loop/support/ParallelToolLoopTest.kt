@@ -20,6 +20,9 @@ import com.embabel.agent.api.common.TerminationSignal
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.callback.BeforeToolExecutionContext
+import com.embabel.agent.api.tool.callback.ToolCallDisposition
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.AbstractAgentProcess
 import io.mockk.every
@@ -33,6 +36,7 @@ import com.embabel.agent.spi.loop.MockTool
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.ImmediateThrowPolicy
 import com.embabel.agent.spi.loop.ToolInjectionContext
+import com.embabel.agent.spi.loop.ToolInjectionResult
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundException
 import com.embabel.chat.AssistantMessage
@@ -920,6 +924,160 @@ class ParallelToolLoopTest {
                     textContent = "All done",
                 )
             }
+        }
+    }
+
+    @Nested
+    inner class BeforeToolCallTransformTest {
+
+        @Test
+        fun `the transform is applied to each parallel tool call`() {
+            val received = ConcurrentHashMap<String, String>()
+            var blockedCalled = false
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+                    when (context.toolCall.name) {
+                        "blocked_tool" -> ToolCallDisposition.ShortCircuit(Tool.Result.text("needs confirmation"))
+                        else -> ToolCallDisposition.Proceed(context.toolCall.copy(arguments = """{"rewritten":true}"""))
+                    }
+            }
+            val allowed = MockTool("allowed_tool", "Allowed") { input ->
+                received["allowed_tool"] = input
+                Tool.Result.text("allowed ran")
+            }
+            val blocked = MockTool("blocked_tool", "Blocked") { blockedCalled = true; Tool.Result.text("should not run") }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = " ",
+                            toolCalls = listOf(
+                                ToolCall("call_1", "allowed_tool", "{}"),
+                                ToolCall("call_2", "blocked_tool", "{}"),
+                            ),
+                        ),
+                        textContent = "",
+                    ),
+                    MockLlmMessageSender.textResponse("Done!")
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+                toolLoopTransformers = listOf(gate),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Test")),
+                initialTools = listOf(allowed, blocked),
+                outputParser = { it }
+            )
+
+            assertEquals("""{"rewritten":true}""", received["allowed_tool"])
+            assertFalse(blockedCalled, "a short-circuited tool must not run")
+            val toolResults = result.conversationHistory.filterIsInstance<ToolResultMessage>()
+            assertEquals(listOf("call_1", "call_2"), toolResults.map { it.toolCallId })
+            assertEquals("allowed ran", toolResults[0].content)
+            assertEquals("needs confirmation", toolResults[1].content)
+            assertEquals("Done!", result.result)
+        }
+
+        @Test
+        fun `injection strategy sees only tools that actually ran`() {
+            val strategyInputs = mutableListOf<String>()
+            val strategy = object : ToolInjectionStrategy {
+                override fun evaluate(context: ToolInjectionContext): ToolInjectionResult {
+                    strategyInputs += context.lastToolCall.toolName
+                    return ToolInjectionResult.noChange()
+                }
+            }
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+                    if (context.toolCall.name == "blocked_tool")
+                        ToolCallDisposition.ShortCircuit(Tool.Result.text("needs confirmation"))
+                    else ToolCallDisposition.Proceed(context.toolCall)
+            }
+            val allowed = MockTool("allowed_tool", "Allowed") { Tool.Result.text("allowed ran") }
+            val blocked = MockTool("blocked_tool", "Blocked") { Tool.Result.text("should not run") }
+
+            // The short-circuited call comes last, so it is the last result in the batch.
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("call_1", "allowed_tool", "{}"),
+                    ToolCall("call_2", "blocked_tool", "{}"),
+                )
+            )
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = strategy,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+                toolLoopTransformers = listOf(gate),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Test")),
+                initialTools = listOf(allowed, blocked),
+                outputParser = { it }
+            )
+
+            assertEquals(listOf("allowed_tool"), strategyInputs, "injection must use the executed tool, not the short circuit")
+            val toolResults = result.conversationHistory.filterIsInstance<ToolResultMessage>()
+            assertEquals(listOf("allowed ran", "needs confirmation"), toolResults.map { it.content })
+        }
+
+        @Test
+        fun `injection strategy is not applied when every call was short-circuited`() {
+            var strategyCalls = 0
+            val strategy = object : ToolInjectionStrategy {
+                override fun evaluate(context: ToolInjectionContext): ToolInjectionResult {
+                    strategyCalls++
+                    return ToolInjectionResult.noChange()
+                }
+            }
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+                    ToolCallDisposition.ShortCircuit(Tool.Result.text("blocked ${context.toolCall.name}"))
+            }
+            val toolA = MockTool("tool_a", "A") { Tool.Result.text("should not run") }
+            val toolB = MockTool("tool_b", "B") { Tool.Result.text("should not run") }
+
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("1", "tool_a", "{}"),
+                    ToolCall("2", "tool_b", "{}"),
+                )
+            )
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = strategy,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+                toolLoopTransformers = listOf(gate),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Test")),
+                initialTools = listOf(toolA, toolB),
+                outputParser = { it }
+            )
+
+            assertEquals(0, strategyCalls, "nothing ran, so the injection strategy must not be applied")
+            val toolResults = result.conversationHistory.filterIsInstance<ToolResultMessage>()
+            assertEquals(listOf("blocked tool_a", "blocked tool_b"), toolResults.map { it.content })
         }
     }
 }

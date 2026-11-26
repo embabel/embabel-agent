@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.callback.ToolCallDisposition
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
@@ -34,6 +35,7 @@ import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
+import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import tools.jackson.databind.ObjectMapper
 import java.util.Locale
@@ -120,10 +122,12 @@ internal class ParallelToolLoop(
 
         // 1. Submit all tools with per-tool timeout
         val availableToolsSnapshot = state.availableTools.toList()
+        val historySnapshot = state.conversationHistory.toList()
+        val iteration = state.iterations
         val perToolTimeoutMs = parallelConfig.perToolTimeout.toMillis()
 
         val futures: List<CompletableFuture<ParallelToolResult>> = toolCalls.map { toolCall ->
-            asyncer.async { executeSingleToolCall(toolCall, availableToolsSnapshot) }
+            asyncer.async { executeSingleToolCall(toolCall, availableToolsSnapshot, historySnapshot, iteration) }
                 .orTimeout(perToolTimeoutMs, TimeUnit.MILLISECONDS)
                 .exceptionally { e ->
                     when (val cause = e.cause ?: e) {
@@ -184,6 +188,9 @@ internal class ParallelToolLoop(
                 is ParallelToolResult.Success ->
                     addToolResultToHistory(result.toolCall, result.result, result.resultContent, state)
 
+                is ParallelToolResult.ShortCircuited ->
+                    addToolResultToHistory(result.toolCall, result.result, result.resultContent, state)
+
                 is ParallelToolResult.Error ->
                     addToolResultToHistory(result.toolCall, Tool.Result.error(result.message), "Error: ${result.message}", state)
 
@@ -201,7 +208,8 @@ internal class ParallelToolLoop(
         // 5. Check for signal set by tools or transformers
         checkForActionTerminationSignal()
 
-        // 6. Apply injection strategy once (using last successful result's context)
+        // 6. Apply injection strategy once (using last successful result's context).
+        // Short-circuited calls never ran, so they do not count, as in DefaultToolLoop.
         val lastSuccess = results.filterIsInstance<ParallelToolResult.Success>().lastOrNull()
         if (lastSuccess != null) {
             applyInjectionStrategy(lastSuccess.toolCall, lastSuccess.resultContent, state)
@@ -213,6 +221,8 @@ internal class ParallelToolLoop(
     private fun executeSingleToolCall(
         toolCall: ToolCall,
         availableTools: List<Tool>,
+        history: List<Message>,
+        iteration: Int,
     ): ParallelToolResult {
         val tool = findTool(availableTools, toolCall.name)
         if (tool == null) {
@@ -224,8 +234,15 @@ internal class ParallelToolLoop(
         toolNotFoundPolicy.onToolFound()
 
         return try {
-            val (result, resultContent) = executeToolCall(tool, toolCall)
-            ParallelToolResult.Success(toolCall, result, resultContent)
+            when (val disposition = decideToolCall(toolCall, tool, history, iteration)) {
+                is ToolCallDisposition.ShortCircuit ->
+                    ParallelToolResult.ShortCircuited(toolCall, disposition.result, disposition.result.contentForLlm())
+
+                is ToolCallDisposition.Proceed -> {
+                    val (result, resultContent) = executeToolCall(tool, disposition.toolCall)
+                    ParallelToolResult.Success(disposition.toolCall, result, resultContent)
+                }
+            }
         } catch (e: ReplanRequestedException) {
             ParallelToolResult.ReplanRequest(toolCall, e.reason, e.blackboardUpdater)
         } catch (e: Exception) {
@@ -267,6 +284,13 @@ internal class ParallelToolLoop(
         abstract val toolCall: ToolCall
 
         data class Success(
+            override val toolCall: ToolCall,
+            val result: Tool.Result,
+            val resultContent: String,
+        ) : ParallelToolResult()
+
+        /** A transformer answered for the tool, so nothing ran. Reaches the history but not the injection strategy. */
+        data class ShortCircuited(
             override val toolCall: ToolCall,
             val result: Tool.Result,
             val resultContent: String,
