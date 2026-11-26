@@ -44,7 +44,8 @@ import java.lang.reflect.Field
 import java.util.function.Predicate
 
 /**
- * Implementation of [StreamingPromptRunner] that delegates to a [PromptExecutionDelegate].
+ * Implementation of [StreamingPromptRunner], with thinking, that delegates to a
+ * [PromptExecutionDelegate].
  */
 internal data class DelegatingStreamingPromptRunner(
     internal val delegate: PromptExecutionDelegate,
@@ -228,6 +229,10 @@ internal data class DelegatingStreamingPromptRunner(
         )
     }
 
+    // The model is chosen per call, so ask the delegate what the selected model supports
+    @Deprecated(
+        message = "Not a gate: thinking() does not consult it. The runner returned by Ai implements thinking() for any model; a runner that does not throws UnsupportedOperationException.",
+    )
     override fun supportsThinking(): Boolean =
         delegate.supportsThinking()
 

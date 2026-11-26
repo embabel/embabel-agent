@@ -35,7 +35,6 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.ThinkingTagType
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import java.lang.reflect.Field
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -47,7 +46,7 @@ import org.junit.jupiter.api.assertThrows
  * Validates the end-to-end flow from user API through to thinking extraction:
  *
  * ```
- * promptRunner.withThinking()
+ * promptRunner.thinking()
  *   → ThinkingPromptRunnerOperationsImpl
  *   → ChatClientLlmOperations.doTransformWithThinking()
  *   → SuppressThinkingConverter.convertWithThinking()
@@ -63,7 +62,7 @@ class ThinkingPromptRunnerOperationsTest {
     )
 
     @Test
-    fun `withThinking should create ThinkingPromptRunnerOperationsImpl when ChatClientLlmOperations available`() {
+    fun `thinking should create ThinkingPromptRunnerOperationsImpl when ChatClientLlmOperations available`() {
         // Given: Mock OperationContextPromptRunner with ChatClientLlmOperations
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
@@ -164,14 +163,11 @@ class ThinkingPromptRunnerOperationsTest {
 
 
     /**
-     * Tests that StreamingPromptRunner throws exception when withThinking() is called.
-     *
-     * Verifies that:
-     * 1. StreamingPromptRunner.withThinking() throws UnsupportedOperationException
-     * 2. Exception message guides users to use streaming events instead
+     * Tests that a StreamingPromptRunner that does not implement thinking() throws
+     * UnsupportedOperationException from thinking().
      */
     @Test
-    fun `StreamingPromptRunner should throw exception when withThinking called`() {
+    fun `StreamingPromptRunner should throw exception when thinking called`() {
         // Given: Real StreamingPromptRunner implementation (no mocks)
         val testStreamingRunner = object : com.embabel.agent.api.common.streaming.StreamingPromptRunner {
             override val llm: com.embabel.common.ai.model.LlmOptions? = null
@@ -276,8 +272,7 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withLlmService(llmService: com.embabel.agent.spi.LlmService<*>): PromptRunner = this
         }
 
-        // When/Then: Call withThinking() on StreamingPromptRunner should throw exception
-        // testStreamingRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
+        // When/Then: this StreamingPromptRunner does not implement thinking(), so thinking() throws
 
         assertThrows<UnsupportedOperationException> {
             testStreamingRunner.thinking()
@@ -285,7 +280,7 @@ class ThinkingPromptRunnerOperationsTest {
     }
 
     @Test
-    fun `FakePromptRunner should throw exception when withThinking called`() {
+    fun `FakePromptRunner should throw exception when thinking called`() {
         // Given: Real FakePromptRunner implementation (testing framework runner)
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
         val fakeRunner = com.embabel.agent.test.unit.FakePromptRunner(
@@ -299,8 +294,7 @@ class ThinkingPromptRunnerOperationsTest {
             responses = mutableListOf("fake test result")
         )
 
-        // When/Then: Call withThinking() on FakePromptRunner should throw exception
-        // fakeRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
+        // When/Then: FakePromptRunner does not implement thinking(), so thinking() throws
 
         assertThrows<UnsupportedOperationException> {
             fakeRunner.thinking()
@@ -308,25 +302,9 @@ class ThinkingPromptRunnerOperationsTest {
     }
 
 
-    @Test
-    fun `method should delegate to OperationContextPromptRunner withThinking`() {
-        // Given: OperationContextPromptRunner with mocked withThinking method
-        val mockOperationRunner = mockk<OperationContextPromptRunner>()
-        val mockThinkingOps = mockk<PromptRunner.Thinking>()
-
-        every { mockOperationRunner.thinking() } returns mockThinkingOps
-
-
-        val result = mockOperationRunner.thinking()
-
-        // Then: Should delegate to OperationContextPromptRunner's withThinking method
-        assertEquals(mockThinkingOps, result)
-        verify { mockOperationRunner.thinking() }
-    }
-
     /**
-     * Additional thinking functionality tests for ThinkingPromptRunnerOperationsImpl coverage.
-     * Tests the public API through OperationContextPromptRunner.withThinking().
+     * Additional thinking functionality tests.
+     * Tests the public API through OperationContextPromptRunner.thinking().
      */
     // Data class for coverage tests
     data class SimpleTestData(
@@ -422,7 +400,7 @@ class ThinkingPromptRunnerOperationsTest {
 
 
     @Test
-    fun `ThinkingPromptRunnerOperations default implementations should work correctly`() {
+    fun `thinking operations default implementations should work correctly`() {
         // Given: Real thinking operations through OperationContextPromptRunner
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
         val mockPlatform = mockk<com.embabel.agent.core.AgentPlatform>()
@@ -472,7 +450,7 @@ class ThinkingPromptRunnerOperationsTest {
     }
 
     @Test
-    fun `ThinkingPromptRunnerOperations multimodal content methods should work correctly`() {
+    fun `thinking operations multimodal content methods should work correctly`() {
         // Given: Mock setup for multimodal content testing
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
         val mockPlatform = mockk<com.embabel.agent.core.AgentPlatform>()

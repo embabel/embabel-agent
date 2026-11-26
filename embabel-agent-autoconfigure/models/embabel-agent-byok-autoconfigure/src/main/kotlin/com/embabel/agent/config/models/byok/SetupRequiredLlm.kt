@@ -19,6 +19,7 @@ import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.model.LlmMetadata
@@ -186,7 +187,7 @@ object SetupRequiredLlm {
  */
 internal class SetupRequiredLlmService private constructor(
     private val delegate: SpringAiLlmService,
-) : LlmService<SetupRequiredLlmService>, AiModel<ChatModel>, PlaceholderLlmService,
+) : LlmService<SetupRequiredLlmService>, StreamingChatCompletion, AiModel<ChatModel>, PlaceholderLlmService,
     LlmMetadata by delegate {
 
     constructor(message: String = SetupRequiredLlm.MESSAGE) : this(

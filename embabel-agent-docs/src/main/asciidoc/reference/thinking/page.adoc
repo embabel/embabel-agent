@@ -22,8 +22,44 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 - `ThinkingOrigin` — An enum distinguishing how a thinking block was produced: `PROMPT_EXTRACTED` (Embabel parsed reasoning text from the model's prompt response) or `NATIVE` (the provider surfaced reasoning via its API, e.g. Anthropic adaptive thinking blocks).
 - `ThinkingResponse<T>` — A response wrapper that holds both the result object and a list of `ThinkingBlock` instances.
 - `ThinkingException` — An exception that preserves thinking blocks when object instantiation fails, enabling debugging even in error scenarios.
-- `thinking()` — The core `PromptRunner` API method that enables thinking extraction.
+- `thinking()` — The core `PromptRunner` API method that enables thinking extraction. The runner returned by `Ai` implements it. `PromptRunner`'s default `thinking()` throws `UnsupportedOperationException`.
 
+==== Checking for Thinking Support
+
+The runner returned by `Ai` on the platform implements `thinking()`, so you need no check before calling it.
+Extraction is prompt based, so it works whatever the selected model is.
+When the model returned no reasoning, `ThinkingResponse.thinkingBlocks` is empty.
+
+A runner that does not implement `thinking()` throws `UnsupportedOperationException` from it.
+In unit tests, `FakeOperationContext` returns a `FakePromptRunner`, which is such a runner.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+ThinkingResponse<Answer> response = context.ai().withDefaultLlm()
+        .thinking()
+        .createObject("What is 2 + 2?", Answer.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val response = context.ai().withDefaultLlm()
+    .thinking()
+    .createObject("What is 2 + 2?", Answer::class.java)
+val answer = response.result
+val reasoning = response.thinkingBlocks
+----
+====
+
+`PromptRunner.supportsThinking()` is deprecated.
+It reports what the provider integration says, is set per provider rather than per model, and `thinking()` does not consult it.
+It is false for some models that do reason, such as DeepSeek's and Mistral's, so do not use it to decide whether to call `thinking()`.
+See <<reference.upgrading>> for the changes to `thinking()` in 2.0.
 
 ==== Example: Handling Objects and Thinking Blocks
 
@@ -34,7 +70,7 @@ Java::
 [source,java]
 ----
 // Configure the PromptRunner with an LLM and optional tools
-PromptRunner runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
+PromptRunner runner = ai.withDefaultLlm()
                         .withToolObject(Tooling.class);
 
 String prompt = """
@@ -66,7 +102,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Configure the PromptRunner with an LLM and optional tools
-val runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
+val runner = ai.withDefaultLlm()
                 .withToolObject(Tooling::class.java)
 
 val prompt = """
@@ -143,6 +179,9 @@ if (result != null) {
 
 Without changing your prompt, you can control which XML-tagged reasoning blocks the model produces and returns.
 
+Tag control is part of the `Thinking` value in `LlmOptions`.
+Set it with `LlmOptions.withThinking(...)` when you choose the LLM, then call `thinking()` with no arguments.
+
 Use `includedTags` to keep only blocks wrapped in the named tags — the model is automatically instructed (via a system prompt hint) to use those tags for its reasoning.
 Use `excludedTags` to drop blocks with specific tag names while keeping all others.
 
@@ -155,13 +194,17 @@ Java::
 [source,java]
 ----
 // Only return the "analysis" reasoning block; model is guided to use that tag
-ThinkingResponse<MonthItem> response = runner
-        .thinking(Thinking.withIncludedTags("analysis"))
+ThinkingResponse<MonthItem> response = ai
+        .withLlm(LlmOptions.withDefaultLlm()
+                .withThinking(Thinking.withIncludedTags("analysis")))
+        .thinking()
         .createObject(prompt, MonthItem.class);
 
 // Drop "scratchpad" blocks, keep all others
-ThinkingResponse<MonthItem> response2 = runner
-        .thinking(Thinking.withExcludedTags("scratchpad"))
+ThinkingResponse<MonthItem> response2 = ai
+        .withLlm(LlmOptions.withDefaultLlm()
+                .withThinking(Thinking.withExcludedTags("scratchpad")))
+        .thinking()
         .createObject(prompt, MonthItem.class);
 ----
 
@@ -170,13 +213,17 @@ Kotlin::
 [source,kotlin]
 ----
 // Only return the "analysis" reasoning block; model is guided to use that tag
-val response = runner
-        .thinking(Thinking.withIncludedTags("analysis"))
+val response = ai
+        .withLlm(LlmOptions.withDefaultLlm()
+            .withThinking(Thinking.withIncludedTags("analysis")))
+        .thinking()
         .createObject(prompt, MonthItem::class.java)
 
 // Drop "scratchpad" blocks, keep all others
-val response2 = runner
-        .thinking(Thinking.withExcludedTags("scratchpad"))
+val response2 = ai
+        .withLlm(LlmOptions.withDefaultLlm()
+            .withThinking(Thinking.withExcludedTags("scratchpad")))
+        .thinking()
         .createObject(prompt, MonthItem::class.java)
 ----
 ====
