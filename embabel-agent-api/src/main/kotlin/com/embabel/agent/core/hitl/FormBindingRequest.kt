@@ -35,18 +35,47 @@ interface ValidationError
  * @param population an optional instance to pre-populate the form
  * @param validationErrors optional validation errors to display on the form
  * @param persistent whether this request should be persisted
+ * @param id the original request ID when restoring a saved request
+ * @param timestamp the original request timestamp when restoring a saved request
  */
-class FormBindingRequest<O : Any> @JvmOverloads constructor(
+class FormBindingRequest<O : Any>(
     form: Form,
     val outputClass: Class<O>,
     val population: O? = null,
     val validationErrors: List<ValidationError> = emptyList(),
     persistent: Boolean = false,
     val bindingName: String? = null,
+    id: String,
+    timestamp: Instant,
 ) : AbstractAwaitable<Form, FormResponse>(
     payload = form,
+    id = id,
+    timestamp = timestamp,
     persistent = persistent,
 ) {
+
+    /**
+     * Creates a fresh request and preserves the existing Java constructor overloads.
+     * The primary constructor requires the saved identity and timestamp when restoring a request.
+     */
+    @JvmOverloads
+    constructor(
+        form: Form,
+        outputClass: Class<O>,
+        population: O? = null,
+        validationErrors: List<ValidationError> = emptyList(),
+        persistent: Boolean = false,
+        bindingName: String? = null,
+    ) : this(
+        form = form,
+        outputClass = outputClass,
+        population = population,
+        validationErrors = validationErrors,
+        persistent = persistent,
+        bindingName = bindingName,
+        id = UUID.randomUUID().toString(),
+        timestamp = Instant.now(),
+    )
 
     private val logger = loggerFor<FormBindingRequest<O>>()
 

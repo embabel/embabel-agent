@@ -141,6 +141,25 @@ Serializers use `supportsSerialization` for live blackboard values and
 `supportsDeserialization` for stored values.
 
 The default JSON serializer handles simple data classes automatically.
+To preserve a pending `FormBindingRequest` across restore, register the
+framework's `FormBindingRequestSerializer` in your application's Spring configuration.
+
+[source,kotlin]
+----
+import com.embabel.agent.core.persistence.BlackboardEntrySerializer
+import com.embabel.agent.spi.support.persistence.FormBindingRequestSerializer
+import com.embabel.common.util.EmbabelObjectMapperHolder
+import org.springframework.context.annotation.Bean
+
+@Bean
+fun formBindingRequestSerializer(
+    objectMapperHolder: EmbabelObjectMapperHolder,
+): BlackboardEntrySerializer = FormBindingRequestSerializer(objectMapperHolder.get())
+----
+
+This bean preserves the original request ID, timestamp, form, and binding data.
+Spring discovers it through the existing blackboard serializer configuration.
+
 Applications should provide more specific serializers for values that need stable
 identity or special treatment, such as:
 
