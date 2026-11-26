@@ -33,6 +33,7 @@ import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetToolsFrom
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -57,6 +58,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
@@ -127,6 +129,7 @@ class ChatClientLlmOperationsTest {
     private fun createChatClientLlmOperations(
         fakeChatModel: FakeChatModel,
         dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
+        llm: LlmService<*> = SpringAiLlmService("fake", "provider", fakeChatModel, DefaultOptionsConverter),
     ): Setup {
         val ese = EventSavingAgenticEventListener()
         val mutableLlmInvocationHistory = MutableLlmInvocationHistory()
@@ -155,8 +158,7 @@ class ChatClientLlmOperationsTest {
 
         val mockModelProvider = mockk<ModelProvider>()
         val crit = slot<ModelSelectionCriteria>()
-        val fakeLlm = SpringAiLlmService("fake", "provider", fakeChatModel, DefaultOptionsConverter)
-        every { mockModelProvider.getLlm(capture(crit)) } returns fakeLlm
+        every { mockModelProvider.getLlm(capture(crit)) } returns llm
         val cco = ChatClientLlmOperations(
             modelProvider = mockModelProvider,
             toolDecorator = DefaultToolDecorator(),
@@ -1376,6 +1378,28 @@ class ChatClientLlmOperationsTest {
 
             assertThat(fakeChatModel.optionsPassed).isNotEmpty()
             assertThat(fakeChatModel.optionsPassed[0].model).isEqualTo("fake")
+        }
+    }
+
+    @Nested
+    inner class LlmServiceNotBackedBySpringAi {
+
+        @Test
+        fun `fails naming the tool-loop setting`() {
+            val llm = mockk<LlmService<*>>(relaxed = true)
+            val setup = createChatClientLlmOperations(FakeChatModel("unused"), llm = llm)
+
+            val thrown = assertThrows<IllegalStateException> {
+                setup.llmOperations.createObject(
+                    messages = listOf(UserMessage("Name a dog")),
+                    interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
+                    outputClass = String::class.java,
+                    action = SimpleTestAgent.actions.first(),
+                    agentProcess = setup.mockAgentProcess,
+                )
+            }
+
+            assertThat(thrown.message).contains("embabel.agent.platform.llm-operations.type=tool-loop")
         }
     }
 

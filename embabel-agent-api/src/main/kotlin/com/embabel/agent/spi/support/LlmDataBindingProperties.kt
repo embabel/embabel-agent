@@ -57,6 +57,8 @@ class LlmDataBindingProperties(
             .notRetryOn(ReplanRequestedException::class.java)
             // GuardRailViolationException is a policy decision, not a transient error to retry
             .notRetryOn(GuardRailViolationException::class.java)
+            // No output converter is a configuration error: every attempt would fail the same way
+            .notRetryOn(NoOutputConverterException::class.java)
             .withListener(object : RetryListener {
                 override fun <T : Any, E : Throwable> onError(
                     context: RetryContext,

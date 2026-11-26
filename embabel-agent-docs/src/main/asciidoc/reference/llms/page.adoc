@@ -542,6 +542,10 @@ class MyLlmConfiguration {
 
 The bean will be automatically discovered and made available through the `ModelProvider`.
 
+NOTE: The default `LlmOperations` requires every `LlmService` to be backed by Spring AI.
+To call a service like this one from agents, set `embabel.agent.platform.llm-operations.type=tool-loop`.
+See <<llm-operations-without-spring-ai>> for what that mode supports.
+
 ===== How Model Discovery and Selection Works
 
 When your application starts, `ConfigurableModelProvider` collects all `LlmService` beans from the Spring application context.
