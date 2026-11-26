@@ -78,43 +78,18 @@ When a goal state is found, reconstruct the path by following predecessors
 
 ==== Pruning Planning Systems
 
-  The planner can prune entire planning systems to remove irrelevant actions:
+The GOAP planner prunes planning systems by tracing dependencies backward from every goal.
+It retains every action whose effects match a required condition and value, then adds that action's
+preconditions to the requirements. This repeats until no more actions are retained.
 
-[tabs]
-====
-Java::
-+
-[source,java]
------
-PlanningSystem prune(PlanningSystem planningSystem) {
-    // Get all plans to all goals
-    List<Plan> allPlans = plansToGoals(planningSystem);
-    // Keep only actions that appear in at least one plan
-    Set<Action> filteredActions = planningSystem.getActions().stream()
-        .filter(action -> allPlans.stream()
-            .anyMatch(plan -> plan.getActions().contains(action)))
-        .collect(Collectors.toSet());
-    return planningSystem.withActions(filteredActions);
-}
------
+Unlike selecting one cheapest plan per goal, this preserves alternative routes for re-planning,
+including actions that become available after an unexpected outcome or a request for clarification.
+Requirements are followed even when they are already satisfied in the current world state.
+Matching uses the exact condition value (`TRUE`, `FALSE`, or `UNKNOWN`), and each retained action
+contributes its preconditions once so cyclic dependencies terminate.
 
-Kotlin::
-+
-[source,kotlin]
------
-fun prune(planningSystem: PlanningSystem): PlanningSystem {
-    // Get all plans to all goals
-    val allPlans = plansToGoals(planningSystem)
-    // Keep only actions that appear in at least one plan
-    return planningSystem.copy(
-        actions = planningSystem.actions.filter { action ->
-            allPlans.any { plan -> plan.actions.contains(action) }
-        }.toSet()
-    )
-}
------
-====
-
+This analysis is conservative: retained actions are potentially relevant, but are not guaranteed to
+form an executable plan. The planner determines reachability and selects a plan when execution proceeds.
 
 ===== Heuristic Function
 
@@ -133,14 +108,13 @@ fun prune(planningSystem: PlanningSystem): PlanningSystem {
 
   When pruning an agent for specific goals:
 
-. Identify all known conditions in the planning system
-. Set initial state based on input conditions
-. Find all possible plans to each goal
-. Keep only actions that appear in at least one plan
-. Create a new agent with the pruned action set
+. Collect the required condition/value pairs from all selected goals.
+. Retain actions producing any required condition/value pair.
+. Add retained actions' preconditions and repeat until no further actions are retained.
+. Create a new agent with the retained action set and selected goals.
 
-  This comprehensive approach ensures agents contain only the actions necessary to achieve their
-  designated goals, improving efficiency and preventing action leakage between different agents.
+Actions with no dependency connection to the selected goals are removed, while alternative routes
+remain available for re-planning.
 
 ==== Progress Determination Logic in A* GOAP Planning
 
