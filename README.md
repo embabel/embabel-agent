@@ -723,6 +723,9 @@ The Embabel Agent Framework supports local models from:
   queried. All local models will be available.
 - LMStudio: This uses the openAI compatible client. Just include LMStudio as a dependency and make sure your LMStudio
   server is running.
+- kiln4j (in progress): [kiln4j](https://kiln4j.org) runs open models in-process on your GPU, with no model server:
+  chat and tool calls, vision, speech, images and video. An Embabel integration through the framework's own model SPI
+  is in progress.
 
 #### OCI Generative AI
 
