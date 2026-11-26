@@ -20,6 +20,7 @@ import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.model.SectionPlace
 import com.embabel.common.ai.model.EmbeddingService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -61,9 +62,9 @@ abstract class AbstractChunkingContentElementRepository(
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 
     /**
-     * Will call save on the root and all descendants.
-     * The database only needs to store each descendant and link by id,
-     * rather than otherwise consider the entire structure.
+     * Saves the root and its sections through [saveStructure], and the chunks through [saveChunks]; by
+     * default each element goes to [save] alone. The database only needs to store each descendant and
+     * link by id, rather than otherwise consider the entire structure.
      *
      * @throws EmbeddingIncompleteException if some chunks could not be embedded. It is thrown
      * after the document and all its chunks have been saved and committed.
@@ -86,12 +87,11 @@ abstract class AbstractChunkingContentElementRepository(
             root.id,
             chunks.size,
         )
-        save(root)
-        root.descendants().forEach { save(it) }
+        saveStructure(root, root.sectionsInReadingOrder())
         val descendantsIncomplete = embeddingIncomplete {
             onNewRetrievables(root.descendants().filterIsInstance<Retrievable>())
         }
-        chunks.forEach { save(it) }
+        saveChunks(chunks)
         val chunksIncomplete = embeddingIncomplete { onNewRetrievables(chunks) }
         createInternalRelationships(root)
         commit()
@@ -102,6 +102,29 @@ abstract class AbstractChunkingContentElementRepository(
         )
         combine(descendantsIncomplete, chunksIncomplete)?.let { throw it }
         return chunks.map { it.id }
+    }
+
+    /**
+     * Save [root] and its sections, the first thing [writeAndChunkDocument] stores.
+     *
+     * [sections] is every descendant section in reading order, each with its place
+     * ([SectionPlace.ordinal], [SectionPlace.depth]), so a store that records where a section falls can
+     * write each one once, in a batch, rather than saving it and then saving it again once the tree is
+     * known. The default saves the root and then each section with [save], one at a time, as this class
+     * always has.
+     */
+    protected open fun saveStructure(root: NavigableDocument, sections: List<SectionPlace>) {
+        save(root)
+        root.descendants().forEach { save(it) }
+    }
+
+    /**
+     * Save the document's [chunks], before [onNewRetrievables] is given them. The default saves each
+     * with [save]. A store whose [onNewRetrievables] writes every chunk whole (see [embedAndPersist])
+     * may save them there instead, rather than writing each chunk twice.
+     */
+    protected open fun saveChunks(chunks: List<Chunk>) {
+        chunks.forEach { save(it) }
     }
 
     /**
