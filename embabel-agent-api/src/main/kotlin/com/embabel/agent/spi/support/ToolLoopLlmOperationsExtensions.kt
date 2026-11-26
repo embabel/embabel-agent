@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.ModelCallEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.spi.loop.LlmMessageRequest
 import com.embabel.agent.spi.loop.LlmMessageResponse
@@ -43,5 +45,42 @@ internal class StructuredOutputLlmMessageSender(
         } else {
             delegate.call(messages, tools)
         }
+    }
+}
+
+/**
+ * Emits a [ModelCallEvent] for each call to the model, then delegates.
+ *
+ * Wraps the sender from the [com.embabel.agent.spi.LlmService] directly, so the event carries
+ * exactly what that sender is given. Request-aware: a [RequestAwareLlmMessageSender] delegate
+ * still gets the full [LlmMessageRequest], native structured output included.
+ */
+internal class ModelCallEventLlmMessageSender(
+    private val delegate: LlmMessageSender,
+    private val llmRequestEvent: LlmRequestEvent<*>,
+) : RequestAwareLlmMessageSender {
+
+    override fun call(
+        messages: List<Message>,
+        tools: List<Tool>,
+    ): LlmMessageResponse {
+        emit(messages, tools)
+        return delegate.call(messages, tools)
+    }
+
+    override fun call(request: LlmMessageRequest): LlmMessageResponse {
+        emit(request.messages, request.tools)
+        return if (delegate is RequestAwareLlmMessageSender) {
+            delegate.call(request)
+        } else {
+            delegate.call(request.messages, request.tools)
+        }
+    }
+
+    private fun emit(messages: List<Message>, tools: List<Tool>) {
+        llmRequestEvent.agentProcess.processContext.onProcessEvent(
+            // Snapshot: the tool loop keeps appending to the list it passes on each round.
+            ModelCallEvent(request = llmRequestEvent, messages = messages.toList(), tools = tools.toList())
+        )
     }
 }

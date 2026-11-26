@@ -20,6 +20,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.ModelCallEvent
 import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.event.observation.LlmObservationContext
@@ -275,6 +276,168 @@ class ToolLoopLlmOperationsTest {
             ).getOrThrow()
 
             recording.assertBothSpans()
+        }
+    }
+
+    @Nested
+    inner class ModelCallEventTests {
+
+        private fun <O> requestEvent(
+            interaction: LlmInteraction,
+            outputClass: Class<O>,
+        ) = LlmRequestEvent(
+            agentProcess = mockAgentProcess,
+            action = null,
+            outputClass = outputClass,
+            interaction = interaction,
+            llmMetadata = mockk(relaxed = true),
+            messages = emptyList(),
+        )
+
+        private fun modelCallEvents() = eventListener.processEvents.filterIsInstance<ModelCallEvent>()
+
+        @Test
+        fun `emits one event per model call with the messages and tools sent`() {
+            val tool = TestTool("test_tool", "A test tool") { Tool.Result.text("done") }
+            val interaction = createInteraction(tools = listOf(tool))
+            val request = requestEvent(interaction, String::class.java)
+            val operations = createTestableOperations(
+                TestLlmMessageSender(
+                    responses = listOf(toolCallResponse("call_1", "test_tool", "{}"), textResponse("finished")),
+                ),
+            )
+
+            operations.testDoTransformWithEvent(
+                messages = listOf(UserMessage("Use the tool")),
+                interaction = interaction,
+                outputClass = String::class.java,
+                llmRequestEvent = request,
+            )
+
+            val events = modelCallEvents()
+            assertEquals(2, events.size)
+            assertTrue(events.all { it.request === request })
+            assertTrue(events.first().messages.any { it.content.contains("Use the tool") })
+            assertEquals(listOf("test_tool"), events.first().tools.map { it.definition.name })
+            assertTrue(
+                events.last().messages.size > events.first().messages.size,
+                "the second call should carry the tool result",
+            )
+        }
+
+        @Test
+        fun `doTransformIfPossible emits the event`() {
+            val interaction = createInteraction()
+            val operations = createTestableOperations(
+                TestLlmMessageSender(responses = listOf(textResponse("""{"success":"ok"}"""))),
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            operations.testDoTransformIfPossibleWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = interaction,
+                outputClass = String::class.java,
+                llmRequestEvent = requestEvent(interaction, String::class.java),
+            )
+
+            assertEquals(1, modelCallEvents().size)
+        }
+
+        @Test
+        fun `doTransformWithThinking emits the event`() {
+            val interaction = createInteraction()
+            val operations = createTestableOperations(TestLlmMessageSender(responses = listOf(textResponse("hi"))))
+
+            operations.testDoTransformWithThinkingWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = interaction,
+                outputClass = String::class.java,
+                llmRequestEvent = requestEvent(interaction, String::class.java),
+            )
+
+            assertEquals(1, modelCallEvents().size)
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible emits the event`() {
+            val interaction = createInteraction()
+            val operations = createTestableOperations(
+                TestLlmMessageSender(responses = listOf(textResponse("""{"success":"ok"}"""))),
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            operations.testDoTransformWithThinkingIfPossibleWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = interaction,
+                outputClass = String::class.java,
+                llmRequestEvent = requestEvent(interaction, String::class.java),
+            ).getOrThrow()
+
+            assertEquals(1, modelCallEvents().size)
+        }
+
+        @Test
+        fun `a request-aware sender still gets the native structured output request`() {
+            data class StructuredResult(val value: String)
+
+            val schema = """{"type":"object","properties":{"value":{"type":"string"}}}"""
+            val converter = object : OutputConverter<StructuredResult> {
+                override fun convert(source: String): StructuredResult = StructuredResult(source)
+                override fun getFormat(): String = "Return a structured result"
+                override fun getJsonSchema(): String = schema
+            }
+            val messageSender = CapturingRequestAwareMessageSender(response = textResponse("captured"))
+            val interaction = createInteraction()
+            val operations = createTestableOperations(messageSender = messageSender, outputConverter = converter)
+
+            operations.testDoTransformWithEvent(
+                messages = listOf(UserMessage("Get structured output")),
+                interaction = interaction,
+                outputClass = StructuredResult::class.java,
+                llmRequestEvent = requestEvent(interaction, StructuredResult::class.java),
+            )
+
+            assertEquals(schema, messageSender.lastRequest?.nativeStructuredOutputRequest?.structuredOutputRequest?.schema)
+            assertEquals(1, modelCallEvents().size)
+        }
+
+        @Test
+        fun `a plain sender is still called under native structured output`() {
+            data class StructuredResult(val value: String)
+
+            val converter = object : OutputConverter<StructuredResult> {
+                override fun convert(source: String): StructuredResult = StructuredResult(source)
+                override fun getFormat(): String = "Return a structured result"
+                override fun getJsonSchema(): String = """{"type":"object"}"""
+            }
+            val interaction = createInteraction()
+            val operations = createTestableOperations(
+                TestLlmMessageSender(responses = listOf(textResponse("plain"))),
+                outputConverter = converter,
+            )
+
+            val result = operations.testDoTransformWithEvent(
+                messages = listOf(UserMessage("Get structured output")),
+                interaction = interaction,
+                outputClass = StructuredResult::class.java,
+                llmRequestEvent = requestEvent(interaction, StructuredResult::class.java),
+            )
+
+            assertEquals(StructuredResult("plain"), result)
+            assertEquals(1, modelCallEvents().size)
+        }
+
+        @Test
+        fun `no event without an LLM request event`() {
+            val operations = createTestableOperations(TestLlmMessageSender(responses = listOf(textResponse("hi"))))
+
+            operations.testDoTransform(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+            )
+
+            assertTrue(modelCallEvents().isEmpty())
         }
     }
 

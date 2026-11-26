@@ -923,6 +923,10 @@ The `ToolLoopLlmOperations` base class provides several extension points:
    - `AssistantMessageWithToolCalls`: LLM response with tool requests
    - `ToolResultMessage`: Result returned to LLM after tool execution
 
+5. **Every call to your sender is observable.** When a call serves an agent request, the platform emits a `ModelCallEvent` before each call to your sender (one per tool-loop round), carrying the messages and tools sent.
+With `showPrompts` verbosity it is logged.
+You don't need to emit it yourself: it comes from the same place for every `LlmService`, Spring AI or not.
+
 
 ==== Advanced: Custom Embedding Service
 

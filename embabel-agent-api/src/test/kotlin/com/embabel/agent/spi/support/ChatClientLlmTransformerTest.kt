@@ -20,6 +20,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.ToolsStats
+import com.embabel.agent.api.event.ModelCallEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
@@ -105,8 +106,9 @@ class ChatClientLlmTransformerTest {
                 )
                 assertEquals(person, result)
                 // LlmRequestEvent, ToolLoopStartEvent, LlmInvocationEvent (per-call billing),
-                // ToolLoopCompletedEvent, LlmResponseEvent, ChatModelCallEvent
-                assertEquals(6, ese.processEvents.size)
+                // ToolLoopCompletedEvent, LlmResponseEvent, ModelCallEvent, ChatModelCallEvent
+                assertEquals(7, ese.processEvents.size)
+                assertEquals(1, ese.processEvents.filterIsInstance<ModelCallEvent>().size)
             }
 
             @Test
@@ -260,8 +262,9 @@ class ChatClientLlmTransformerTest {
                 )
                 assertEquals(Result.success(person), result.result)
                 // Embabel tool loop emits: LlmRequestEvent, ToolLoopStartEvent, LlmInvocationEvent (per-call billing),
-                // ToolLoopCompletedEvent, LlmMaybeResponseEvent + ChatModelCallEvent
-                assertEquals(6, ese.processEvents.size)
+                // ToolLoopCompletedEvent, LlmMaybeResponseEvent, ModelCallEvent + ChatModelCallEvent
+                assertEquals(7, ese.processEvents.size)
+                assertEquals(1, ese.processEvents.filterIsInstance<ModelCallEvent>().size)
             }
 
             @Test

@@ -745,3 +745,6 @@ Remove the `embabel.agent.logging.personality` key to disable personality-based 
 
 As all logging results from listening to events via an `AgenticEventListener`, you can also easily create your own customized logging.
 
+With `showPrompts` verbosity, every call to the model is logged from a `ModelCallEvent`: the messages and tools sent, whichever `LlmService` serves the call.
+For Spring AI models, `ChatModelCallEvent` still carries the Spring AI `Prompt` with its resolved options, but it is no longer logged.
+
