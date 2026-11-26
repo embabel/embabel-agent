@@ -48,6 +48,13 @@ class DecisionServiceShapeTest {
     }
 
     @Test
+    fun `no classify overload takes a JsonNode`() {
+        val classify = ClassificationService::class.java.declared("classify")
+        assertEquals(2, classify.size)
+        assertTrue(classify.none { JsonNode::class.java in it.parameterTypes }) { "classify takes a JsonNode" }
+    }
+
+    @Test
     fun `capabilities and the two ask overloads are default methods`() {
         val type = DecisionService::class.java
         val capabilities = type.declared("capabilities")

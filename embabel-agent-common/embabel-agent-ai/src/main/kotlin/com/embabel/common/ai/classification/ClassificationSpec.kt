@@ -27,7 +27,8 @@ import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
-import tools.jackson.databind.ValueDeserializer
+import com.embabel.common.ai.decision.ClassificationRequestDeserializer
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.annotation.JsonDeserialize
 
 /**
@@ -200,20 +201,26 @@ data class Category @JsonCreator constructor(
 }
 
 /**
- * Text to classify with a [ClassificationSpec]. A classification request is a decision request whose
- * spec has one choice question, so it goes anywhere a [DecisionRequest] goes. Its JSON is the
- * decision request JSON. The input may be empty.
- *
- * @property spec the classification to make
+ * Text or a structured state to classify with a [ClassificationSpec]. A classification request is
+ * a decision request whose spec has one choice question, so it goes anywhere a [DecisionRequest]
+ * goes. Its JSON is the decision request JSON. The input may be empty.
  */
 @ApiStatus.Experimental
 @JsonAutoDetect(getterVisibility = Visibility.NONE, isGetterVisibility = Visibility.NONE)
-// A classification request has no state, so it is read by its own creator, not the decision request reader.
-@JsonDeserialize(using = ValueDeserializer.None::class)
-class ClassificationRequest private constructor(
-    input: String,
-    @get:JsonProperty("spec") override val spec: ClassificationSpec,
-) : DecisionRequest(input, spec) {
+@JsonDeserialize(using = ClassificationRequestDeserializer::class)
+class ClassificationRequest : DecisionRequest {
+
+    /** The classification to make. */
+    @get:JsonProperty("spec")
+    override val spec: ClassificationSpec
+
+    private constructor(input: String, spec: ClassificationSpec) : super(input, spec) {
+        this.spec = spec
+    }
+
+    private constructor(state: JsonNode, spec: ClassificationSpec) : super(state, spec) {
+        this.spec = spec
+    }
 
     /** The categories to choose from, in the spec's order. */
     val categories: List<Category> get() = spec.categories
@@ -240,18 +247,17 @@ class ClassificationRequest private constructor(
         fun of(input: String, spec: ClassificationSpec): ClassificationRequest = ClassificationRequest(input, spec)
 
         /**
-         * Builds a request from deserialized JSON fields.
+         * Returns a request that classifies a structured state with the given spec. The request
+         * keeps its own snapshot of the state as plain JSON, as a decision request does.
          *
-         * @param input the text to classify
+         * @param state the JSON object or array to classify
          * @param spec the classification to make
          * @return the request
+         * @throws IllegalArgumentException if the state is not a JSON object or array, or cannot be
+         * written as JSON
          */
         @JvmStatic
-        @JsonCreator
-        private fun fromJson(
-            @JsonProperty("input", required = true) input: String,
-            @JsonProperty("spec", required = true) spec: ClassificationSpec,
-        ): ClassificationRequest = ClassificationRequest(input, spec)
+        fun of(state: JsonNode, spec: ClassificationSpec): ClassificationRequest = ClassificationRequest(state, spec)
     }
 }
 

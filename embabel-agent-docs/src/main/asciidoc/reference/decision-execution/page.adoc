@@ -322,7 +322,9 @@ The state must be a JSON object or array; `DecisionRequest.of` rejects anything 
 The request keeps its own snapshot of the state as plain JSON, so changing the node afterwards does not change the request.
 A `String` input is always sent as text, even when the text is itself JSON.
 
-`classify` and `assess` take text only.
+`ClassificationRequest.of(state, spec)` takes a structured state the same way.
+When a structured `ask` reaches a service that answers one question per call, each choice question arrives as a structured classification request.
+`assess` takes text only.
 Logs and observations treat a structured input as they treat text: nothing of it is recorded unless <<reference.decision-execution.capture,content capture>> is on, and then it is logged as the JSON text.
 
 ===== Capabilities and hooks
