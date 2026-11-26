@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import tools.jackson.databind.JsonNode
 
 /**
  * Pins the binary shape of the decision service interfaces. An existing implementor compiled
@@ -53,6 +54,7 @@ class DecisionServiceShapeTest {
         val ask = type.declared("ask")
         assertEquals(1, capabilities.size)
         assertEquals(2, ask.size)
+        assertTrue(ask.none { JsonNode::class.java in it.parameterTypes }) { "ask takes a JsonNode" }
         (capabilities + ask).forEach { assertTrue(it.isDefault) { "$it is not a default method" } }
     }
 

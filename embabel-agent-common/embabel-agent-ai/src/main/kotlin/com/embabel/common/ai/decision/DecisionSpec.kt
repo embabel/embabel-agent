@@ -17,9 +17,16 @@ package com.embabel.common.ai.decision
 
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.json.JsonMapper
 import java.util.Objects
 import java.util.function.Consumer
 
@@ -252,22 +259,55 @@ open class DecisionSpec internal constructor(questions: List<Question<*>>) {
 /**
  * One decision spec together with the input it should be evaluated against.
  *
+ * The input is either text or a structured state, which is a JSON object or array. A service that
+ * speaks System One sends a state as JSON, so questions can point at values in it with backticked
+ * paths such as `` `intent.subject` ``. Every other service reads [input], which for a structured
+ * request is the state written out as JSON text.
+ *
+ * As JSON, a text request is `{"input", "spec"}` and a structured one is `{"state", "spec"}`.
+ * Reading takes exactly one of the two, and a `state` of null counts as missing.
+ *
  * @property input the text the model reasons over. It may be empty when a spec needs no input
- * beyond its questions.
+ * beyond its questions. For a structured request it is the state as compact JSON text, with
+ * fields and elements in the order they were added.
  * @property spec the questions to answer
  *
- * Two requests are equal when their inputs and specs are equal, whatever their class. A
+ * Two requests are equal when their inputs, states and specs are equal, whatever their class. A
+ * text request never equals a structured one, even when its text is the same JSON. A
  * `ClassificationRequest` is the one subclass: a request whose spec is a `ClassificationSpec`.
  */
 @ApiStatus.Experimental
-@JsonPropertyOrder("input", "spec")
-open class DecisionRequest internal constructor(
-    @get:JsonProperty("input") val input: String,
+@JsonPropertyOrder("input", "state", "spec")
+@JsonDeserialize(using = DecisionRequestDeserializer::class)
+open class DecisionRequest private constructor(
+    @get:JsonIgnore val input: String,
     @get:JsonProperty("spec") open val spec: DecisionSpec,
+    // The request's own copy of the state. Nothing outside this class can reach it.
+    private val structured: JsonNode?,
 ) {
 
+    internal constructor(input: String, spec: DecisionSpec) : this(input, spec, null)
+
+    /**
+     * The structured state the model reasons over, or null for a text request. Each call returns a
+     * fresh copy, so changing it does not change the request.
+     */
+    @get:JsonProperty("state")
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    val state: JsonNode? get() = structured?.deepCopy()
+
+    /**
+     * The input as it is written to JSON. A structured request leaves it out, because its state
+     * already says the same thing. It is not private, so a mapper that may not open private
+     * members can still write a request.
+     */
+    @JsonProperty("input")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    internal fun writtenInput(): String? = input.takeIf { structured == null }
+
     final override fun equals(other: Any?): Boolean =
-        this === other || other is DecisionRequest && input == other.input && spec == other.spec
+        this === other ||
+            other is DecisionRequest && input == other.input && structured == other.structured && spec == other.spec
 
     final override fun hashCode(): Int = Objects.hash(input, spec)
 
@@ -311,17 +351,60 @@ open class DecisionRequest internal constructor(
             DecisionRequest(input, DecisionSpec.of(*questions))
 
         /**
-         * Builds a request from deserialized JSON fields.
+         * Returns a request that evaluates the given spec against a structured state. The request
+         * keeps its own snapshot of the state as plain JSON, with fields and elements in the order
+         * they were added, so later changes to the node or to anything it holds do not affect it.
+         * A binary value becomes its Base64 text and an embedded object becomes the JSON it
+         * serializes to.
          *
-         * @param input the text the model reasons over
+         * @param state the JSON object or array the model reasons over
          * @param spec the questions to answer
          * @return the request
+         * @throws IllegalArgumentException if the state is not a JSON object or array, or cannot be
+         * written as JSON
          */
         @JvmStatic
-        @JsonCreator
-        private fun fromJson(
-            @JsonProperty("input", required = true) input: String,
-            @JsonProperty("spec", required = true) spec: DecisionSpec,
-        ): DecisionRequest = DecisionRequest(input, spec)
+        fun of(state: JsonNode, spec: DecisionSpec): DecisionRequest {
+            require(state.isObject || state.isArray) {
+                "A structured decision input must be a JSON object or array, but was ${state.nodeType}. " +
+                    "Pass text as a String."
+            }
+            val snapshot = snapshot(state)
+            return DecisionRequest(snapshot.toString(), spec, snapshot)
+        }
+
+        // Reads decimals back exactly, so a snapshot keeps the digits the caller gave.
+        private val snapshotMapper: JsonMapper = JsonMapper.builder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build()
+
+        /**
+         * Writes the state out and reads it back, which leaves a tree of plain JSON values that
+         * shares nothing with the caller's node.
+         *
+         * @param state the caller's node
+         * @return the request's own tree
+         * @throws IllegalArgumentException if the state cannot be written as JSON
+         */
+        private fun snapshot(state: JsonNode): JsonNode = try {
+            snapshotMapper.readTree(snapshotMapper.writeValueAsString(state))
+        } catch (_: JacksonException) {
+            // The writer's message can quote the state, so it is dropped.
+            throw IllegalArgumentException(
+                "A structured decision input could not be written as JSON. Build it from plain JSON values.",
+            )
+        }
+
+        /**
+         * Returns a request built from a structured state and the given questions, in the given order.
+         *
+         * @param state the JSON object or array the model reasons over
+         * @param questions the questions to answer, which must have unique names
+         * @return the request
+         * @throws IllegalArgumentException if the state is not a JSON object or array, there are no
+         * questions, or two share a name
+         */
+        @JvmStatic
+        fun of(state: JsonNode, vararg questions: Question<*>): DecisionRequest = of(state, DecisionSpec.of(*questions))
     }
 }

@@ -154,6 +154,26 @@ class CloudflareModelFactoryTest {
         }
 
         @Test
+        fun `a structured state reaches both routes as a JSON object in field order`() {
+            val stateJson = """{"rule":"Declared only.","facts":[{"subject":"Tomato"}]}"""
+            val request = DecisionRequest.of(mapper.readTree(stateJson), DecisionSpec.of(urgent))
+            val mocked = mocked()
+            val bodies = mutableListOf<String>()
+            mocked.server.expect(requestTo("$base/ai/run"))
+                .andExpect { bodies += (it as MockClientHttpRequest).bodyAsString }
+                .andRespond(withSuccess(envelope(), MediaType.APPLICATION_JSON))
+            mocked.server.expect(requestTo("$base/ai/run/${CloudflareModelFactory.CLEF_OMNI}"))
+                .andExpect { bodies += (it as MockClientHttpRequest).bodyAsString }
+                .andRespond(withSuccess(envelope(), MediaType.APPLICATION_JSON))
+
+            mocked.factory.build(CloudflareModelFactory.JEV).ask(request)
+            mocked.factory.build(CloudflareModelFactory.CLEF_OMNI).ask(request)
+
+            assertTrue(bodies[0].startsWith("""{"model":"typesafe/jev","input":{"state":$stateJson,"questions":"""), bodies[0])
+            assertTrue(bodies[1].startsWith("""{"state":$stateJson,"model":"clef-omni","questions":"""), bodies[1])
+        }
+
+        @Test
         fun `jev's body is written without reading the request back`() {
             val mocked = mocked()
             val longId = "o".repeat(50_001)

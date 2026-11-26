@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
+import tools.jackson.databind.json.JsonMapper
 
 class PromptedQuestionSetTest {
 
@@ -107,6 +108,15 @@ class PromptedQuestionSetTest {
             assertInstanceOf(SystemMessage::class.java, messages[0])
             assertInstanceOf(UserMessage::class.java, messages[1])
             assertEquals(inputEnvelope(request.input), user)
+        }
+
+        @Test
+        fun `a structured state reaches the user message as JSON text in field order`() {
+            val stateJson = """{"rule":"Declared only.","facts":[{"subject":"Tomato"}]}"""
+            val structured = DecisionRequest.of(JsonMapper.builder().build().readTree(stateJson), spec)
+            val sent = PromptedQuestionSet.messages(structured)
+            assertEquals(inputEnvelope(stateJson), sent[1].content)
+            assertFalse(sent[0].content.contains("Tomato"))
         }
 
         @Test

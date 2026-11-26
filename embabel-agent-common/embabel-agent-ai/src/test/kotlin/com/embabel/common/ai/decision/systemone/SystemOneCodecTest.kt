@@ -62,6 +62,42 @@ class SystemOneCodecTest {
     @Nested
     inner class Encoding {
 
+        // Deliberately not in alphabetical order, so a sorted state would show up.
+        private val structured = """{"intent":{"kind":"COMPANIONS","subject":"Tomato"},"rule":"Declared only.","facts":[{"subject":"Tomato","object":"Basil"}]}"""
+
+        @Test
+        fun `a structured state goes out as a JSON object with its fields in insertion order`() {
+            val request = DecisionRequest.of(mapper.readTree(structured), DecisionSpec.of(urgent))
+            val sent = SystemOneCodec.encode("jev-latest", request).decodeToString()
+            assertTrue(sent.startsWith("""{"state":$structured,"model":"jev-latest","questions":""")) { sent }
+            val state = mapper.readTree(sent).get("state")
+            assertTrue(state.isObject)
+            assertEquals(listOf("intent", "rule", "facts"), state.propertyNames().toList())
+            assertEquals(listOf("kind", "subject"), state.get("intent").propertyNames().toList())
+        }
+
+        @Test
+        fun `a structured state built field by field keeps the order the fields were added in`() {
+            val state = mapper.createObjectNode().put("zebra", 1).put("apple", 2)
+            state.putObject("mango").put("b", true).put("a", false)
+            val sent = SystemOneCodec.encode(DecisionRequest.of(state, DecisionSpec.of(urgent))).decodeToString()
+            assertTrue(sent.startsWith("""{"state":{"zebra":1,"apple":2,"mango":{"b":true,"a":false}},"questions":""")) { sent }
+        }
+
+        @Test
+        fun `an array state goes out as a JSON array in element order`() {
+            val request = DecisionRequest.of(mapper.readTree("""[{"b":1,"a":2},"second"]"""), DecisionSpec.of(urgent))
+            val sent = SystemOneCodec.encode(request).decodeToString()
+            assertTrue(sent.startsWith("""{"state":[{"b":1,"a":2},"second"],"questions":""")) { sent }
+        }
+
+        @Test
+        fun `a text input holding JSON still goes out as a string`() {
+            val sent = mapper.readTree(SystemOneCodec.encode(DecisionRequest.of(structured, DecisionSpec.of(urgent))))
+            assertTrue(sent.get("state").isString)
+            assertEquals(structured, sent.get("state").stringValue())
+        }
+
         @Test
         fun `questions are keyed q1 to qN in spec order with the state and model`() {
             val json = mapper.readTree(SystemOneCodec.encode("jev-latest", DecisionRequest.of("charged twice", spec)))
