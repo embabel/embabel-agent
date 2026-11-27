@@ -208,12 +208,23 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
     }
 
     @Test
-    fun `should send the reasoning effort when thinking is turned off`() {
-        val options = optionsConverter.convertOptions(
+    fun `should send the reasoning effort when thinking is turned off on a model that cannot disable it`() {
+        listOf(optionsConverter, GoogleGenAiOptionsConverter.declaring(false)).forEach { converter ->
+            val options = converter.convertOptions(
+                LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW), "test-model"
+            ) as GoogleGenAiChatOptions
+            assertEquals(GoogleGenAiThinkingLevel.LOW, options.thinkingLevel)
+            assertNull(options.thinkingBudget)
+        }
+    }
+
+    @Test
+    fun `should send only a zero budget when thinking is turned off on a model that can disable it`() {
+        val options = GoogleGenAiOptionsConverter.declaring(true).convertOptions(
             LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW), "test-model"
         ) as GoogleGenAiChatOptions
-        assertEquals(GoogleGenAiThinkingLevel.LOW, options.thinkingLevel)
-        assertNull(options.thinkingBudget)
+        assertEquals(0, options.thinkingBudget)
+        assertNull(options.thinkingLevel, "Gemini rejects a budget and a level together")
     }
 
     @Test

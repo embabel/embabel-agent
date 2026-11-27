@@ -398,7 +398,8 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
 
     /**
      * [ReasoningEffort] goes out as `thinkingLevel`, and takes precedence over a [Thinking.tokenBudget]: Gemini
-     * rejects a request that carries both.
+     * rejects a request that carries both. Where the model can turn thinking off, [LlmOptions.withoutThinking] takes
+     * precedence over the effort: only `thinkingBudget = 0` is sent. Elsewhere the level is still sent.
      */
     private fun GoogleGenAiChatOptions.Builder.applyThinking(
         thinking: Thinking?,
@@ -408,20 +409,23 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
     ): GoogleGenAiChatOptions.Builder =
         apply {
             thinking?.let { includeThoughts(it.extractThinking) }
-            if (thinking?.disabled == true) {
-                disableThinking(model, thinkingCanBeDisabled)
-            }
-            if (effort != null) {
-                thinkingLevel(thinkingLevelOf(effort, model))
-            } else if (thinking?.enabled == true) {
-                thinking.tokenBudget?.let { thinkingBudget(it) }
+            when {
+                thinking?.disabled == true && thinkingCanBeDisabled == true -> thinkingBudget(0)
+                else -> {
+                    if (thinking?.disabled == true) {
+                        warnThinkingNotDisabled(model)
+                    }
+                    if (effort != null) {
+                        thinkingLevel(thinkingLevelOf(effort, model))
+                    } else if (thinking?.enabled == true) {
+                        thinking.tokenBudget?.let { thinkingBudget(it) }
+                    }
+                }
             }
         }
 
-    private fun GoogleGenAiChatOptions.Builder.disableThinking(model: String, thinkingCanBeDisabled: Boolean?) {
-        if (thinkingCanBeDisabled == true) {
-            thinkingBudget(0)
-        } else if (warnedThinkingNotDisabled.add(model)) {
+    private fun warnThinkingNotDisabled(model: String) {
+        if (warnedThinkingNotDisabled.add(model)) {
             logger.warn(
                 "Thinking opt-out ignored for model '{}': thinking.can_be_disabled is not true " +
                     "in its catalog entry, so no thinkingBudget is sent",
