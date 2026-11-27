@@ -15,12 +15,17 @@
  */
 package com.embabel.agent.config.models.googlegenai
 
+import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ReasoningEffort
+import com.embabel.common.ai.model.Thinking
+import com.google.genai.types.ThinkingLevel
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.prompt.Prompt
@@ -81,6 +86,24 @@ class GoogleGenAiToolResponseRequestTest {
         } catch (e: InvocationTargetException) {
             throw e.targetException
         }
+
+    @Test
+    fun `Gemini request contains the requested thinking level without a budget`() {
+        googleGenAiRunner().run { context ->
+            val service = context.getBeansOfType(SpringAiLlmService::class.java).values
+                .single { it.name == GoogleGenAiModels.GEMINI_4_HYDROGEN }
+            val options = service.convertOptions(
+                LlmOptions()
+                    .withThinking(Thinking.withTokenBudget(2000).applyExtraction())
+                    .withReasoningEffort(ReasoningEffort.MEDIUM),
+            )
+            val request = buildRequest(service.chatModel as GoogleGenAiChatModel, Prompt("Think", options))
+            val thinking = request.config().thinkingConfig().orElseThrow()
+            assertEquals(ThinkingLevel.Known.MEDIUM, thinking.thinkingLevel().orElseThrow().knownEnum())
+            assertEquals(false, thinking.thinkingBudget().isPresent)
+            assertEquals(true, thinking.includeThoughts().orElseThrow())
+        }
+    }
 
     @Test
     fun `plain text that starts with a bracket reaches Gemini wrapped`() {

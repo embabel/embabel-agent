@@ -163,6 +163,9 @@ class Thinking private constructor(
  *   unless [Thinking] says otherwise; the effort takes precedence over the effort a
  *   [Thinking.withTokenBudget] budget maps to. A model that does not offer a level rejects it.
  *   [NONE] turns thinking off where the model catalog declares it can be, and fails as unsupported elsewhere.
+ * - Native Google GenAI sends [LOW], [MEDIUM], or [HIGH] as `thinkingLevel` for Gemini 3 and 4,
+ *   taking precedence over token budgets. The selected model determines which levels it accepts.
+ *   [NONE], [XHIGH], and [MAX] fail as unsupported on these models.
  * - Other providers ignore it.
  */
 enum class ReasoningEffort {

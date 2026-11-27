@@ -27,6 +27,7 @@ import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.google.genai.GoogleGenAiChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
+import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel
 import org.springframework.ai.google.genai.embedding.GoogleGenAiEmbeddingConnectionDetails
 import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingModel
 import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingOptions
@@ -211,9 +213,13 @@ class GoogleGenAiModelsConfig(
      * Creates an individual Google GenAI model from configuration.
      */
     private fun createGoogleGenAiLlm(modelDef: GoogleGenAiModelDefinition): LlmService<*> {
+        // Spring AI merges model defaults and request options independently for level and budget.
+        val requestThinkingBudget = modelDef.thinkingBudget?.takeIf {
+            GoogleGenAiOptionsConverter.supportsThinkingLevel(modelDef.modelId)
+        }
         val chatModel = GoogleGenAiChatModel(
             createGoogleGenAiClient(),
-            createDefaultOptions(modelDef),
+            createDefaultOptions(modelDef, modelDef.thinkingBudget.takeIf { requestThinkingBudget == null }),
             ToolCallingManager.builder()
                 .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                 .build(),
@@ -225,9 +231,10 @@ class GoogleGenAiModelsConfig(
             name = modelDef.modelId,
             chatModel = chatModel,
             provider = GoogleGenAiModels.PROVIDER,
-            optionsConverter = modelDef.thinking?.canBeDisabled
-                ?.let { GoogleGenAiOptionsConverter.declaring(it) }
-                ?: GoogleGenAiOptionsConverter,
+            optionsConverter = GoogleGenAiOptionsConverter.declaring(
+                modelDef.thinking?.canBeDisabled,
+                requestThinkingBudget,
+            ),
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = modelDef.pricingModel?.let {
@@ -243,7 +250,10 @@ class GoogleGenAiModelsConfig(
     /**
      * Creates default options for a model based on YAML configuration.
      */
-    private fun createDefaultOptions(modelDef: GoogleGenAiModelDefinition): GoogleGenAiChatOptions {
+    private fun createDefaultOptions(
+        modelDef: GoogleGenAiModelDefinition,
+        thinkingBudget: Int?,
+    ): GoogleGenAiChatOptions {
         return GoogleGenAiChatOptions.builder()
             .model(modelDef.modelId)
             .maxOutputTokens(modelDef.maxOutputTokens)
@@ -251,7 +261,7 @@ class GoogleGenAiModelsConfig(
             .apply {
                 modelDef.topP?.let { topP(it) }
                 modelDef.topK?.let { topK(it) }
-                modelDef.thinkingBudget?.let { thinkingBudget(it) }
+                thinkingBudget?.let { thinkingBudget(it) }
                 modelDef.includeThoughts?.let { includeThoughts(it) }
             }
             .build()
@@ -370,19 +380,38 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
     internal val warnedThinkingNotDisabled = ConcurrentHashMap.newKeySet<String>()
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
-        convert(options, model, null)
+        convert(options, model, null, null)
 
     /**
      * This converter for a model whose catalog entry declares whether thinking can be turned off
      * (`thinking.can_be_disabled` in `google-genai-models.yml`). Only where it is `true` does
      * [Thinking.NONE] send `thinkingBudget = 0`.
      */
-    fun declaring(thinkingCanBeDisabled: Boolean): OptionsConverter = object : OptionsConverter {
+    fun declaring(thinkingCanBeDisabled: Boolean): OptionsConverter =
+        declaring(thinkingCanBeDisabled, null)
+
+    internal fun declaring(
+        thinkingCanBeDisabled: Boolean?,
+        defaultThinkingBudget: Int?,
+    ): OptionsConverter = object : OptionsConverter {
         override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
-            convert(options, model, thinkingCanBeDisabled)
+            convert(options, model, thinkingCanBeDisabled, defaultThinkingBudget)
     }
 
-    private fun convert(options: LlmOptions, model: String, thinkingCanBeDisabled: Boolean?): ChatOptions =
+    internal fun supportsThinkingLevel(model: String): Boolean {
+        val modelId = model.substringAfterLast('/')
+        return modelId.startsWith("gemini-3.", ignoreCase = true) ||
+            modelId.startsWith("gemini-3-", ignoreCase = true) ||
+            modelId.startsWith("gemini-4.", ignoreCase = true) ||
+            modelId.startsWith("gemini-4-", ignoreCase = true)
+    }
+
+    private fun convert(
+        options: LlmOptions,
+        model: String,
+        thinkingCanBeDisabled: Boolean?,
+        defaultThinkingBudget: Int?,
+    ): ChatOptions =
         GoogleGenAiChatOptions.builder()
             .model(model)
             .temperature(options.temperature)
@@ -391,20 +420,38 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .maxOutputTokens(options.maxTokens ?: DEFAULT_MAX_OUTPUT_TOKENS)
-            .applyThinking(options.thinking, model, thinkingCanBeDisabled)
+            .applyThinking(options, model, thinkingCanBeDisabled, defaultThinkingBudget)
             .build()
 
     private fun GoogleGenAiChatOptions.Builder.applyThinking(
-        thinking: Thinking?,
+        options: LlmOptions,
         model: String,
         thinkingCanBeDisabled: Boolean?,
+        defaultThinkingBudget: Int?,
     ): GoogleGenAiChatOptions.Builder =
         apply {
-            if (thinking == null) {
+            val thinking = options.thinking
+            thinking?.let { includeThoughts(it.extractThinking) }
+            val effort = options.reasoningEffort
+            if (effort != null && supportsThinkingLevel(model)) {
+                thinkingLevel(
+                    when (effort) {
+                        ReasoningEffort.LOW -> GoogleGenAiThinkingLevel.LOW
+                        ReasoningEffort.MEDIUM -> GoogleGenAiThinkingLevel.MEDIUM
+                        ReasoningEffort.HIGH -> GoogleGenAiThinkingLevel.HIGH
+                        ReasoningEffort.NONE, ReasoningEffort.XHIGH, ReasoningEffort.MAX ->
+                            throw UnsupportedOperationException(
+                                "Reasoning effort ${effort.value} is unsupported for model '$model'",
+                            )
+                    },
+                )
                 return@apply
             }
 
-            includeThoughts(thinking.extractThinking)
+            defaultThinkingBudget?.let { thinkingBudget(it) }
+            if (thinking == null) {
+                return@apply
+            }
 
             if (thinking.enabled) {
                 thinking.tokenBudget?.let { thinkingBudget(it) }
