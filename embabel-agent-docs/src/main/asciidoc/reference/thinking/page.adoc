@@ -270,7 +270,7 @@ a| `LOW`, `MEDIUM` and `HIGH` are sent as the Gemini `thinkingLevel` of the same
 * If thinking is turned off with `withoutThinking()` on a model whose entry in `google-genai-models.yml` sets `thinking.can_be_disabled: true`, only `thinkingBudget = 0` is sent, with no level. Gemini refuses a request that has both. On other models the level is still sent, because `withoutThinking()` cannot turn their thinking off.
 * `NONE` throws `UnsupportedOperationException`. Gemini has no level that means "off", and whether its thinking can be turned off depends on the model and on the endpoint (Gemini API or Vertex AI). See https://github.com/embabel/embabel-agent/issues/2259[#2259].
 * `XHIGH` and `MAX` also throw `UnsupportedOperationException`, because Spring AI only sends levels up to `HIGH`.
-* The two rules above do not apply when `withoutThinking()` turns thinking off on a model with `thinking.can_be_disabled: true`. The effort is then not sent, so no effort throws.
+* These two rules also apply when `withoutThinking()` turns thinking off, on every model.
 * Gemini 2.5 models are not supported. They only take a budget, and Spring AI or the Gemini API refuses a level for them. Google is retiring them: 2.5 Pro and 2.5 Flash shut down on 2026-12-01.
 
 | Others

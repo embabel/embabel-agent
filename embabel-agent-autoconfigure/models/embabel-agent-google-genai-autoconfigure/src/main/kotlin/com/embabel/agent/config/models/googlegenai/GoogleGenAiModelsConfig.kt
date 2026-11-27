@@ -400,6 +400,7 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
      * [ReasoningEffort] goes out as `thinkingLevel`, and takes precedence over a [Thinking.tokenBudget]: Gemini
      * rejects a request that carries both. Where the model can turn thinking off, [LlmOptions.withoutThinking] takes
      * precedence over the effort: only `thinkingBudget = 0` is sent. Elsewhere the level is still sent.
+     * An effort with no Gemini level fails either way.
      */
     private fun GoogleGenAiChatOptions.Builder.applyThinking(
         thinking: Thinking?,
@@ -409,14 +410,15 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
     ): GoogleGenAiChatOptions.Builder =
         apply {
             thinking?.let { includeThoughts(it.extractThinking) }
+            val level = effort?.let { thinkingLevelOf(it, model) }
             when {
                 thinking?.disabled == true && thinkingCanBeDisabled == true -> thinkingBudget(0)
                 else -> {
                     if (thinking?.disabled == true) {
                         warnThinkingNotDisabled(model)
                     }
-                    if (effort != null) {
-                        thinkingLevel(thinkingLevelOf(effort, model))
+                    if (level != null) {
+                        thinkingLevel(level)
                     } else if (thinking?.enabled == true) {
                         thinking.tokenBudget?.let { thinkingBudget(it) }
                     }

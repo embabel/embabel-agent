@@ -169,8 +169,8 @@ class Thinking private constructor(
  *   only, Spring AI or the API rejects a level for it, and it is not handled, since
  *   Google is retiring it (2.5 Pro and 2.5 Flash shut down on 2026-12-01). [NONE] fails as unsupported,
  *   since Gemini has no level that means off and whether thinking can be turned off depends on the model and
- *   the endpoint; [XHIGH] and [MAX] too, since Spring AI sends levels up to high. Neither fails when thinking
- *   is turned off on a model whose catalog declares it can be, since the effort is then not sent.
+ *   the endpoint; [XHIGH] and [MAX] too, since Spring AI sends levels up to high. They fail even when
+ *   [Thinking] turns thinking off.
  * - Other providers ignore it.
  */
 enum class ReasoningEffort {
