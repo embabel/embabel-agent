@@ -251,6 +251,7 @@ open class AnthropicModelFactory(
             thinkingSupported = true,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             promptTokensExcludeCache = true,
+            nativeUsageReader = AnthropicNativeUsageReader,
         ).also {
             // Automatic cleanup waits until the model is unreachable, even after cache eviction.
             it.registerChatModelCleanup(cleanup)

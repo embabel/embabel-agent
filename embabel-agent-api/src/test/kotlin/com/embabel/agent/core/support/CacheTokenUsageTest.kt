@@ -35,6 +35,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.ai.model.NativeUsage
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
@@ -412,6 +413,7 @@ class CacheTokenUsageTest {
                 override fun costOf(usage: SpringAiUsage) = 0.123
             }
             assertEquals(0.123, invocation(Usage(100, 50, null), overriding).cost(), 1e-12)
+            assertEquals(0.123, invocation(Usage(100, 50, null, billableUsage = NativeUsage(100, 50)), overriding).cost(), 1e-12)
         }
 
         @Test

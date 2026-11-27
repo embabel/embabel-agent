@@ -22,6 +22,7 @@ import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.NativeUsage
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
@@ -91,6 +92,27 @@ class AnthropicCacheUsageWireTest {
     }
 
     @Test
+    fun `a call fills native usage with the 1h write split and thinking, priced at 2x input`() {
+        reply = MESSAGE.replace(CACHE_USAGE, TTL_USAGE)
+        val llm = llm()
+        val usage = llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("hi")), emptyList()).usage!!
+
+        assertEquals(
+            NativeUsage(inputTokens = 100, outputTokens = 40, cacheReadInputTokens = 800,
+                cacheWriteInputTokens = 50, cacheWriteLongInputTokens = 2000, thinkingTokens = 30),
+            usage.billableUsage,
+        )
+        assertEquals(2950, usage.promptTokens)
+        assertEquals(2050, usage.cacheWriteInputTokens)
+        // 5m writes at the 1.25x default, 1h writes at the 2x default.
+        val expected = with(PRICING) {
+            100 * usdPer1mInputTokens + 800 * usdPer1mCacheReadInputTokens!! + 50 * usdPer1mInputTokens * 1.25 +
+                2000 * usdPer1mInputTokens * 2 + 40 * usdPer1mOutputTokens
+        } / 1_000_000
+        assertEquals(expected, LlmInvocation(llm, usage, timestamp = Instant.now(), runningTime = Duration.ZERO).cost(), 1e-12)
+    }
+
+    @Test
     fun `a stream counts cache reads and writes from the cumulative message_delta usage`() {
         reply = sse(startUsage = CACHE_USAGE, deltaUsage = CACHE_USAGE)
         assertCacheCounted(stream())
@@ -119,6 +141,11 @@ class AnthropicCacheUsageWireTest {
 
         const val CACHE_USAGE =
             """{"input_tokens":100,"cache_read_input_tokens":800,"cache_creation_input_tokens":50,"output_tokens":5}"""
+
+        const val TTL_USAGE =
+            """{"input_tokens":100,"cache_read_input_tokens":800,"cache_creation_input_tokens":2050,""" +
+                """"cache_creation":{"ephemeral_5m_input_tokens":50,"ephemeral_1h_input_tokens":2000},""" +
+                """"output_tokens":40,"output_tokens_details":{"thinking_tokens":30}}"""
 
         val MESSAGE = """{"id":"msg_1","type":"message","role":"assistant","model":"$MODEL",
             "content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","stop_sequence":null,

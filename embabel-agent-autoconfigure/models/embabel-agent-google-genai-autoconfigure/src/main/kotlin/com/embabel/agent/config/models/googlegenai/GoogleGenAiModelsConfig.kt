@@ -237,6 +237,7 @@ class GoogleGenAiModelsConfig(
                 )
             },
             toolResponseContentAdapter = TOOL_RESPONSE_CONTENT_ADAPTER,
+            nativeUsageReader = GoogleGenAiNativeUsageReader,
         )
     }
 

@@ -212,9 +212,17 @@ class PricingModelTest {
 
     @Test
     fun `Anthropic cache rate defaults return the same model when they change no price`() {
-        val configuredWrite = PerTokenPricingModel(4.0, 20.0, 0.4, 8.0)
-        assertSame(configuredWrite, configuredWrite.withAnthropicCacheRateDefaults())
+        val configuredWrites = PerTokenPricingModel(4.0, 20.0, 0.4, 8.0, 9.0)
+        assertSame(configuredWrites, configuredWrites.withAnthropicCacheRateDefaults())
         val free = PerTokenPricingModel(0.0, 0.0)
         assertSame(free, free.withAnthropicCacheRateDefaults())
+    }
+
+    @Test
+    fun `Anthropic cache rate defaults set the 1h write rate when the 5m write rate is configured`() {
+        // Every catalog model configures the 5m rate; 2,000 1h-write tokens at $2/M input cost 2x input.
+        val model = PerTokenPricingModel(2.0, 10.0, 0.1, 2.5).withAnthropicCacheRateDefaults()
+        assertEquals(0.008, model.costOf(NativeUsage(cacheWriteLongInputTokens = 2_000)), 1e-12)
+        assertEquals(2.5 / 1_000_000, model.usdPerCacheWriteInputToken(), 1e-15)
     }
 }

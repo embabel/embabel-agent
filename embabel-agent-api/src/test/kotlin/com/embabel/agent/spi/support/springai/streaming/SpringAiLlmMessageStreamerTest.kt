@@ -20,7 +20,9 @@ import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.UserMessage
+import com.embabel.agent.spi.support.springai.SpringAiNativeUsageReader
 import com.embabel.common.ai.model.LlmMetadata
+import com.embabel.common.ai.model.NativeUsage
 import com.embabel.common.ai.model.PerTokenPricingModel
 import io.mockk.every
 import io.mockk.mockk
@@ -129,6 +131,32 @@ class SpringAiLlmMessageStreamerTest {
             runningTime = Duration.ZERO,
         )
         assertEquals(0.0093, invocation.cost(), 1e-12)
+    }
+
+    @Test
+    fun `an empty trailing usage chunk keeps the last billable usage`() {
+        // A Gemini stream ends with GoogleGenAiUsage.from(null), which its reader maps to all-zero counts.
+        val measured = DefaultUsage(100, 50, 150, "measured")
+        val empty = DefaultUsage(0, 0, 0, "empty")
+        every { chatModel.stream(any<Prompt>()) } returns Flux.just(chunk("hel", measured), chunk("lo", empty))
+        val reader = SpringAiNativeUsageReader { u ->
+            if (u.nativeUsage == "measured") NativeUsage(inputTokens = 100, outputTokens = 50) else NativeUsage()
+        }
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions, nativeUsageReader = reader)
+
+        val usage = streamer.streamInference(listOf(UserMessage("Hi")), emptyList())
+            .ofType(LlmInferenceStreamEvent.Complete::class.java)
+            .blockLast()!!
+            .usage!!
+
+        assertEquals(NativeUsage(inputTokens = 100, outputTokens = 50), usage.billableUsage)
+        val invocation = LlmInvocation(
+            llmMetadata = LlmMetadata.create("model", "provider", null, PerTokenPricingModel(2.0, 10.0)),
+            usage = usage,
+            timestamp = Instant.now(),
+            runningTime = Duration.ZERO,
+        )
+        assertEquals((100 * 2.0 + 50 * 10.0) / 1_000_000, invocation.cost(), 1e-12)
     }
 
     private fun chunk(text: String, usage: DefaultUsage) = ChatResponse(

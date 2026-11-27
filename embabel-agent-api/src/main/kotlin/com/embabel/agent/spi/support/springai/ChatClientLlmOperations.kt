@@ -204,6 +204,7 @@ internal class ChatClientLlmOperations(
                 nativeSupport = springAiLlm.nativeSupport,
                 llmMetadata = springAiLlm,
                 promptTokensExcludeCache = springAiLlm.promptTokensExcludeCache,
+                nativeUsageReader = springAiLlm.nativeUsageReader,
             )
         }
         return llm.createMessageSender(options)
@@ -720,7 +721,8 @@ internal class ChatClientLlmOperations(
         llmRequestEvent: LlmRequestEvent<*>?,
     ) {
         logger.debug("Usage is {}", chatResponse.metadata.usage)
-        val usage = chatResponse.metadata.usage.toEmbabelUsage(requireSpringAiLlm(llm).promptTokensExcludeCache)
+        val springAiLlm = requireSpringAiLlm(llm)
+        val usage = chatResponse.metadata.usage.toEmbabelUsage(springAiLlm.promptTokensExcludeCache, springAiLlm.nativeUsageReader)
         recordUsage(llm, usage, llmRequestEvent)
     }
 

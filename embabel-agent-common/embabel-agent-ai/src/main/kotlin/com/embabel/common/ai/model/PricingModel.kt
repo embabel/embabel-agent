@@ -47,6 +47,19 @@ interface PricingModel {
     fun usdPerCacheWriteInputToken(): Double = usdPerInputToken()
 
     /**
+     * Long-TTL cache writes (Anthropic 1h at 2x input, OpenAI 12h at 2.5x). When unknown, never
+     * cheaper than 2.5x input, the highest such rate, so budgets are not under-counted.
+     */
+    fun usdPerCacheWriteLongInputToken(): Double = maxOf(usdPerCacheWriteInputToken(), 2.5 * usdPerInputToken())
+
+    /**
+     * Prices every token kind a provider adapter reported. Routes through the 4-argument [costOf].
+     */
+    fun costOf(usage: NativeUsage): Double =
+        costOf(usage.inputTokens, usage.outputTokens, usage.cacheReadInputTokens, usage.cacheWriteInputTokens) +
+            usdPerCacheWriteLongInputToken() * usage.cacheWriteLongInputTokens
+
+    /**
      * Implementations that override the 2-argument [costOf] must override this one too:
      * this default prices cache tokens at the cache rates outside that override.
      *
@@ -58,9 +71,18 @@ interface PricingModel {
             usdPerCacheWriteInputToken() * cacheWriteInputTokens
 
     /**
+     * Prices [Usage.getNativeUsage] when it is a [NativeUsage], else the generic counts.
+     *
+     * Contract: Embabel's `LlmInvocation.cost()` calls this method for every call and, when the provider
+     * adapter read a per-call record, passes that record as the native usage. So an override of this
+     * method prices every call, as before records existed; an implementation that only wants to price
+     * the record differently overrides [costOf] (NativeUsage) instead and leaves this one alone.
+     * `cost()` does not call [costOf] (NativeUsage) directly because that would bypass such overrides.
+     *
      * @param usage usage whose promptTokens include any cache reads and writes
      */
     fun costOf(usage: Usage): Double {
+        (usage.nativeUsage as? NativeUsage)?.let { return costOf(it) }
         val cacheRead = usage.cacheReadInputTokens?.toInt() ?: 0
         val cacheWrite = usage.cacheWriteInputTokens?.toInt() ?: 0
         return costOf(
@@ -88,12 +110,22 @@ interface PricingModel {
     }
 }
 
-class PerTokenPricingModel @JvmOverloads constructor(
+class PerTokenPricingModel(
     val usdPer1mInputTokens: Double,
     val usdPer1mOutputTokens: Double,
-    val usdPer1mCacheReadInputTokens: Double? = null,
-    val usdPer1mCacheWriteInputTokens: Double? = null,
+    val usdPer1mCacheReadInputTokens: Double?,
+    val usdPer1mCacheWriteInputTokens: Double?,
+    val usdPer1mCacheWriteLongInputTokens: Double?,
 ) : PricingModel {
+
+    /** Keeps the constructors callers compiled before [usdPer1mCacheWriteLongInputTokens] link to. */
+    @JvmOverloads
+    constructor(
+        usdPer1mInputTokens: Double,
+        usdPer1mOutputTokens: Double,
+        usdPer1mCacheReadInputTokens: Double? = null,
+        usdPer1mCacheWriteInputTokens: Double? = null,
+    ) : this(usdPer1mInputTokens, usdPer1mOutputTokens, usdPer1mCacheReadInputTokens, usdPer1mCacheWriteInputTokens, null)
 
     override fun usdPerInputToken(): Double {
         return usdPer1mInputTokens / ONE_MILLION
@@ -108,19 +140,24 @@ class PerTokenPricingModel @JvmOverloads constructor(
 
     override fun usdPerCacheWriteInputToken(): Double =
         usdPer1mCacheWriteInputTokens?.let { it / ONE_MILLION } ?: usdPerInputToken()
+
+    override fun usdPerCacheWriteLongInputToken(): Double =
+        usdPer1mCacheWriteLongInputTokens?.let { it / ONE_MILLION } ?: super.usdPerCacheWriteLongInputToken()
 }
 
 /**
- * Uses Anthropic's input-rate read fallback and 1.25x input-rate write fallback.
+ * Uses Anthropic's input-rate read fallback, 1.25x input-rate write fallback and 2x input-rate 1-hour write fallback.
  * 1.25x is Anthropic's 5-minute cache-write rate for current models, not a guarantee for every model:
- * a model priced differently must set [PerTokenPricingModel.usdPer1mCacheWriteInputTokens].
+ * a model priced differently must set [PerTokenPricingModel.usdPer1mCacheWriteInputTokens] and
+ * [PerTokenPricingModel.usdPer1mCacheWriteLongInputTokens].
  * Returns this model unchanged when that changes no price.
  */
 fun PerTokenPricingModel.withAnthropicCacheRateDefaults(): PerTokenPricingModel =
-    if (usdPer1mCacheWriteInputTokens != null || usdPer1mInputTokens == 0.0) this
+    if (usdPer1mInputTokens == 0.0 || (usdPer1mCacheWriteInputTokens != null && usdPer1mCacheWriteLongInputTokens != null)) this
     else PerTokenPricingModel(
         usdPer1mInputTokens = usdPer1mInputTokens,
         usdPer1mOutputTokens = usdPer1mOutputTokens,
         usdPer1mCacheReadInputTokens = usdPer1mCacheReadInputTokens,
         usdPer1mCacheWriteInputTokens = usdPer1mCacheWriteInputTokens ?: (usdPer1mInputTokens * 1.25),
+        usdPer1mCacheWriteLongInputTokens = usdPer1mCacheWriteLongInputTokens ?: (usdPer1mInputTokens * 2),
     )

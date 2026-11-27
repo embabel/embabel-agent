@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor
+import com.embabel.agent.anthropic.AnthropicNativeUsageReader
 import com.embabel.agent.anthropic.AnthropicOptionsConverter
 import com.embabel.agent.anthropic.ClaudeCapabilities
 import com.anthropic.models.messages.ThinkingConfigAdaptive
@@ -197,6 +198,7 @@ class AnthropicModelsConfig(
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             nativeSupport = modelDef.nativeSupport,
             promptTokensExcludeCache = true,
+            nativeUsageReader = AnthropicNativeUsageReader,
         )
     }
 

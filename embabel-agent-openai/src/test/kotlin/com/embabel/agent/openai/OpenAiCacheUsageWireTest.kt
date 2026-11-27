@@ -22,6 +22,7 @@ import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.NativeUsage
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
@@ -40,6 +41,7 @@ import java.time.Instant
 class OpenAiCacheUsageWireTest {
 
     private var response = RESPONSE
+    private var chatCompletion = CHAT_COMPLETION
     private lateinit var server: HttpServer
 
     @BeforeEach
@@ -50,7 +52,7 @@ class OpenAiCacheUsageWireTest {
             val reply = when {
                 exchange.requestURI.path.endsWith("/responses") -> response
                 streaming -> CHAT_COMPLETION_STREAM
-                else -> CHAT_COMPLETION
+                else -> chatCompletion
             }.toByteArray()
             exchange.responseHeaders.add("Content-Type", if (streaming) "text/event-stream" else "application/json")
             exchange.sendResponseHeaders(200, reply.size.toLong())
@@ -92,6 +94,34 @@ class OpenAiCacheUsageWireTest {
     fun `a Chat Completions call counts cached tokens without inflating prompt tokens`() {
         val llm = chatCompletions()
         assertCachedReadCounted(llm, call(llm))
+    }
+
+    @Test
+    fun `a Chat Completions call fills native usage with cache writes and reasoning, priced at the write rate`() {
+        chatCompletion = CHAT_COMPLETION.replace(CHAT_USAGE, """{"prompt_tokens":10900,"completion_tokens":5,
+            "total_tokens":10905,"prompt_tokens_details":{"cached_tokens":800,"cache_write_tokens":10000},
+            "completion_tokens_details":{"reasoning_tokens":3}}""")
+        val llm = chatCompletions()
+        val pricing = PerTokenPricingModel(2.0, 8.0, usdPer1mCacheReadInputTokens = 0.5, usdPer1mCacheWriteInputTokens = 2.5)
+        val usage = call(llm)
+
+        assertEquals(
+            NativeUsage(inputTokens = 100, outputTokens = 5, cacheReadInputTokens = 800,
+                cacheWriteInputTokens = 10_000, thinkingTokens = 3),
+            usage.billableUsage,
+        )
+        val cost = LlmInvocation(llm.copy(pricingModel = pricing), usage, timestamp = Instant.now(), runningTime = Duration.ZERO).cost()
+        assertEquals((100 * 2.0 + 800 * 0.5 + 10_000 * 2.5 + 5 * 8.0) / 1_000_000, cost, 1e-12)
+    }
+
+    @Test
+    fun `a Responses call fills native usage with cache writes and reasoning`() {
+        response = RESPONSE.replace(""""reasoning_tokens":0""", """"reasoning_tokens":2""")
+        assertEquals(
+            NativeUsage(inputTokens = 100, outputTokens = 5, cacheReadInputTokens = 800,
+                cacheWriteInputTokens = 30, thinkingTokens = 2),
+            call(responses()).billableUsage,
+        )
     }
 
     @Test
