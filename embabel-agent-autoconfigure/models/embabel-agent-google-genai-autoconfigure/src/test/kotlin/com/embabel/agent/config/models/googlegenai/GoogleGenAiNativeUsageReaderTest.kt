@@ -16,24 +16,36 @@
 package com.embabel.agent.config.models.googlegenai
 
 import com.embabel.agent.core.LlmInvocation
-import com.embabel.agent.spi.support.springai.toEmbabelUsage
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmMetadata
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.NativeUsage
 import com.embabel.common.ai.model.PerTokenPricingModel
-import io.mockk.every
-import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.google.genai.metadata.GoogleGenAiUsage
 import java.time.Duration
 import java.time.Instant
 
 class GoogleGenAiNativeUsageReaderTest {
 
-    private fun call(prompt: Int, candidates: Int, thoughts: Int, toolUsePrompt: Int?, cached: Int?) =
-        GoogleGenAiUsage(prompt, candidates, prompt + candidates + thoughts + (toolUsePrompt ?: 0), thoughts, cached,
-            toolUsePrompt, null, null, null, null, null, null)
-            .toEmbabelUsage(false, GoogleGenAiNativeUsageReader)
+    /** One call through the public message sender, as GoogleGenAiModelsConfig wires the reader. */
+    private fun call(prompt: Int, candidates: Int, thoughts: Int, toolUsePrompt: Int?, cached: Int?): com.embabel.agent.core.Usage {
+        val usage = GoogleGenAiUsage(prompt, candidates, prompt + candidates + thoughts + (toolUsePrompt ?: 0), thoughts,
+            cached, toolUsePrompt, null, null, null, null, null, null)
+        val response = ChatResponse(listOf(Generation(AssistantMessage("done"))), ChatResponseMetadata.builder().usage(usage).build())
+        val llm = SpringAiLlmService(
+            name = "gemini", provider = "Google", chatModel = ChatModel { response },
+            nativeUsageReader = GoogleGenAiNativeUsageReader,
+        )
+        return llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("hi")), emptyList()).usage!!
+    }
 
     @Test
     fun `two calls keep every thinking token in output and price tool-use prompt tokens as input`() {
@@ -46,7 +58,7 @@ class GoogleGenAiNativeUsageReaderTest {
         )
         assertEquals(100, usage.completionTokens)
         assertEquals(240, usage.promptTokens)
-        val llm = mockk<LlmMetadata> { every { pricingModel } returns PerTokenPricingModel(2.0, 10.0, 0.5) }
+        val llm = LlmMetadata("gemini", "Google", pricingModel = PerTokenPricingModel(2.0, 10.0, 0.5))
         val cost = LlmInvocation(llm, usage, timestamp = Instant.now(), runningTime = Duration.ZERO).cost()
         assertEquals((230 * 2.0 + 10 * 0.5 + 100 * 10.0) / 1_000_000, cost, 1e-12)
     }

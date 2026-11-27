@@ -25,7 +25,7 @@ import com.openai.models.responses.ResponseUsage
  * which Spring AI's generic usage drops. Input counts include cached and written tokens.
  * ponytail: 12h cache-write TTL split is not read (no typed SDK accessor); all writes price at the short-TTL rate.
  */
-object OpenAiNativeUsageReader : SpringAiNativeUsageReader {
+internal object OpenAiNativeUsageReader : SpringAiNativeUsageReader {
 
     override fun read(usage: org.springframework.ai.chat.metadata.Usage): NativeUsage? =
         when (val native = usage.nativeUsage) {

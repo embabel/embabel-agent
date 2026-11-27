@@ -62,7 +62,7 @@ fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(promptTokensExclud
  * released `toEmbabelUsage` and its `toEmbabelUsage$default` bridge keep their JVM descriptors.
  * @param nativeUsageReader reads the provider's own counts; when it does, they set every count
  */
-fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(
+internal fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(
     promptTokensExcludeCache: Boolean,
     nativeUsageReader: SpringAiNativeUsageReader,
 ): Usage {

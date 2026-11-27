@@ -20,7 +20,7 @@ import com.embabel.common.ai.model.NativeUsage
 import org.springframework.ai.deepseek.api.DeepSeekApi
 
 /** Reads DeepSeek's cache hits, which Spring AI parses but never maps. Prompt tokens include them. */
-object DeepSeekNativeUsageReader : SpringAiNativeUsageReader {
+internal object DeepSeekNativeUsageReader : SpringAiNativeUsageReader {
     override fun read(usage: org.springframework.ai.chat.metadata.Usage): NativeUsage? {
         val native = usage.nativeUsage as? DeepSeekApi.Usage ?: return null
         val cached = native.promptTokensDetails()?.cachedTokens() ?: 0

@@ -29,7 +29,7 @@ object AnthropicNativeUsageReader : SpringAiNativeUsageReader {
 }
 
 /** input_tokens excludes cache reads and writes; output_tokens includes thinking. */
-fun AnthropicSdkUsage.toNativeUsage(): NativeUsage {
+internal fun AnthropicSdkUsage.toNativeUsage(): NativeUsage {
     val split = _cacheCreation().asKnown().orElse(null)
     val longWrite = split?._ephemeral1hInputTokens()?.asKnown()?.orElse(null)
     val shortWrite = split?._ephemeral5mInputTokens()?.asKnown()?.orElse(null)

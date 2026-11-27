@@ -72,6 +72,13 @@ interface PricingModel {
 
     /**
      * Prices [Usage.getNativeUsage] when it is a [NativeUsage], else the generic counts.
+     *
+     * Contract: Embabel's `LlmInvocation.cost()` calls this method for every call and, when the provider
+     * adapter read a per-call record, passes that record as the native usage. So an override of this
+     * method prices every call, as before records existed; an implementation that only wants to price
+     * the record differently overrides [costOf] (NativeUsage) instead and leaves this one alone.
+     * `cost()` does not call [costOf] (NativeUsage) directly because that would bypass such overrides.
+     *
      * @param usage usage whose promptTokens include any cache reads and writes
      */
     fun costOf(usage: Usage): Double {

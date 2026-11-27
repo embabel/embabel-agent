@@ -24,7 +24,7 @@ import org.springframework.ai.google.genai.metadata.GoogleGenAiUsage
  * billed as input; thoughts are billed as output but sit outside Spring AI's completion count.
  * Spring AI's own merge turns it into a plain usage, which falls back to generic counts.
  */
-object GoogleGenAiNativeUsageReader : SpringAiNativeUsageReader {
+internal object GoogleGenAiNativeUsageReader : SpringAiNativeUsageReader {
     override fun read(usage: org.springframework.ai.chat.metadata.Usage): NativeUsage? {
         if (usage !is GoogleGenAiUsage) return null
         val cached = usage.cachedContentTokenCount ?: 0

@@ -29,6 +29,7 @@ import com.embabel.agent.config.models.openai.OpenAiResponsesChatModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
+import com.embabel.agent.spi.support.springai.SpringAiNativeUsageReader
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
@@ -138,6 +139,33 @@ open class OpenAiCompatibleModelFactory(
     )
 
     companion object {
+
+        /**
+         * Binary compatibility: the `openAiCompatibleLlm$default` that Kotlin callers compiled before
+         * `nativeUsageReader` link to. Bit `i` of [mask] set means argument `i` was omitted.
+         */
+        @Suppress("UNUSED_PARAMETER")
+        @JvmStatic
+        @JvmName("openAiCompatibleLlm\$default")
+        @Deprecated("Binary compatibility only", level = DeprecationLevel.HIDDEN)
+        fun openAiCompatibleLlmDefault(
+            self: OpenAiCompatibleModelFactory, model: String, pricingModel: PricingModel, provider: String,
+            knowledgeCutoffDate: LocalDate?, optionsConverter: OptionsConverter?, retryTemplate: RetryTemplate?,
+            forwardsReasoningEffort: Boolean, mask: Int, marker: Any?,
+        ): LlmService<*> = self.openAiCompatibleLlm(
+            model = model,
+            pricingModel = pricingModel,
+            provider = provider,
+            knowledgeCutoffDate = knowledgeCutoffDate,
+            optionsConverter = if (mask and (1 shl 4) != 0) OpenAiChatOptionsConverter else optionsConverter!!,
+            retryTemplate = retryTemplate,
+            forwardsReasoningEffort = if (mask and (1 shl 6) != 0) {
+                provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)
+            } else {
+                forwardsReasoningEffort
+            },
+        )
+
         private val RESPONSES_OBJECT_MAPPER = ObjectMapper()
         private const val OPENAI_API_HOST = "api.openai.com"
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
@@ -595,6 +623,9 @@ open class OpenAiCompatibleModelFactory(
      * request's `reasoning_effort`. It defaults to OpenAI's own endpoint only, because not every
      * OpenAI-compatible server accepts the field; a provider whose server does - LM Studio, Docker
      * Model Runner - passes true, so a caller can turn a local thinking model's reasoning down.
+     *
+     * [nativeUsageReader] reads each call's provider usage. It defaults to OpenAI's; a provider whose
+     * endpoint counts tokens differently (Gemini puts thinking only in `total_tokens`) passes its own.
      */
     @JvmOverloads
     fun openAiCompatibleLlm(
@@ -606,6 +637,7 @@ open class OpenAiCompatibleModelFactory(
         @Suppress("UNUSED_PARAMETER")
         retryTemplate: RetryTemplate? = null,
         forwardsReasoningEffort: Boolean = provider.equals(OpenAiModels.PROVIDER, ignoreCase = true),
+        nativeUsageReader: SpringAiNativeUsageReader = OpenAiNativeUsageReader,
     ): LlmService<*> {
         return SpringAiLlmService(
             name = model,
@@ -620,7 +652,7 @@ open class OpenAiCompatibleModelFactory(
             ),
             pricingModel = pricingModel,
             knowledgeCutoffDate = knowledgeCutoffDate,
-            nativeUsageReader = OpenAiNativeUsageReader,
+            nativeUsageReader = nativeUsageReader,
         )
     }
 

@@ -72,7 +72,7 @@ data class Usage @JvmOverloads constructor(
     )
 
     /** [billableUsage], or the same counts derived from the generic fields. */
-    fun toBillableUsage(): NativeUsage = billableUsage ?: NativeUsage(
+    private fun toBillableUsage(): NativeUsage = billableUsage ?: NativeUsage(
         inputTokens = ((promptTokens ?: 0) - (cacheReadInputTokens ?: 0) - (cacheWriteInputTokens ?: 0)).coerceAtLeast(0),
         outputTokens = completionTokens ?: 0,
         cacheReadInputTokens = cacheReadInputTokens ?: 0,
