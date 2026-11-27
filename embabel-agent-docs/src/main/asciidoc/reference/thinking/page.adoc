@@ -263,6 +263,9 @@ To turn thinking off and still extract, add `opt-out: true`.
 | Anthropic
 | `LOW` to `MAX` as `output_config.effort`, with thinking left at the model's default unless the caller set thinking. The effort takes precedence over the effort a `Thinking.withTokenBudget` budget maps to. Embabel omits effort for models that do not support the parameter; Anthropic rejects a level the model does not offer. See https://platform.claude.com/docs/en/build-with-claude/effort[Anthropic's effort levels]. `NONE` disables thinking on models whose catalog entry declares `thinking.can_be_disabled: true` in `anthropic-models.yml`, and fails with `UnsupportedOperationException` on any other model.
 
+| Google GenAI
+| The native integration sends `LOW`, `MEDIUM`, or `HIGH` as `thinkingLevel` on Gemini 3 and 4. The selected model determines which levels it accepts. An explicit effort takes precedence over request and catalog token budgets and can be combined with thought extraction. `NONE`, `XHIGH`, and `MAX` fail with `UnsupportedOperationException` on these models. Older Gemini models ignore reasoning effort.
+
 | Others
 | Ignored.
 |===
@@ -322,8 +325,10 @@ be empty despite the model reasoning internally. Support is planned as a follow-
 
 ===== Google GenAI
 
-Thinking extraction is partially supported via Spring AI (`includeThoughts`, `thinkingBudget`).
+Thinking extraction is partially supported via Spring AI (`includeThoughts`).
 Behavior may vary by model and Spring AI integration version.
+Use `withReasoningEffort` to control thinking on Gemini 3 and 4. Use a token budget on models
+that support `thinkingBudget`, such as Gemini 2.5 Flash.
 
 Opting out of thinking (`withoutThinking()`) sends `thinkingBudget = 0` only for models whose
 entry in `google-genai-models.yml` sets `thinking.can_be_disabled: true`. For other models the
