@@ -1,0 +1,24 @@
+# Every PR merged to main ships in a release, so it must say which one.
+# The release milestone (e.g. 1.5.5-Release🔵) is what release notes and
+# release filtering are built from. The default ruleset requires this check.
+name: Milestone
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited, milestoned, demilestoned]
+
+permissions: {}
+
+jobs:
+  milestone:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a release milestone
+        env:
+          MILESTONE: ${{ github.event.pull_request.milestone.title }}
+        run: |
+          if [ -z "$MILESTONE" ]; then
+            echo "::error::Set the release milestone this PR ships in (e.g. 1.5.5-Release🔵) before merging to main."
+            exit 1
+          fi
+          echo "Ships in $MILESTONE"
