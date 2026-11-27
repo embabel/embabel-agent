@@ -228,6 +228,17 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
     }
 
     @Test
+    fun `should not reject any effort when thinking is turned off on a model that can disable it`() {
+        listOf(ReasoningEffort.NONE, ReasoningEffort.XHIGH, ReasoningEffort.MAX).forEach { effort ->
+            val options = GoogleGenAiOptionsConverter.declaring(true).convertOptions(
+                LlmOptions().withoutThinking().withReasoningEffort(effort), "test-model"
+            ) as GoogleGenAiChatOptions
+            assertEquals(0, options.thinkingBudget, "$effort")
+            assertNull(options.thinkingLevel, "$effort")
+        }
+    }
+
+    @Test
     fun `should send reasoning effort instead of thinking budget when both are set`() {
         val options = optionsConverter.convertOptions(
             LlmOptions().withThinking(Thinking.withTokenBudget(2000).applyExtraction())
