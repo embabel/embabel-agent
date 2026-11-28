@@ -51,7 +51,8 @@ class BlankTurnRePromptIT : BlankTurnRePromptTestSupport(GoogleGenAiModels.GEMIN
             .withPropertyValues(
                 // Vertex mode: this is where a blank assistant turn is rejected.
                 "embabel.agent.platform.models.googlegenai.project-id=\${GOOGLE_PROJECT_ID}",
-                "embabel.agent.platform.models.googlegenai.location=us-central1",
+                // gemini-3.8-flash is not served in us-central1.
+                "embabel.agent.platform.models.googlegenai.location=global",
                 // One attempt, so a rejected re-prompt fails fast instead of sitting out the backoff.
                 "embabel.agent.platform.models.googlegenai.max-attempts=1",
             )

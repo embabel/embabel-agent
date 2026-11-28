@@ -30,6 +30,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.ai.model.Thinking
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.google.genai.GoogleGenAiChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
+import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel
 import org.springframework.ai.google.genai.embedding.GoogleGenAiEmbeddingConnectionDetails
 import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingModel
 import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingOptions
@@ -391,33 +393,65 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .maxOutputTokens(options.maxTokens ?: DEFAULT_MAX_OUTPUT_TOKENS)
-            .applyThinking(options.thinking, model, thinkingCanBeDisabled)
+            .applyThinking(options.thinking, options.reasoningEffort, model, thinkingCanBeDisabled)
             .build()
 
+    /**
+     * [ReasoningEffort] goes out as `thinkingLevel`, and takes precedence over a [Thinking.tokenBudget]: Gemini
+     * rejects a request that carries both. Where the model can turn thinking off, [LlmOptions.withoutThinking] takes
+     * precedence over the effort: only `thinkingBudget = 0` is sent. Elsewhere the level is still sent.
+     * An effort with no Gemini level fails either way.
+     */
     private fun GoogleGenAiChatOptions.Builder.applyThinking(
         thinking: Thinking?,
+        effort: ReasoningEffort?,
         model: String,
         thinkingCanBeDisabled: Boolean?,
     ): GoogleGenAiChatOptions.Builder =
         apply {
-            if (thinking == null) {
-                return@apply
-            }
-
-            includeThoughts(thinking.extractThinking)
-
-            if (thinking.enabled) {
-                thinking.tokenBudget?.let { thinkingBudget(it) }
-            } else if (thinking.disabled) {
-                if (thinkingCanBeDisabled == true) {
-                    thinkingBudget(0)
-                } else if (warnedThinkingNotDisabled.add(model)) {
-                    logger.warn(
-                        "Thinking opt-out ignored for model '{}': thinking.can_be_disabled is not true " +
-                            "in its catalog entry, so no thinkingBudget is sent",
-                        model,
-                    )
+            thinking?.let { includeThoughts(it.extractThinking) }
+            val level = effort?.let { thinkingLevelOf(it, model) }
+            when {
+                thinking?.disabled == true && thinkingCanBeDisabled == true -> thinkingBudget(0)
+                else -> {
+                    if (thinking?.disabled == true) {
+                        warnThinkingNotDisabled(model, level)
+                    }
+                    if (level != null) {
+                        thinkingLevel(level)
+                    } else if (thinking?.enabled == true) {
+                        thinking.tokenBudget?.let { thinkingBudget(it) }
+                    }
                 }
             }
+        }
+
+    private fun warnThinkingNotDisabled(model: String, level: GoogleGenAiThinkingLevel?) {
+        if (warnedThinkingNotDisabled.add("$model:$level")) {
+            logger.warn(
+                "Thinking opt-out ignored for model '{}': thinking.can_be_disabled is not true " +
+                    "in its catalog entry, so no thinkingBudget is sent{}",
+                model,
+                level?.let { "; thinkingLevel $it is sent instead" } ?: "",
+            )
+        }
+    }
+
+    /**
+     * Low to high as the same level. [ReasoningEffort.NONE] fails: Gemini has no level that means off, and whether
+     * thinking can be turned off depends on the model and the endpoint (Gemini API or Vertex AI).
+     * Above high fails: Spring AI's [GoogleGenAiThinkingLevel] stops at high.
+     */
+    private fun thinkingLevelOf(effort: ReasoningEffort, model: String): GoogleGenAiThinkingLevel =
+        when (effort) {
+            ReasoningEffort.LOW -> GoogleGenAiThinkingLevel.LOW
+            ReasoningEffort.MEDIUM -> GoogleGenAiThinkingLevel.MEDIUM
+            ReasoningEffort.HIGH -> GoogleGenAiThinkingLevel.HIGH
+            ReasoningEffort.NONE -> throw UnsupportedOperationException(
+                "Reasoning effort NONE is unsupported on model '$model': Gemini has no thinking level that turns thinking off",
+            )
+            ReasoningEffort.XHIGH, ReasoningEffort.MAX -> throw UnsupportedOperationException(
+                "Reasoning effort ${effort.name} is unsupported on model '$model': Spring AI sends Gemini thinking levels up to high",
+            )
         }
 }
