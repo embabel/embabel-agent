@@ -15,15 +15,21 @@
  */
 package com.embabel.agent.config.models.googlegenai
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ReasoningEffort
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
+import org.slf4j.LoggerFactory
 import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel
 
 class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
@@ -253,5 +259,32 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
         assertEquals(GoogleGenAiThinkingLevel.MEDIUM, options.thinkingLevel)
         assertNull(options.thinkingBudget)
         assertEquals(true, options.includeThoughts)
+    }
+
+    @Test
+    fun `should name the thinking level sent when the opt-out is ignored`() {
+        GoogleGenAiOptionsConverter.warnedThinkingNotDisabled.removeIf { it.startsWith("warn-no-level-model") }
+        val warnings = optOutWarnings {
+            optionsConverter.convertOptions(LlmOptions().withoutThinking(), "warn-no-level-model")
+            optionsConverter.convertOptions(
+                LlmOptions().withoutThinking().withReasoningEffort(ReasoningEffort.LOW), "warn-no-level-model"
+            )
+        }
+        assertEquals(2, warnings.size, "expected one warning per level, got $warnings")
+        assertTrue(warnings[0].endsWith("so no thinkingBudget is sent"), warnings[0])
+        assertTrue(warnings[1].endsWith("so no thinkingBudget is sent; thinkingLevel LOW is sent instead"), warnings[1])
+    }
+
+    private fun optOutWarnings(block: () -> Unit): List<String> {
+        val logger = LoggerFactory.getLogger(GoogleGenAiOptionsConverter::class.java) as Logger
+        val logs = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(logs)
+        try {
+            block()
+        } finally {
+            logger.detachAppender(logs)
+        }
+        return logs.list.filter { it.level == Level.WARN && it.formattedMessage.contains("opt-out ignored") }
+            .map { it.formattedMessage }
     }
 }

@@ -21,6 +21,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ReasoningEffort
+import com.google.genai.errors.ApiException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -115,14 +116,11 @@ abstract class GoogleGenAiThinkingOptOutTestSupport(
         return (response.metadata.usage as GoogleGenAiUsage).thoughtsTokenCount ?: 0
     }
 
-    private fun isModelAccessError(ex: Exception): Boolean {
-        val message = generateSequence<Throwable>(ex) { it.cause }
-            .mapNotNull { it.message }
-            .joinToString(" | ")
-        return message.contains("404") ||
-            message.contains("PERMISSION_DENIED", ignoreCase = true) ||
-            message.contains("no longer available", ignoreCase = true)
-    }
+    private fun isModelAccessError(ex: Exception): Boolean =
+        generateSequence<Throwable>(ex) { it.cause }.any { cause ->
+            (cause is ApiException && cause.code() in setOf(403, 404)) ||
+                cause.message?.contains("no longer available", ignoreCase = true) == true
+        }
 
     companion object {
         private const val QUESTION = "A bat and a ball cost 1.10 in total. The bat costs 1.00 more than the ball. " +

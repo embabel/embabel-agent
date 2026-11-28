@@ -415,7 +415,7 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
                 thinking?.disabled == true && thinkingCanBeDisabled == true -> thinkingBudget(0)
                 else -> {
                     if (thinking?.disabled == true) {
-                        warnThinkingNotDisabled(model)
+                        warnThinkingNotDisabled(model, level)
                     }
                     if (level != null) {
                         thinkingLevel(level)
@@ -426,12 +426,13 @@ object GoogleGenAiOptionsConverter : OptionsConverter {
             }
         }
 
-    private fun warnThinkingNotDisabled(model: String) {
-        if (warnedThinkingNotDisabled.add(model)) {
+    private fun warnThinkingNotDisabled(model: String, level: GoogleGenAiThinkingLevel?) {
+        if (warnedThinkingNotDisabled.add("$model:$level")) {
             logger.warn(
                 "Thinking opt-out ignored for model '{}': thinking.can_be_disabled is not true " +
-                    "in its catalog entry, so no thinkingBudget is sent",
+                    "in its catalog entry, so no thinkingBudget is sent{}",
                 model,
+                level?.let { "; thinkingLevel $it is sent instead" } ?: "",
             )
         }
     }
