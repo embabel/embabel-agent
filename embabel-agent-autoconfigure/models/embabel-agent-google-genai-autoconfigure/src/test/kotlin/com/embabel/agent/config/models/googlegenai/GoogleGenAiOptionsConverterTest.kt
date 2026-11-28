@@ -28,8 +28,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.slf4j.LoggerFactory
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel
 
 class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
